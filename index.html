@@ -1,0 +1,1798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinFlow by WordwideFX — AI-Powered Financial Analysis at Scale</title>
+
+  <!-- Google Fonts - Autonomee Style -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+
+  <!-- Reveal.js -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/highlight/monokai.css">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+:root {
+  --bg-dark: #0a0a0a;
+  --bg-card: #111111;
+  --bg-card-hover: #1a1a1a;
+  --accent: #7b8fa8;
+  --accent-light: #9bb0c9;
+  --accent-glow: rgba(123, 143, 168, 0.15);
+  --success: #7b9a7b;
+  --warning: #c9a85b;
+  --error: #c97b7b;
+  --text-primary: #f5f4f0;
+  --text-secondary: #a8a8a8;
+  --text-muted: #666666;
+  --border: #2a2a2a;
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --spacing-xs: 8px;
+  --spacing-sm: 16px;
+  --spacing-md: 24px;
+  --spacing-lg: 40px;
+  --spacing-xl: 60px;
+  --fin-teal: #5ba8a0;
+  --fin-gold: #c9a85b;
+  --fin-teal-glow: rgba(91, 168, 160, 0.15);
+}
+
+html, body {
+  background: var(--bg-dark) !important;
+  color: var(--text-primary);
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.reveal-viewport {
+  background: var(--bg-dark) !important;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px) !important;
+  background-size: 60px 60px !important;
+}
+
+.reveal {
+  background: var(--bg-dark);
+  font-family: var(--font-sans);
+  font-size: 22px;
+  color: var(--text-primary);
+}
+
+.reveal .slides { text-align: left; }
+.reveal .slides section { padding: 0; background: var(--bg-dark); }
+
+.slide {
+  height: 100%;
+  width: 100%;
+  padding: var(--spacing-xl);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  position: relative;
+}
+
+.slide > * { position: relative; z-index: 1; }
+
+.slide--center {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.slide--section { background: transparent; }
+
+.slide--section::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, var(--fin-teal-glow) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.header__logo {
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: 0.02em;
+}
+
+.header__logo svg {
+  width: 18px;
+  height: 18px;
+  color: var(--fin-teal);
+}
+
+.kicker {
+  font-size: 0.7rem;
+  color: var(--fin-teal);
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  margin-bottom: var(--spacing-sm);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.kicker::after {
+  content: '';
+  width: 40px;
+  height: 1px;
+  background: var(--fin-teal);
+  opacity: 0.5;
+}
+
+h1, .h1 {
+  font-family: var(--font-serif);
+  font-size: 3.6rem;
+  font-weight: 400;
+  font-style: italic;
+  line-height: 1.1;
+  margin: 0 0 var(--spacing-md) 0;
+  color: var(--text-primary);
+}
+
+h2, .h2 {
+  font-family: var(--font-serif);
+  font-size: 2.4rem;
+  font-weight: 400;
+  line-height: 1.15;
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+h3, .h3 {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1.3;
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+h4, .h4 {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0 0 var(--spacing-xs) 0;
+  letter-spacing: 0.02em;
+}
+
+.lead {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 600px;
+}
+
+.muted { color: var(--text-muted); }
+.highlight, .accent-text { color: var(--fin-teal); }
+.gold { color: var(--fin-gold); }
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-xl);
+  align-items: center;
+  flex: 1;
+}
+
+.split--60-40 { grid-template-columns: 1.5fr 1fr; }
+.split--40-60 { grid-template-columns: 1fr 1.5fr; }
+
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--spacing-md); }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-md); }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--spacing-md); }
+
+.flex-center { display: flex; align-items: center; justify-content: center; }
+
+.card {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: var(--spacing-md);
+  transition: all 0.3s ease;
+}
+
+.card:hover { background: var(--bg-card); border-color: var(--fin-teal); }
+.card--featured { border-color: var(--fin-teal); }
+
+.card__icon {
+  width: 36px;
+  height: 36px;
+  margin-bottom: var(--spacing-sm);
+  color: var(--fin-teal);
+}
+
+.card__icon svg { width: 100%; height: 100%; stroke-width: 1.5; }
+
+.card__title {
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin-bottom: var(--spacing-xs);
+}
+
+.card__text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.metric {
+  text-align: center;
+  padding: var(--spacing-md);
+  border: 1px solid var(--border);
+  transition: all 0.3s ease;
+}
+
+.metric:hover { border-color: var(--fin-teal); }
+
+.metric__value {
+  font-family: var(--font-serif);
+  font-size: 2.5rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--fin-teal);
+  line-height: 1;
+  margin-bottom: var(--spacing-xs);
+}
+
+.metric__label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.list li {
+  padding: var(--spacing-sm) 0;
+  padding-left: var(--spacing-lg);
+  position: relative;
+  border-bottom: 1px solid var(--border);
+}
+
+.list li:last-child { border-bottom: none; }
+
+.list li::before {
+  content: '\2014';
+  position: absolute;
+  left: 0;
+  top: var(--spacing-sm);
+  color: var(--fin-teal);
+  font-weight: 400;
+}
+
+.list--check li::before { content: '\2713'; color: var(--success); }
+
+.list--numbered { counter-reset: list-counter; }
+.list--numbered li { counter-increment: list-counter; }
+
+.list--numbered li::before {
+  content: counter(list-counter, decimal-leading-zero);
+  color: var(--fin-teal);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: transparent;
+  color: var(--fin-teal);
+  border: 1px solid var(--fin-teal);
+}
+
+.badge--gold { color: var(--fin-gold); border-color: var(--fin-gold); }
+.badge--success { color: var(--success); border-color: var(--success); }
+
+.timeline {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: var(--spacing-lg) 0;
+  position: relative;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  bottom: 60px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border);
+}
+
+.timeline__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  flex: 1;
+}
+
+.timeline__year {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-style: italic;
+  color: var(--fin-teal);
+  margin-bottom: var(--spacing-sm);
+}
+
+.timeline__dot {
+  width: 10px;
+  height: 10px;
+  background: var(--fin-teal);
+  border-radius: 50%;
+  margin-bottom: var(--spacing-sm);
+  position: relative;
+  z-index: 1;
+}
+
+.timeline__content {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  max-width: 150px;
+}
+
+.pricing {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md);
+}
+
+.pricing__card {
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: var(--spacing-lg) var(--spacing-md);
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.pricing__card:hover { background: var(--bg-card); }
+.pricing__card--featured { border-color: var(--fin-teal); }
+
+.pricing__name {
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  font-weight: 400;
+  margin-bottom: var(--spacing-sm);
+}
+
+.pricing__price {
+  font-family: var(--font-serif);
+  font-size: 2.2rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--fin-teal);
+  margin-bottom: var(--spacing-xs);
+}
+
+.pricing__period {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--spacing-md);
+}
+
+.pricing__features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--spacing-md) 0;
+  text-align: left;
+}
+
+.pricing__features li {
+  padding: var(--spacing-xs) 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.pricing__features li:last-child { border-bottom: none; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 28px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid var(--text-primary);
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.btn:hover { background: var(--text-primary); color: var(--bg-dark); }
+.btn--accent { border-color: var(--fin-teal); color: var(--fin-teal); }
+.btn--accent:hover { background: var(--fin-teal); color: var(--bg-dark); }
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-xl);
+}
+
+.contact-item { text-align: center; }
+
+.contact-item__label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--spacing-xs);
+}
+
+.contact-item__value {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+/* Workflow */
+.workflow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  flex-wrap: nowrap;
+}
+
+.workflow__step { flex: 1; min-width: 0; }
+
+.workflow__box {
+  border: 1px solid var(--border);
+  padding: 14px 10px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.workflow__box:hover { border-color: var(--fin-teal); background: var(--bg-card); }
+
+.workflow__label { font-size: 0.8rem; font-weight: 500; margin-bottom: 3px; }
+.workflow__sublabel { font-size: 0.65rem; color: var(--text-muted); }
+
+.workflow__arrow {
+  color: var(--fin-teal);
+  font-size: 1.1rem;
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+
+.workflow__hitl {
+  font-size: 0.55rem;
+  color: var(--fin-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 5px;
+}
+
+/* Comparison table */
+.comp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.comp-table th {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--border);
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.comp-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.comp-table tr:last-child td { border-bottom: none; }
+.comp-table .comp-highlight { color: var(--fin-teal); font-weight: 500; }
+.comp-table .comp-dim { color: var(--text-muted); }
+
+/* Audience cards */
+.audience-card {
+  border: 1px solid var(--border);
+  padding: 18px;
+  transition: all 0.3s ease;
+}
+
+.audience-card:hover { border-color: var(--fin-teal); background: var(--bg-card); }
+
+.audience-card__level {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--fin-teal);
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.audience-card__text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* Agent deliberation diagram */
+.agent-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.agent-msg {
+  padding: 10px 14px;
+  border-left: 3px solid var(--border);
+  background: transparent;
+  max-width: 90%;
+}
+
+.agent-msg--ta { border-left-color: #5b8fa8; }
+.agent-msg--fa { border-left-color: #a85b8f; }
+.agent-msg--quality { border-left-color: var(--fin-gold); }
+.agent-msg--compliance { border-left-color: var(--success); }
+
+.agent-msg__name {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.agent-msg__name--ta { color: #5b8fa8; }
+.agent-msg__name--fa { color: #a85b8f; }
+.agent-msg__name--quality { color: var(--fin-gold); }
+.agent-msg__name--compliance { color: var(--success); }
+
+.agent-msg__text {
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* Learning curve */
+.learning-bar {
+  display: flex;
+  height: 28px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.learning-bar__human {
+  background: rgba(91, 168, 160, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  color: var(--fin-teal);
+  font-weight: 500;
+  transition: width 0.5s ease;
+}
+
+.learning-bar__auto {
+  background: rgba(200, 168, 91, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  color: var(--fin-gold);
+  font-weight: 500;
+  flex: 1;
+}
+
+.learning-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+/* Reveal overrides */
+.reveal .controls { color: var(--fin-teal); }
+.reveal .progress { background: var(--border); height: 2px; }
+.reveal .progress span { background: var(--fin-teal); }
+
+.reveal .slide-number {
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  right: 20px;
+  bottom: 20px;
+}
+
+.reveal .slides section .fragment { opacity: 0; transition: all 0.4s ease; }
+.reveal .slides section .fragment.visible { opacity: 1; }
+.reveal .slides section .fragment.fade-up { transform: translateY(20px); }
+.reveal .slides section .fragment.fade-up.visible { transform: translateY(0); }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+::selection { background: var(--fin-teal); color: var(--bg-dark); }
+
+@media (max-width: 1024px) {
+  h1 { font-size: 2.5rem; }
+  h2 { font-size: 2rem; }
+  .split { grid-template-columns: 1fr; gap: var(--spacing-lg); }
+  .grid-4, .grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- ============================================ -->
+      <!-- SLIDE 1: TITLE                               -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide slide--section slide--center">
+          <div class="content flex-center" style="flex-direction: column; text-align: center;">
+            <p class="kicker" style="justify-content: center;">By WordwideFX &mdash; 15 Years of Financial Translation Expertise</p>
+            <h1>FinFlow</h1>
+            <p style="font-family: var(--font-serif); font-size: 1.6rem; color: var(--text-secondary); margin: 0 0 16px 0; font-style: italic;">AI-Powered Financial Analysis at Scale</p>
+            <p class="lead" style="max-width: 660px; margin: 0 auto;">
+              From breaking news to compliance-approved, multi-language reports in 30 minutes.
+              Built on a decade of translating for the world's leading brokers.
+            </p>
+            <div style="margin-top: 36px; display: flex; gap: 16px;">
+              <a class="btn" onclick="Reveal.slide(18); return false;" style="cursor:pointer;">Request Demo</a>
+              <a class="btn btn--accent" onclick="Reveal.slide(16); return false;" style="cursor:pointer;">View Architecture</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 2: WHO WE ARE                          -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="languages"></i>
+              WordwideFX
+            </div>
+          </div>
+          <div class="split">
+            <div>
+              <p class="kicker">01 // Our Foundation</p>
+              <h2>15 Years Inside<br><span class="accent-text">Your Business</span></h2>
+              <p class="lead">Since 2011, we've translated millions of words for the world's leading forex brokers, crypto exchanges, and financial institutions. We know your clients, your tone, your compliance requirements, and your terminology &mdash; in 40+ languages.</p>
+              <p class="gold" style="margin-top: 20px; font-size: 0.95rem; font-style: italic;">
+                "Much more than your translation provider"
+              </p>
+            </div>
+            <div>
+              <div class="metrics" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="metric fragment">
+                  <div class="metric__value">15+</div>
+                  <div class="metric__label">Years in Financial<br>Translation</div>
+                </div>
+                <div class="metric fragment">
+                  <div class="metric__value">40+</div>
+                  <div class="metric__label">Languages<br>Supported</div>
+                </div>
+                <div class="metric fragment">
+                  <div class="metric__value">100+</div>
+                  <div class="metric__label">Financial Clients<br>Served</div>
+                </div>
+                <div class="metric fragment">
+                  <div class="metric__value">100%</div>
+                  <div class="metric__label">Financial Sector<br>Focus</div>
+                </div>
+              </div>
+              <div style="margin-top: 20px; text-align: center;">
+                <span class="muted" style="font-size: 0.75rem;">Trusted by OANDA &bull; Goldman Sachs &bull; Alpari &bull; AXIORY &bull; ThinkMarkets &bull; Hantec Markets &bull; OctaFX &bull; NAGA &bull; Exinity &bull; Tio Markets</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 3: THE MARKET SHIFT                    -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="trending-up"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="split">
+            <div>
+              <p class="kicker">02 // The Market Shift</p>
+              <h2>AI Changed<br>Translation.<br><span class="accent-text">We're Changing AI.</span></h2>
+              <p class="lead">Companies paste financial content into ChatGPT and get translations with no compliance controls, no terminology consistency, and no quality assurance. The results are dangerous for regulated industries.</p>
+              <div style="margin-top: 20px;">
+                <span class="badge" style="color: var(--error); border-color: var(--error);">Uncontrolled AI = Compliance Risk</span>
+              </div>
+            </div>
+            <div>
+              <ul class="list list--numbered">
+                <li class="fragment">
+                  <strong>Generic AI has no financial context</strong><br>
+                  <span class="muted">Mistranslates "margin call," "spread," "pip" &mdash; terms with specific meanings per instrument and jurisdiction</span>
+                </li>
+                <li class="fragment">
+                  <strong>No compliance awareness</strong><br>
+                  <span class="muted">Risk disclaimers missing or incorrectly translated. MiFID II, SEC, FCA violations go undetected</span>
+                </li>
+                <li class="fragment">
+                  <strong>No brand consistency</strong><br>
+                  <span class="muted">Every translation sounds different. Clients notice when your Spanish report doesn't match your English voice</span>
+                </li>
+                <li class="fragment">
+                  <strong>No learning or improvement</strong><br>
+                  <span class="muted">Each translation starts from zero. No memory of your style, glossary, or past corrections</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 4: THE SOLUTION                        -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="trending-up"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="content">
+            <p class="kicker">03 // The Solution</p>
+            <h2>From News to Publication &mdash; <span class="accent-text">Fully Orchestrated</span></h2>
+            <p class="lead" style="margin-bottom: 28px;">Autonomous AI agents work together like a research desk, with human expertise at every critical decision.</p>
+            <div class="workflow" style="margin-top: 8px;">
+              <div class="workflow__step fragment fade-up">
+                <div class="workflow__box">
+                  <div class="workflow__label">News</div>
+                  <div class="workflow__sublabel">24/7 Monitoring</div>
+                </div>
+              </div>
+              <div class="workflow__arrow">&rarr;</div>
+              <div class="workflow__step fragment fade-up">
+                <div class="workflow__box" style="border-color: #5b8fa8;">
+                  <div class="workflow__label">TA Agent</div>
+                  <div class="workflow__sublabel">Technical Analysis</div>
+                </div>
+              </div>
+              <div class="workflow__arrow" style="color: var(--fin-gold);">&harr;</div>
+              <div class="workflow__step fragment fade-up">
+                <div class="workflow__box" style="border-color: #a85b8f;">
+                  <div class="workflow__label">FA Agent</div>
+                  <div class="workflow__sublabel">Fundamental Analysis</div>
+                </div>
+                <div class="workflow__hitl">Agents Deliberate</div>
+              </div>
+              <div class="workflow__arrow">&rarr;</div>
+              <div class="workflow__step fragment fade-up">
+                <div class="workflow__box">
+                  <div class="workflow__label">Quality</div>
+                  <div class="workflow__sublabel">Arbitration</div>
+                </div>
+                <div class="workflow__hitl">HITL Review</div>
+              </div>
+              <div class="workflow__arrow">&rarr;</div>
+              <div class="workflow__step fragment fade-up">
+                <div class="workflow__box" style="border-color: var(--success);">
+                  <div class="workflow__label">Compliance</div>
+                  <div class="workflow__sublabel">Per Jurisdiction</div>
+                </div>
+                <div class="workflow__hitl">HITL Sign-off</div>
+              </div>
+              <div class="workflow__arrow">&rarr;</div>
+              <div class="workflow__step fragment fade-up">
+                <div class="workflow__box" style="border-color: var(--fin-gold);">
+                  <div class="workflow__label">Translate</div>
+                  <div class="workflow__sublabel">40+ Languages</div>
+                </div>
+                <div class="workflow__hitl">HITL Optional</div>
+              </div>
+              <div class="workflow__arrow">&rarr;</div>
+              <div class="workflow__step fragment fade-up">
+                <div class="workflow__box">
+                  <div class="workflow__label">Publish</div>
+                  <div class="workflow__sublabel">Multi-Channel</div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 24px; text-align: center;">
+              <span class="badge">Agents Talk to Each Other Until They Reach Consensus</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 5: AGENT DELIBERATION                  -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="message-circle"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="split">
+            <div>
+              <p class="kicker">04 // Autonomous Agents</p>
+              <h2>Agents Debate<br><span class="accent-text">Like Analysts</span></h2>
+              <p class="lead">Our agents don't just generate reports &mdash; they challenge each other. The Technical and Fundamental agents deliberate until they reach the most realistic, defensible analysis.</p>
+              <p class="muted" style="margin-top: 16px; font-size: 0.85rem;">Each agent has specialized reasoning: chain-of-thought for technical patterns, research-action loops for fundamentals, tree-of-thought for quality arbitration.</p>
+            </div>
+            <div>
+              <div class="agent-chat">
+                <div class="agent-msg agent-msg--ta fragment fade-up">
+                  <div class="agent-msg__name agent-msg__name--ta">Technical Analysis Agent</div>
+                  <div class="agent-msg__text">"EUR/USD breaking above 1.0920 resistance with expanding MACD. Bullish setup, 78% historical success at this level."</div>
+                </div>
+                <div class="agent-msg agent-msg--fa fragment fade-up">
+                  <div class="agent-msg__name agent-msg__name--fa">Fundamental Analysis Agent</div>
+                  <div class="agent-msg__text">"Disagree. ECB rate decision Thursday implies dovish pivot. Macro headwinds override the technical breakout."</div>
+                </div>
+                <div class="agent-msg agent-msg--ta fragment fade-up" style="margin-left: auto;">
+                  <div class="agent-msg__name agent-msg__name--ta">TA Agent &mdash; Round 2</div>
+                  <div class="agent-msg__text">"The breakout pattern has held through 3 prior ECB events. Adjusting target to 1.0960 with tighter stop."</div>
+                </div>
+                <div class="agent-msg agent-msg--quality fragment fade-up">
+                  <div class="agent-msg__name agent-msg__name--quality">Quality Arbitration</div>
+                  <div class="agent-msg__text">"Consensus: Cautiously bullish with ECB risk caveat. Confidence: 72%. Publishing with dual-scenario framing."</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 6: COMPLIANCE AGENT DIALOGUE           -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="shield-check"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="split">
+            <div>
+              <p class="kicker">05 // Compliance</p>
+              <h2>Regulation<br><span class="accent-text">Built In</span></h2>
+              <p class="lead">The compliance agent reviews every report against jurisdiction-specific rules before any human sees it. It flags issues and rewrites non-compliant sections automatically.</p>
+              <div style="margin-top: 16px;">
+                <ul class="list" style="font-size: 0.85rem;">
+                  <li><strong>MiFID II</strong> &mdash; EU: Research independence, risk warnings</li>
+                  <li><strong>SEC / FINRA</strong> &mdash; US: Anti-fraud, FINRA 2210</li>
+                  <li><strong>FCA</strong> &mdash; UK: Fair, clear, not misleading</li>
+                  <li><strong>ASIC</strong> &mdash; Australia: RG 234, DDO</li>
+                  <li><strong>MAS</strong> &mdash; Singapore: FAA, SFA</li>
+                </ul>
+              </div>
+            </div>
+            <div>
+              <div class="agent-chat">
+                <div class="agent-msg agent-msg--quality fragment fade-up">
+                  <div class="agent-msg__name agent-msg__name--quality">Quality Agent &rarr; Compliance</div>
+                  <div class="agent-msg__text">"Report approved: EUR/USD cautiously bullish. Sending for MiFID II compliance review."</div>
+                </div>
+                <div class="agent-msg agent-msg--compliance fragment fade-up">
+                  <div class="agent-msg__name agent-msg__name--compliance">Compliance Agent</div>
+                  <div class="agent-msg__text">"Flag: Section 3 implies guaranteed returns ('will reach 1.0960'). Rewriting to 'may reach' with risk disclaimer. Adding past performance notice per MiFID II Art. 44."</div>
+                </div>
+                <div class="agent-msg agent-msg--compliance fragment fade-up">
+                  <div class="agent-msg__name agent-msg__name--compliance">Compliance Agent</div>
+                  <div class="agent-msg__text">"Compliance certificate issued. 3 modifications applied. Audit trail recorded. Ready for human sign-off."</div>
+                </div>
+                <div style="margin-top: 12px; padding: 12px; border: 1px solid var(--success); text-align: center;" class="fragment fade-up">
+                  <span style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--success);">Compliance Officer Reviews &rarr; Approves / Flags</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 7: TRANSLATION — THE MOAT              -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="languages"></i>
+              WordwideFX Advantage
+            </div>
+          </div>
+          <div class="split">
+            <div>
+              <p class="kicker">06 // Our Competitive Moat</p>
+              <h2>15 Years of<br><span class="accent-text">Your Language</span></h2>
+              <p class="lead">We've already translated your reports, your compliance documents, your marketing. We know how you speak to your clients in every language. No competitor can replicate this overnight.</p>
+              <div style="margin-top: 20px;">
+                <ul class="list" style="font-size: 0.85rem;">
+                  <li class="fragment"><strong>Client-specific glossaries</strong> built from years of actual translations</li>
+                  <li class="fragment"><strong>Tone profiles</strong> per client &mdash; conservative, modern, educational</li>
+                  <li class="fragment"><strong>Compliance terminology</strong> validated per jurisdiction and language</li>
+                  <li class="fragment"><strong>Translator feedback loops</strong> that train the AI on your exact style</li>
+                </ul>
+              </div>
+            </div>
+            <div>
+              <div class="card" style="margin-bottom: 16px; border-color: var(--fin-teal); padding: 20px;">
+                <h4 class="card__title" style="color: var(--fin-teal); margin-bottom: 12px;">What ChatGPT Produces</h4>
+                <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; font-style: italic; text-decoration: line-through;">
+                  "El EUR/USD est&aacute; en tendencia alcista. Vigilar un retroceso cerca de 1.0850 que es un nivel de soporte clave."
+                </p>
+                <p style="font-size: 0.7rem; color: var(--error); margin-top: 8px;">Generic. No brand voice. Wrong terminology for this broker.</p>
+              </div>
+              <div class="card" style="border-color: var(--success); padding: 20px;">
+                <h4 class="card__title" style="color: var(--success); margin-bottom: 12px;">What FinFlow Produces for This Client</h4>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; font-style: italic;">
+                  "El par EUR/USD mantiene una estructura alcista por encima de la media m&oacute;vil de 200 periodos (1.0820). El RSI en 62 refleja impulso sin sobrecompra. Resistencia clave en 1.0920 (m&aacute;ximo de marzo)."
+                </p>
+                <p style="font-size: 0.7rem; color: var(--success); margin-top: 8px;">Client's glossary. Their tone. Their technical terminology. Compliance-approved.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 8: TRANSLATION LEARNING CURVE          -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="brain"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="split">
+            <div>
+              <p class="kicker">07 // Adaptive Learning</p>
+              <h2>The System Learns<br><span class="accent-text">From Your Experts</span></h2>
+              <p class="lead">Every human correction trains the translation agent. Over time, it masters your client's exact voice &mdash; reducing human intervention while increasing quality.</p>
+              <p class="muted" style="margin-top: 16px; font-size: 0.85rem;">This creates a natural engagement curve: clients stay because the system gets better every month. By month 6-8, translations are indistinguishable from your best human translators.</p>
+              <div style="margin-top: 20px;">
+                <span class="badge--gold badge">Client Retention by Design</span>
+              </div>
+            </div>
+            <div>
+              <div style="padding: 0 8px;">
+                <div class="learning-label"><span>Month 1-2</span><span class="fragment" style="color: var(--fin-teal);">100% Human Review</span></div>
+                <div class="learning-bar fragment fade-up">
+                  <div class="learning-bar__human" style="width: 100%;">HITL 100%</div>
+                </div>
+
+                <div class="learning-label"><span>Month 3-4</span><span class="fragment" style="color: var(--fin-teal);">70% Human Review</span></div>
+                <div class="learning-bar fragment fade-up">
+                  <div class="learning-bar__human" style="width: 70%;">HITL 70%</div>
+                  <div class="learning-bar__auto">Auto 30%</div>
+                </div>
+
+                <div class="learning-label"><span>Month 5-6</span><span class="fragment" style="color: var(--fin-teal);">50% Human Review</span></div>
+                <div class="learning-bar fragment fade-up">
+                  <div class="learning-bar__human" style="width: 50%;">HITL 50%</div>
+                  <div class="learning-bar__auto">Auto 50%</div>
+                </div>
+
+                <div class="learning-label"><span>Month 7-8</span><span class="fragment" style="color: var(--fin-teal);">20% Human Review</span></div>
+                <div class="learning-bar fragment fade-up">
+                  <div class="learning-bar__human" style="width: 20%;">20%</div>
+                  <div class="learning-bar__auto">Automated 80%</div>
+                </div>
+
+                <div class="learning-label"><span>Month 9-12</span><span class="fragment" style="color: var(--fin-gold);">Spot-Check Only</span></div>
+                <div class="learning-bar fragment fade-up">
+                  <div class="learning-bar__human" style="width: 10%;">10%</div>
+                  <div class="learning-bar__auto">Fully Automated &mdash; 90%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 9: THREE AUDIENCE LEVELS               -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="trending-up"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="content">
+            <p class="kicker">08 // Audience Levels</p>
+            <h2>One Pipeline, Three Outputs</h2>
+            <p class="lead" style="margin-bottom: 20px;">The same analysis, adapted for every reader &mdash; then translated in your client's voice.</p>
+            <div class="grid-3" style="flex: 1;">
+              <div class="audience-card fragment fade-up">
+                <div class="audience-card__level">Beginner</div>
+                <p class="audience-card__text">
+                  "EUR/USD is trending up. Watch for a pullback near 1.0850 &mdash;
+                  that's a key support level where buyers stepped in last week."
+                </p>
+              </div>
+              <div class="audience-card fragment fade-up" style="border-color: var(--fin-teal);">
+                <div class="audience-card__level">Intermediate</div>
+                <p class="audience-card__text">
+                  "EUR/USD maintains bullish structure above 200-SMA (1.0820).
+                  RSI at 62 shows momentum without overbought conditions.
+                  Key resistance at 1.0920 (March high)."
+                </p>
+              </div>
+              <div class="audience-card fragment fade-up">
+                <div class="audience-card__level">Professional</div>
+                <p class="audience-card__text">
+                  "EURUSD: Bullish bias. Price confirms above 200-SMA (1.0820),
+                  50-SMA (1.0855). RSI(14) 62.3, MACD expanding. R1: 1.0920 (78.6% Fib).
+                  COT: Net long +12.4K. ECB terminal 2.25% implied."
+                </p>
+              </div>
+            </div>
+            <p class="muted" style="text-align: center; margin-top: 12px; font-size: 0.8rem;">
+              Each level translated with client-specific terminology and tone across 40+ languages
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 10: PERSONALIZATION                    -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="palette"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="split">
+            <div>
+              <p class="kicker">09 // White Label</p>
+              <h2>Your Brand,<br><span class="accent-text">Your Voice</span></h2>
+              <p class="lead">We've been writing in your voice for years. Now our AI does the same &mdash; trained on your actual translations, your style guides, and your compliance requirements.</p>
+              <p class="gold" style="margin-top: 20px; font-size: 0.95rem; font-style: italic;">
+                "Your clients won't know it's AI. That's the point."
+              </p>
+            </div>
+            <div>
+              <div class="card" style="margin-bottom: 16px; border-color: #2a4a6a;">
+                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.15em; color: #4a8ab5; margin-bottom: 8px;">Client A &mdash; Institutional Broker</div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; font-style: italic;">
+                  "Our analysis indicates sustained upward momentum in EURUSD, supported by divergent monetary policy expectations..."
+                </p>
+              </div>
+              <div class="card" style="border-color: #4a6a3a;">
+                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.15em; color: #7bba5b; margin-bottom: 8px;">Client B &mdash; Crypto Exchange</div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; font-style: italic;">
+                  "BTC is looking strong! The halving momentum + ETF inflows mean we could see new highs from here..."
+                </p>
+              </div>
+              <div class="card" style="margin-top: 16px; border-color: var(--fin-gold); padding: 14px;">
+                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--fin-gold); margin-bottom: 8px;">WordwideFX Advantage</div>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+                  We already have tone profiles, glossaries, and style guides for each client from years of working together. The AI starts trained, not blank.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 11: HUMAN-IN-THE-LOOP                  -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="trending-up"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="content">
+            <p class="kicker">10 // Control</p>
+            <h2>You Stay <span class="accent-text">in Control</span></h2>
+            <p class="lead" style="margin-bottom: 20px;">AI handles the heavy lifting. Humans make the decisions. Every correction makes the system smarter.</p>
+            <div class="grid-4" style="flex: 1; align-content: center;">
+              <div class="card fragment fade-up" style="text-align: center; border-top: 2px solid #5b8fa8;">
+                <div style="font-size: 1.8rem; margin-bottom: 6px; color: #5b8fa8;">1</div>
+                <h4 class="card__title">Report Selection</h4>
+                <p class="card__text">Review TA/FA deliberation. Approve the consensus or request another round.</p>
+              </div>
+              <div class="card fragment fade-up" style="text-align: center; border-top: 2px solid var(--success);">
+                <div style="font-size: 1.8rem; margin-bottom: 6px; color: var(--success);">2</div>
+                <h4 class="card__title">Compliance Sign-off</h4>
+                <p class="card__text">Licensed officer reviews. Agent explains every modification it made.</p>
+              </div>
+              <div class="card fragment fade-up" style="text-align: center; border-top: 2px solid var(--fin-gold);">
+                <div style="font-size: 1.8rem; margin-bottom: 6px; color: var(--fin-gold);">3</div>
+                <h4 class="card__title">Translation Review</h4>
+                <p class="card__text">Expert translator reviews. Corrections feed back into the learning model.</p>
+                <div style="margin-top: 8px;"><span class="badge" style="font-size: 0.55rem; padding: 4px 8px;">Optional per package</span></div>
+              </div>
+              <div class="card fragment fade-up" style="text-align: center; border-top: 2px solid var(--fin-teal);">
+                <div style="font-size: 1.8rem; margin-bottom: 6px; color: var(--fin-teal);">4</div>
+                <h4 class="card__title">Publish Auth</h4>
+                <p class="card__text">Final go/no-go before distribution to any channel.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 12: UNIT ECONOMICS                     -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="trending-up"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="content">
+            <p class="kicker">11 // Economics</p>
+            <h2>75% Cost Reduction</h2>
+            <div class="split" style="margin-top: 20px; flex: 1;">
+              <div>
+                <h3 style="font-size: 1.1rem; margin-bottom: 16px;">Traditional Research Desk</h3>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 2;">
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 5px 0;">
+                    <span>2 Junior Analysts</span> <span class="muted">$150,000</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 5px 0;">
+                    <span>1 Compliance Officer</span> <span class="muted">$80,000</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 5px 0;">
+                    <span>Translation Team (3 langs)</span> <span class="muted">$100,000</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 5px 0;">
+                    <span>Tools &amp; Data Feeds</span> <span class="muted">$50,000</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding: 8px 0; font-weight: 500; color: var(--error);">
+                    <span>Total</span> <span>$380,000 / year</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 style="font-size: 1.1rem; margin-bottom: 16px;">FinFlow Enterprise</h3>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); line-height: 2;">
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 5px 0;">
+                    <span>Unlimited instruments</span> <span class="accent-text">Included</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 5px 0;">
+                    <span>Built-in compliance (5 jurisdictions)</span> <span class="accent-text">Included</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 5px 0;">
+                    <span>40+ languages</span> <span class="accent-text">Included</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 5px 0;">
+                    <span>White-label + HITL translations</span> <span class="accent-text">Included</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; padding: 8px 0; font-weight: 500; color: var(--success);">
+                    <span>Total</span> <span>$96,000 / year</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 13: PRICING                            -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="trending-up"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="content">
+            <p class="kicker">12 // Packages</p>
+            <h2 style="text-align: center;">Choose Your Level</h2>
+            <div class="pricing" style="margin-top: 20px; flex: 1; align-content: center;">
+              <div class="pricing__card fragment">
+                <div class="pricing__name">Automated</div>
+                <div class="pricing__price">$999</div>
+                <div class="pricing__period">per month</div>
+                <ul class="pricing__features">
+                  <li>5 instruments</li>
+                  <li>3 languages</li>
+                  <li>AI-only translation</li>
+                  <li>No human review on translation</li>
+                  <li>Email distribution</li>
+                  <li>1 compliance jurisdiction</li>
+                </ul>
+              </div>
+              <div class="pricing__card pricing__card--featured fragment">
+                <span class="badge" style="margin-bottom: 10px;">Recommended</span>
+                <div class="pricing__name">Hybrid</div>
+                <div class="pricing__price">$2,999</div>
+                <div class="pricing__period">per month</div>
+                <ul class="pricing__features">
+                  <li>20 instruments</li>
+                  <li>9 languages</li>
+                  <li>HITL translation (adaptive curve)</li>
+                  <li>Expert translator feedback loop</li>
+                  <li>All channels + branded PDF</li>
+                  <li>Multi-jurisdiction compliance</li>
+                </ul>
+              </div>
+              <div class="pricing__card fragment">
+                <div class="pricing__name">Enterprise</div>
+                <div class="pricing__price">$7,999+</div>
+                <div class="pricing__period">per month</div>
+                <ul class="pricing__features">
+                  <li>Unlimited instruments</li>
+                  <li>40+ languages</li>
+                  <li>Dedicated translation team</li>
+                  <li>White-label deployment</li>
+                  <li>API access + custom integrations</li>
+                  <li>Custom compliance modules</li>
+                </ul>
+              </div>
+            </div>
+            <p class="muted" style="text-align: center; font-size: 0.75rem; margin-top: 12px;">
+              All packages include: 3 audience levels &bull; Agent deliberation &bull; Professional charts &bull; Compliance gate &bull; Publish authorization
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 14: COMPETITIVE EDGE                   -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="trending-up"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="content">
+            <p class="kicker">13 // Why Us</p>
+            <h2>No One Else Has This</h2>
+            <div style="margin-top: 20px; flex: 1; display: flex; align-items: center;">
+              <table class="comp-table">
+                <thead>
+                  <tr>
+                    <th style="width: 22%;">Capability</th>
+                    <th>TradingCentral</th>
+                    <th>Acuity Trading</th>
+                    <th>Generic AI<br>(ChatGPT)</th>
+                    <th>Manual Teams</th>
+                    <th class="comp-highlight">FinFlow</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="fragment">
+                    <td>TA + FA Analysis</td>
+                    <td>TA only</td>
+                    <td class="comp-dim">Signals</td>
+                    <td class="comp-dim">Hallucinate</td>
+                    <td>Yes</td>
+                    <td class="comp-highlight">Agent deliberation</td>
+                  </tr>
+                  <tr class="fragment">
+                    <td>Compliance</td>
+                    <td class="comp-dim">No</td>
+                    <td class="comp-dim">No</td>
+                    <td class="comp-dim">No</td>
+                    <td class="comp-dim">Manual</td>
+                    <td class="comp-highlight">5 jurisdictions</td>
+                  </tr>
+                  <tr class="fragment">
+                    <td>Translation Quality</td>
+                    <td class="comp-dim">No</td>
+                    <td class="comp-dim">No</td>
+                    <td class="comp-dim">Generic</td>
+                    <td>Good</td>
+                    <td class="comp-highlight">15yr expertise + AI</td>
+                  </tr>
+                  <tr class="fragment">
+                    <td>Client-Specific Voice</td>
+                    <td class="comp-dim">No</td>
+                    <td class="comp-dim">No</td>
+                    <td class="comp-dim">No</td>
+                    <td>Yes</td>
+                    <td class="comp-highlight">Pre-trained on client</td>
+                  </tr>
+                  <tr class="fragment">
+                    <td>Learning Over Time</td>
+                    <td class="comp-dim">No</td>
+                    <td class="comp-dim">No</td>
+                    <td class="comp-dim">No</td>
+                    <td class="comp-dim">Slow</td>
+                    <td class="comp-highlight">Continuous feedback</td>
+                  </tr>
+                  <tr class="fragment">
+                    <td>Languages</td>
+                    <td class="comp-dim">Limited</td>
+                    <td class="comp-dim">Limited</td>
+                    <td>Many</td>
+                    <td>3-5</td>
+                    <td class="comp-highlight">40+ specialized</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 15: ROADMAP                            -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="trending-up"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="content">
+            <p class="kicker">14 // Roadmap</p>
+            <h2>Development Phases</h2>
+            <div class="timeline" style="margin-top: 36px;">
+              <div class="timeline__item fragment">
+                <div class="timeline__year">Wk 1-4</div>
+                <div class="timeline__dot"></div>
+                <div class="timeline__content">Core Pipeline<br><span class="muted" style="font-size: 0.7rem;">TA+FA agents, English</span></div>
+              </div>
+              <div class="timeline__item fragment">
+                <div class="timeline__year">Wk 5-8</div>
+                <div class="timeline__dot"></div>
+                <div class="timeline__content">Quality + Compliance<br><span class="muted" style="font-size: 0.7rem;">Agent deliberation, MiFID II</span></div>
+              </div>
+              <div class="timeline__item fragment">
+                <div class="timeline__year">Wk 9-12</div>
+                <div class="timeline__dot"></div>
+                <div class="timeline__content">Multi-Tenant<br><span class="muted" style="font-size: 0.7rem;">Per-client branding + voice</span></div>
+              </div>
+              <div class="timeline__item fragment">
+                <div class="timeline__year">Wk 13-16</div>
+                <div class="timeline__dot"></div>
+                <div class="timeline__content">Translation + HITL<br><span class="muted" style="font-size: 0.7rem;">40+ langs, learning curve</span></div>
+              </div>
+              <div class="timeline__item fragment">
+                <div class="timeline__year">Wk 17-20</div>
+                <div class="timeline__dot"></div>
+                <div class="timeline__content">Scale<br><span class="muted" style="font-size: 0.7rem;">Premium data, 5 jurisdictions</span></div>
+              </div>
+              <div class="timeline__item fragment">
+                <div class="timeline__year">Wk 21-24</div>
+                <div class="timeline__dot"></div>
+                <div class="timeline__content">Intelligence<br><span class="muted" style="font-size: 0.7rem;">Accuracy tracking, self-improving</span></div>
+              </div>
+            </div>
+            <div style="margin-top: 32px; text-align: center;">
+              <div class="metrics" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="metric fragment">
+                  <div class="metric__value" style="font-size: 1.8rem;">$56-74B</div>
+                  <div class="metric__label">BFSI AI Market</div>
+                </div>
+                <div class="metric fragment">
+                  <div class="metric__value" style="font-size: 1.8rem;">25-30%</div>
+                  <div class="metric__label">CAGR Growth</div>
+                </div>
+                <div class="metric fragment">
+                  <div class="metric__value" style="font-size: 1.8rem;">500+</div>
+                  <div class="metric__label">Target Brokers</div>
+                </div>
+                <div class="metric fragment">
+                  <div class="metric__value" style="font-size: 1.8rem;">58%</div>
+                  <div class="metric__label">Already Using AI</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 16: WORK FROM ANYWHERE                 -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="smartphone"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="split">
+            <div>
+              <p class="kicker">15 // Work From Anywhere</p>
+              <h2>Approve From<br><span class="accent-text">Any Device</span></h2>
+              <p class="lead">Every approval is a single tap. Review reports on your phone during a meeting, approve translations from a taxi, authorize publishing from the beach.</p>
+              <p class="muted" style="margin-top: 16px; font-size: 0.85rem;">All notifications arrive on your platform of choice. No separate app to install. No login portal to bookmark.</p>
+            </div>
+            <div>
+              <div class="grid-2" style="gap: 12px;">
+                <div class="card fragment fade-up" style="text-align: center; padding: 20px;">
+                  <div style="font-size: 2rem; margin-bottom: 8px;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--fin-teal)" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  </div>
+                  <h4 class="card__title">Telegram</h4>
+                  <p class="card__text">Inline buttons: Accept / Correct / Reject</p>
+                </div>
+                <div class="card fragment fade-up" style="text-align: center; padding: 20px;">
+                  <div style="font-size: 2rem; margin-bottom: 8px;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--fin-teal)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+                  </div>
+                  <h4 class="card__title">Slack</h4>
+                  <p class="card__text">Interactive messages with approval workflows</p>
+                </div>
+                <div class="card fragment fade-up" style="text-align: center; padding: 20px;">
+                  <div style="font-size: 2rem; margin-bottom: 8px;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--fin-teal)" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  </div>
+                  <h4 class="card__title">MS Teams</h4>
+                  <p class="card__text">Adaptive cards with one-click approvals</p>
+                </div>
+                <div class="card fragment fade-up" style="text-align: center; padding: 20px;">
+                  <div style="font-size: 2rem; margin-bottom: 8px;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--fin-teal)" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  </div>
+                  <h4 class="card__title">Discord</h4>
+                  <p class="card__text">Bot commands with reaction-based approvals</p>
+                </div>
+              </div>
+              <div style="margin-top: 16px; text-align: center; padding: 14px; border: 1px solid var(--fin-gold);" class="fragment fade-up">
+                <p style="font-size: 0.8rem; color: var(--fin-gold); margin: 0;">
+                  <strong>Desktop &amp; Mobile</strong> &mdash; Same workflow, any screen size.<br>
+                  <span style="color: var(--text-muted);">Report preview + Accept / Correct / Reject &mdash; one tap.</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 17: ARCHITECTURE DEEP DIVE             -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="cpu"></i>
+              FinFlow Architecture
+            </div>
+          </div>
+          <div class="content">
+            <p class="kicker">Architecture // Deep Dive</p>
+            <h2>Under the Hood</h2>
+            <div class="split" style="margin-top: 16px; flex: 1;">
+              <div>
+                <div style="font-size: 0.8rem; line-height: 1.8;">
+                  <div style="margin-bottom: 16px;">
+                    <h4 style="color: var(--fin-teal); margin-bottom: 8px;">Agent Orchestration</h4>
+                    <div style="border-left: 2px solid var(--border); padding-left: 14px; color: var(--text-secondary);">
+                      <div class="fragment">8 specialized agents with distinct reasoning modes</div>
+                      <div class="fragment">Cross-agent invocation &mdash; agents call each other autonomously</div>
+                      <div class="fragment">Max 3 deliberation rounds per analysis (configurable)</div>
+                      <div class="fragment">Quality arbitration uses Tree-of-Thought for multi-path evaluation</div>
+                    </div>
+                  </div>
+                  <div style="margin-bottom: 16px;">
+                    <h4 style="color: var(--fin-teal); margin-bottom: 8px;">LLM Routing</h4>
+                    <div style="border-left: 2px solid var(--border); padding-left: 14px; color: var(--text-secondary);">
+                      <div class="fragment">Tiered model selection &mdash; right model for each task</div>
+                      <div class="fragment">Local models (Qwen 32B/235B) for translation &amp; personalization &mdash; $0 cost</div>
+                      <div class="fragment">Claude Sonnet for analysis, Opus for arbitration</div>
+                      <div class="fragment">Per-language model optimization (9+ language-model pairs)</div>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 style="color: var(--fin-teal); margin-bottom: 8px;">Data Pipeline</h4>
+                    <div style="border-left: 2px solid var(--border); padding-left: 14px; color: var(--text-secondary);">
+                      <div class="fragment">Continuous news ingestion (5-min intervals for breaking)</div>
+                      <div class="fragment">Semantic deduplication via vector embeddings</div>
+                      <div class="fragment">Market data: OHLCV, indicators, economic calendar</div>
+                      <div class="fragment">Relevance scoring: Qwen 7B classify &rarr; Haiku second pass</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 0.8rem; line-height: 1.8;">
+                  <div style="margin-bottom: 16px;">
+                    <h4 style="color: var(--fin-teal); margin-bottom: 8px;">Multi-Tenant Infrastructure</h4>
+                    <div style="border-left: 2px solid var(--border); padding-left: 14px; color: var(--text-secondary);">
+                      <div class="fragment">Row-level security &mdash; client data fully isolated</div>
+                      <div class="fragment">Per-client glossaries, tone profiles, and templates</div>
+                      <div class="fragment">BullMQ job queues for concurrent report generation</div>
+                      <div class="fragment">Supabase (self-hosted) for data sovereignty</div>
+                    </div>
+                  </div>
+                  <div style="margin-bottom: 16px;">
+                    <h4 style="color: var(--fin-teal); margin-bottom: 8px;">Translation Learning Engine</h4>
+                    <div style="border-left: 2px solid var(--border); padding-left: 14px; color: var(--text-secondary);">
+                      <div class="fragment">Human corrections stored as training feedback</div>
+                      <div class="fragment">Client-specific model adaptation over time</div>
+                      <div class="fragment">Automated HITL percentage reduction based on quality scores</div>
+                      <div class="fragment">Financial glossary management per language per client</div>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 style="color: var(--fin-teal); margin-bottom: 8px;">Distribution &amp; Monitoring</h4>
+                    <div style="border-left: 2px solid var(--border); padding-left: 14px; color: var(--text-secondary);">
+                      <div class="fragment">Multi-channel: Email, Blog, Social, PDF, API, Webhook</div>
+                      <div class="fragment">Branded chart generation (TradingView + Plotly)</div>
+                      <div class="fragment">Token spend tracking &amp; per-client cost caps</div>
+                      <div class="fragment">Report accuracy backtesting (Phase 6)</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 18: SAMPLE OUTPUT                      -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide">
+          <div class="header">
+            <div class="header__logo">
+              <i data-lucide="file-text"></i>
+              FinFlow
+            </div>
+          </div>
+          <div class="content">
+            <p class="kicker">Sample // Live Output</p>
+            <h2>Real Analysis, Real Data</h2>
+            <p class="lead" style="margin-bottom: 16px;">EUR/USD analysis generated March 25, 2026 &mdash; three audience levels from a single pipeline.</p>
+            <div class="grid-3" style="flex: 1; font-size: 0.75rem;">
+              <div class="card fragment fade-up" style="overflow: hidden;">
+                <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--fin-teal); margin-bottom: 8px; font-weight: 500;">Beginner</div>
+                <p style="color: var(--text-secondary); line-height: 1.5; font-style: italic;">
+                  "The euro is trading at $1.1602 against the dollar. Three forces are pushing it lower: Middle East tensions boosting the dollar as a safe haven, Europe's economy slowing (PMI at 50.5), and the ECB raising its inflation forecast to 2.6% while cutting growth..."
+                </p>
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.65rem;">
+                  Plain language &bull; Explains concepts &bull; Actionable takeaways
+                </div>
+              </div>
+              <div class="card fragment fade-up" style="overflow: hidden; border-color: var(--fin-teal);">
+                <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--fin-teal); margin-bottom: 8px; font-weight: 500;">Intermediate</div>
+                <p style="color: var(--text-secondary); line-height: 1.5; font-style: italic;">
+                  "EUR/USD trades within a downtrend after failing at 1.1648-1.1663 resistance. RSI(14) at 53 declining, MACD crossed bearish. Support at 1.1550, resistance at 1.1686 (76.4% Fib). ECB held at 2.0%, HICP revised to 2.6%..."
+                </p>
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.65rem;">
+                  Key indicators &bull; TA + FA balance &bull; Scenario probabilities
+                </div>
+              </div>
+              <div class="card fragment fade-up" style="overflow: hidden;">
+                <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--fin-teal); margin-bottom: 8px; font-weight: 500;">Professional</div>
+                <p style="color: var(--text-secondary); line-height: 1.5; font-style: italic;">
+                  "RSI(14) 53.1 declining, MACD +0.00137 below signal, Stoch 42/48, ATR 0.0068 compressed. Fib 78.6% at 1.1686 rejected. COT: net-long down 36k contracts. 175bp Fed-ECB spread fully priced. 90% CI: 1.1480-1.1700..."
+                </p>
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.65rem;">
+                  Raw data &bull; COT positioning &bull; Cross-asset &bull; Confidence intervals
+                </div>
+              </div>
+            </div>
+            <div style="text-align: center; margin-top: 12px;">
+              <span class="badge" style="font-size: 0.6rem;">Available in 40+ languages &mdash; translated with client-specific terminology</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 19: REQUEST DEMO                       -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide slide--section slide--center">
+          <div class="content flex-center" style="flex-direction: column;">
+            <p class="kicker" style="justify-content: center;">Get Started</p>
+            <h2 style="margin-bottom: 24px;">Request a <span class="accent-text">Custom Demo</span></h2>
+            <div style="width: 100%; max-width: 520px; text-align: left;">
+              <div style="margin-bottom: 16px;">
+                <label style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); display: block; margin-bottom: 6px;">Company Name</label>
+                <div style="border: 1px solid var(--border); padding: 10px 14px; color: var(--text-muted); font-size: 0.85rem; background: transparent;">Your Company Ltd.</div>
+              </div>
+              <div style="margin-bottom: 16px;">
+                <label style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); display: block; margin-bottom: 6px;">Contact Email</label>
+                <div style="border: 1px solid var(--border); padding: 10px 14px; color: var(--text-muted); font-size: 0.85rem; background: transparent;">name@company.com</div>
+              </div>
+              <div class="grid-2" style="margin-bottom: 16px;">
+                <div>
+                  <label style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); display: block; margin-bottom: 6px;">Instruments</label>
+                  <div style="border: 1px solid var(--border); padding: 10px 14px; color: var(--text-muted); font-size: 0.85rem;">Forex / Crypto / CFDs</div>
+                </div>
+                <div>
+                  <label style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); display: block; margin-bottom: 6px;">Languages Needed</label>
+                  <div style="border: 1px solid var(--border); padding: 10px 14px; color: var(--text-muted); font-size: 0.85rem;">EN, ES, ZH, AR...</div>
+                </div>
+              </div>
+              <div style="margin-bottom: 16px;">
+                <label style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); display: block; margin-bottom: 6px;">Preferred Platform for Approvals</label>
+                <div class="grid-4" style="gap: 8px;">
+                  <div style="border: 1px solid var(--fin-teal); padding: 8px; text-align: center; font-size: 0.75rem; color: var(--fin-teal);">Telegram</div>
+                  <div style="border: 1px solid var(--border); padding: 8px; text-align: center; font-size: 0.75rem; color: var(--text-muted);">Slack</div>
+                  <div style="border: 1px solid var(--border); padding: 8px; text-align: center; font-size: 0.75rem; color: var(--text-muted);">MS Teams</div>
+                  <div style="border: 1px solid var(--border); padding: 8px; text-align: center; font-size: 0.75rem; color: var(--text-muted);">Discord</div>
+                </div>
+              </div>
+              <div style="margin-top: 24px; text-align: center;">
+                <a class="btn btn--accent" style="width: 100%; justify-content: center;">Schedule My Demo</a>
+              </div>
+              <p style="text-align: center; margin-top: 12px; font-size: 0.75rem; color: var(--text-muted);">
+                We'll prepare a branded demo with your instruments, your languages, and a sample report in your voice.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================ -->
+      <!-- SLIDE 20: CTA                                -->
+      <!-- ============================================ -->
+      <section>
+        <div class="slide slide--section slide--center">
+          <div class="content flex-center" style="flex-direction: column;">
+            <p class="kicker" style="justify-content: center;">WordwideFX &bull; Est. 2011</p>
+            <h1>We Already Know<br><span class="accent-text">Your Language</span></h1>
+            <p class="lead" style="margin-bottom: 8px; max-width: 660px; margin-left: auto; margin-right: auto;">
+              From news to published, compliance-approved, multi-language report in 30 minutes.
+              Built on 15 years of translating for the world's leading brokers.
+            </p>
+            <p class="gold" style="font-style: italic; margin-bottom: 24px;">"Let's turn our decade of working together into your competitive advantage."</p>
+            <div style="display: flex; gap: 16px;">
+              <a class="btn" onclick="Reveal.slide(18); return false;" style="cursor:pointer;">4-Week Pilot Program</a>
+              <a class="btn btn--accent" onclick="Reveal.slide(18); return false;" style="cursor:pointer;">Schedule a Demo</a>
+            </div>
+            <div class="contact-grid" style="width: 100%; max-width: 600px; margin-top: 40px;">
+              <div class="contact-item">
+                <div class="contact-item__label">Email</div>
+                <div class="contact-item__value">info@wordwidefx.com</div>
+              </div>
+              <div class="contact-item">
+                <div class="contact-item__label">Website</div>
+                <div class="contact-item__value">wordwidefx.com</div>
+              </div>
+              <div class="contact-item">
+                <div class="contact-item__label">Since</div>
+                <div class="contact-item__value">2011 &bull; Barcelona</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Reveal.js Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/highlight/highlight.js"></script>
+
+  <script>
+    Reveal.initialize({
+      hash: true,
+      slideNumber: true,
+      controls: true,
+      controlsLayout: 'bottom-right',
+      controlsBackArrows: 'faded',
+      progress: true,
+      center: false,
+      transition: 'slide',
+      backgroundTransition: 'fade',
+      width: 1280,
+      height: 720,
+      margin: 0,
+      minScale: 0.2,
+      maxScale: 2,
+      autoAnimate: true,
+      autoAnimateDuration: 0.7,
+      plugins: [RevealHighlight]
+    });
+
+    lucide.createIcons();
+  </script>
+</body>
+</html>
