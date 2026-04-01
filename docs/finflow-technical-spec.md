@@ -17,14 +17,15 @@
 5. [Data Layer](#5-data-layer)
 6. [Database Schema](#6-database-schema)
 7. [HITL Workflow](#7-hitl-workflow)
-8. [Translation Engine](#8-translation-engine)
-9. [Frontend Architecture](#9-frontend-architecture)
-10. [Multi-Tenancy & Security](#10-multi-tenancy--security)
-11. [Infrastructure](#11-infrastructure)
-12. [API Surface](#12-api-surface)
-13. [LLM Cost Model](#13-llm-cost-model)
-14. [Phased Implementation](#14-phased-implementation)
-15. [Risks & Mitigations](#15-risks--mitigations)
+8. [Regulatory Intelligence — Compliance RAG System](#8-regulatory-intelligence--compliance-rag-system)
+9. [Translation Engine](#9-translation-engine)
+10. [Frontend Architecture](#10-frontend-architecture)
+11. [Multi-Tenancy & Security](#11-multi-tenancy--security)
+12. [Infrastructure](#12-infrastructure)
+13. [API Surface](#13-api-surface)
+14. [LLM Cost Model](#14-llm-cost-model)
+15. [Phased Implementation](#15-phased-implementation)
+16. [Risks & Mitigations](#16-risks--mitigations)
 
 ---
 
@@ -584,7 +585,191 @@ The translation HITL percentage decreases automatically based on correction rate
 
 ---
 
-## 8. Translation Engine
+## 8. Regulatory Intelligence — Compliance RAG System
+
+The Compliance Agent doesn't work from a static ruleset — it retrieves the most relevant, current regulatory text from an automatically maintained knowledge base using Retrieval-Augmented Generation (RAG). When regulations change, the system picks them up automatically and starts applying them to the next report — without code changes.
+
+### 8.1 Automated Regulatory Monitoring
+
+FinFlow monitors 8 regulators across 7 jurisdictions via their public feeds:
+
+| Regulator | Jurisdiction | Feed Type | Polling Frequency |
+|-----------|-------------|-----------|-------------------|
+| SEC / EDGAR | US | REST API + RSS + XBRL | Every 6 hours |
+| ESMA | EU / MiFID II | RSS feeds per topic | Every 12 hours |
+| FCA | UK | RSS feed + email alerts | Every 12 hours |
+| ASIC | Australia | RSS feeds | Every 12 hours |
+| MAS | Singapore | RSS feed | Every 12 hours |
+| FINRA | US | Limited RSS + scraping | Every 24 hours |
+| FSCA | South Africa | Web scraping | Weekly |
+| BMA | Bermuda | Web scraping | Weekly |
+
+All regulatory publications are public — regulators are legally required to publish their rules openly.
+
+### 8.2 Document Ingestion Pipeline
+
+```
+New document detected (via RSS/API/scraper)
+        │
+        ▼
+Relevance Filter (Haiku classification — ~$0.001/doc)
+  → ~85-90% of publications are irrelevant (capital adequacy, licensing, etc.)
+  → Only ~10-15% relate to financial content/communications rules
+        │
+        ▼ (relevant only)
+Parse document (PDF via PyMuPDF, HTML direct)
+        │
+        ▼
+Chunk into sections (~500-800 tokens each)
+        │
+        ▼
+Embed each chunk (pgvector, 1536 dimensions)
+        │
+        ▼
+Tag: jurisdiction, topics[], effective_date, severity
+        │
+        ▼
+Change Detection Agent (Sonnet):
+  → Compares to previous version of same regulation
+  → Generates change summary
+  → Assesses impact: which types of content are affected?
+  → Identifies affected clients (by jurisdiction + topics)
+        │
+        ▼
+Store in knowledge base + notify affected clients
+```
+
+### 8.3 Database Tables
+
+```sql
+-- Full regulatory documents
+regulatory_documents (
+  id              UUID PRIMARY KEY,
+  title           TEXT,             -- "MiFID II Delegated Regulation 2017/565 — Article 44"
+  jurisdiction    TEXT,             -- "EU", "US", "UK", etc.
+  regulator       TEXT,             -- "ESMA", "SEC", "FCA", etc.
+  document_type   TEXT,             -- "regulation" | "guidance" | "circular" | "enforcement_notice"
+  topics          TEXT[],           -- ["financial_promotions", "risk_warnings", "forward_looking"]
+  effective_date  DATE,
+  supersedes_id   UUID,             -- links to previous version
+  source_url      TEXT,
+  raw_content     TEXT,
+  uploaded_by     UUID,             -- WordwideFX team member or "system" for automated
+  uploaded_at     TIMESTAMPTZ
+)
+
+-- Chunked and embedded sections for RAG retrieval
+regulatory_chunks (
+  id                UUID PRIMARY KEY,
+  document_id       UUID REFERENCES regulatory_documents,
+  chunk_index       INTEGER,
+  chunk_text        TEXT,           -- ~500-800 tokens
+  section_reference TEXT,           -- "Article 44(2)(c)"
+  jurisdiction      TEXT,
+  topics            TEXT[],
+  embedding         VECTOR(1536),
+  effective_date    DATE
+)
+
+-- Tracked changes between document versions
+regulatory_changes (
+  id                UUID PRIMARY KEY,
+  old_document_id   UUID REFERENCES regulatory_documents,
+  new_document_id   UUID REFERENCES regulatory_documents,
+  change_summary    TEXT,           -- AI-generated summary
+  impact_assessment TEXT,           -- which content types affected
+  affected_topics   TEXT[],
+  severity          TEXT,           -- "breaking" | "significant" | "minor" | "clarification"
+  created_at        TIMESTAMPTZ
+)
+
+-- Which clients are affected by which jurisdictions
+client_jurisdictions (
+  tenant_id           UUID REFERENCES tenants,
+  jurisdiction        TEXT,
+  compliance_contact  UUID REFERENCES users,
+  auto_apply_updates  BOOLEAN,     -- auto-update or require review
+  PRIMARY KEY (tenant_id, jurisdiction)
+)
+```
+
+### 8.4 RAG Retrieval — How the Compliance Agent Queries the Knowledge Base
+
+When reviewing a report, the Compliance Agent extracts claims and retrieves the most relevant regulatory text for each:
+
+```typescript
+async function complianceReviewWithRAG(
+  report: Report,
+  clientProfile: ClientProfile
+): Promise<ComplianceResult> {
+  // 1. Extract reviewable claims from the report
+  const claims = extractClaims(report);
+  // e.g., "EUR/USD is likely to reach 1.20 by mid-year"
+  //       "We recommend reducing exposure to emerging markets"
+
+  const results: ClaimReview[] = [];
+
+  for (const claim of claims) {
+    // 2. Embed the claim
+    const embedding = await embed(claim.text);
+
+    // 3. Retrieve most relevant regulatory chunks
+    const relevantRules = await db.query(`
+      SELECT chunk_text, document_title, jurisdiction,
+             section_reference, effective_date,
+             1 - (embedding <=> $1) as relevance
+      FROM regulatory_chunks
+      WHERE jurisdiction = ANY($2)
+        AND effective_date <= NOW()
+        AND topic = ANY($3)
+      ORDER BY relevance DESC
+      LIMIT 5
+    `, [embedding, clientProfile.jurisdictions, claim.topics]);
+
+    // 4. Compliance agent reviews claim against retrieved rules
+    //    + client's internal policies from ClientProfile
+    const review = await complianceAgent.review({
+      claim: claim.text,
+      regulatoryContext: relevantRules,
+      clientPolicies: clientProfile.compliance.internalPolicies,
+      requiredDisclaimers: clientProfile.compliance.requiredDisclaimers,
+    });
+
+    results.push(review);
+  }
+
+  return results;
+}
+```
+
+### 8.5 Relevance Topics
+
+The relevance filter classifies documents against topics specific to financial content communications:
+
+- Financial promotions and advertising rules
+- Risk warnings and disclaimer requirements
+- Past performance statement regulations
+- Forward-looking statement rules
+- AI-generated content guidance (emerging regulatory area)
+- Social media and digital communication rules
+- Cross-border marketing restrictions
+- Client communication record-keeping requirements
+
+### 8.6 WordwideFX Expert Layer
+
+The automated pipeline handles ~80-90% of the work. WordwideFX's compliance team provides the remaining expert judgment:
+
+| Task | Automated | Human Expert |
+|------|-----------|-------------|
+| Detecting new publications | RSS/API/scraping | Catches edge cases |
+| Filtering relevance | Haiku classification | Reviews borderline cases |
+| Ingesting into knowledge base | Chunk + embed pipeline | Spot-checks quality |
+| Interpreting practical impact | Sonnet change analysis | Expert judgment on ambiguous rules |
+| Validating application to content | RAG retrieval + agent reasoning | Final sign-off on novel rule application |
+
+---
+
+## 9. Translation Engine
 
 Translation is the core competitive advantage of FinFlow. Unlike competitors who bolt on generic machine translation, FinFlow's translation agents are deeply personalized per client and per language, backed by 15 years of financial translation expertise from WordwideFX.
 
@@ -713,7 +898,7 @@ Recommended default: **Premium** for Hybrid/Enterprise plans, **Hybrid** for Aut
 
 ---
 
-## 9. Frontend Architecture
+## 10. Frontend Architecture
 
 ### 9.1 Framework & Tooling
 
@@ -776,7 +961,7 @@ Aesthetic: **Bloomberg Terminal meets Linear.app meets Apple.** Dark, muted, pro
 
 ---
 
-## 10. Multi-Tenancy & Security
+## 11. Multi-Tenancy & Security
 
 ### 10.1 Tenant Isolation
 
@@ -806,7 +991,7 @@ Branding is stored in `tenants.branding` (JSONB) and injected via middleware int
 
 ---
 
-## 11. Infrastructure
+## 12. Infrastructure
 
 ### 11.1 Docker Compose (Development & Self-Hosted)
 
@@ -837,7 +1022,7 @@ services:
 
 ---
 
-## 12. API Surface
+## 13. API Surface
 
 ### 12.1 REST Endpoints
 
@@ -889,7 +1074,7 @@ In addition to SSE for pipeline streaming, Supabase Realtime subscriptions are u
 
 ---
 
-## 13. LLM Cost Model
+## 14. LLM Cost Model
 
 All inference is API-based. Costs are optimized through intelligent model routing — each task uses the most cost-efficient model that meets the quality bar for that task.
 
@@ -930,7 +1115,7 @@ All inference is API-based. Costs are optimized through intelligent model routin
 
 ---
 
-## 14. Phased Implementation
+## 15. Phased Implementation
 
 ### Phase 1: Foundation (Weeks 1–3)
 
@@ -1006,7 +1191,7 @@ All inference is API-based. Costs are optimized through intelligent model routin
 
 ---
 
-## 15. Risks & Mitigations
+## 16. Risks & Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|

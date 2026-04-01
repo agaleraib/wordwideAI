@@ -1476,11 +1476,290 @@ tbody td:first-child {
   </div>
 </div>
 
+<!-- ═══════════════ COMPLIANCE RAG ═══════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">Regulatory Intelligence</div>
+    <h2>Automated compliance monitoring — always current, always enforced</h2>
+
+    <p>
+      Regulatory compliance is a moving target. MiFID II gets updated, the FCA issues new guidance on AI-generated content,
+      ASIC changes advertising rules. Today, every broker pays expensive consultants to track these changes —
+      or misses them and gets fined. FinFlow solves this centrally:
+      <strong>one system monitors 8 regulators across 7 jurisdictions, and all clients benefit instantly.</strong>
+    </p>
+
+    <!-- Regulatory Sources Diagram -->
+    <div class="flow-diagram">
+      <div class="flow-title">Automated Regulatory Monitoring Pipeline</div>
+
+      <div class="flow-row" style="gap: 10px;">
+        <div class="flow-node" style="min-width: 110px; font-size: 12px;">
+          SEC / EDGAR<br>
+          <span class="flow-label">Full API</span>
+        </div>
+        <div class="flow-node" style="min-width: 110px; font-size: 12px;">
+          ESMA<br>
+          <span class="flow-label">RSS feeds</span>
+        </div>
+        <div class="flow-node" style="min-width: 110px; font-size: 12px;">
+          FCA<br>
+          <span class="flow-label">RSS + alerts</span>
+        </div>
+        <div class="flow-node" style="min-width: 110px; font-size: 12px;">
+          ASIC<br>
+          <span class="flow-label">RSS feeds</span>
+        </div>
+        <div class="flow-node" style="min-width: 110px; font-size: 12px;">
+          MAS<br>
+          <span class="flow-label">RSS feed</span>
+        </div>
+        <div class="flow-node" style="min-width: 110px; font-size: 12px;">
+          FINRA / FSCA / BMA<br>
+          <span class="flow-label">Scraping + alerts</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-node agent">
+          Relevance Filter (AI classification)<br>
+          <span class="flow-label">~10-15% of publications relate to financial content rules</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-node accent">
+          Document Ingestion Pipeline<br>
+          <span class="flow-label">Parse &rarr; Chunk (~500 tokens) &rarr; Embed (pgvector) &rarr; Tag jurisdiction + topics</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-node agent">
+          Change Detection Agent<br>
+          <span class="flow-label">Compares to previous version &mdash; what changed? who is affected?</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row" style="gap: 12px;">
+        <div class="flow-node output" style="min-width: 180px;">
+          Knowledge Base Updated<br>
+          <span class="flow-label">Compliance Agent uses new rules immediately via RAG</span>
+        </div>
+        <div class="flow-node human" style="min-width: 180px;">
+          Affected Clients Notified<br>
+          <span class="flow-label">"MiFID II updated &mdash; your reports are already compliant"</span>
+        </div>
+      </div>
+    </div>
+
+    <h3>All regulatory sources are public</h3>
+
+    <p>
+      Financial regulators are legally required to publish their rules publicly. Most provide machine-readable feeds
+      that FinFlow monitors automatically.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Regulator</th>
+          <th>Jurisdiction</th>
+          <th>Feed Type</th>
+          <th>Automation Level</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>SEC / EDGAR</td>
+          <td>United States</td>
+          <td>Full REST API + RSS + XBRL</td>
+          <td style="color: var(--success);">Fully automated</td>
+        </tr>
+        <tr>
+          <td>ESMA</td>
+          <td>EU / MiFID II</td>
+          <td>RSS feeds per topic</td>
+          <td style="color: var(--success);">Fully automated</td>
+        </tr>
+        <tr>
+          <td>FCA</td>
+          <td>United Kingdom</td>
+          <td>RSS feed + email alerts</td>
+          <td style="color: var(--success);">Fully automated</td>
+        </tr>
+        <tr>
+          <td>ASIC</td>
+          <td>Australia</td>
+          <td>RSS feeds</td>
+          <td style="color: var(--success);">Fully automated</td>
+        </tr>
+        <tr>
+          <td>MAS</td>
+          <td>Singapore</td>
+          <td>RSS feed</td>
+          <td style="color: var(--success);">Fully automated</td>
+        </tr>
+        <tr>
+          <td>FINRA</td>
+          <td>United States</td>
+          <td>Limited RSS + email</td>
+          <td style="color: var(--warning);">Semi-automated</td>
+        </tr>
+        <tr>
+          <td>FSCA</td>
+          <td>South Africa</td>
+          <td>Web scraping</td>
+          <td style="color: var(--warning);">Semi-automated</td>
+        </tr>
+        <tr>
+          <td>BMA</td>
+          <td>Bermuda</td>
+          <td>Web scraping</td>
+          <td style="color: var(--warning);">Semi-automated</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>How the Compliance Agent uses it: RAG retrieval</h3>
+
+    <p>
+      The Compliance Agent doesn't work from a static ruleset — it <strong>retrieves the most relevant, current regulatory text</strong>
+      for each specific claim in a report. When a report says "EUR/USD is likely to reach 1.20,"
+      the agent searches the regulatory knowledge base for rules about forward-looking statements
+      in the client's specific jurisdictions.
+    </p>
+
+    <div class="flow-diagram" style="padding: 32px 40px;">
+      <div class="flow-title">RAG-Powered Compliance Review &mdash; Per Claim</div>
+
+      <div class="flow-row">
+        <div class="flow-node" style="min-width: 280px;">
+          Report claim: "EUR/USD is likely to reach 1.20 by mid-year"
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-node accent" style="min-width: 280px;">
+          Embed claim &rarr; Vector similarity search<br>
+          <span class="flow-label">Find 5 most relevant regulatory chunks for this client's jurisdictions</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row" style="gap: 10px;">
+        <div class="flow-node" style="min-width: 140px; font-size: 11px; background: var(--bg-card);">
+          MiFID II Art. 44(2)<br>
+          <span class="flow-label" style="font-size: 9px;">Forward-looking statements require basis disclosure</span>
+        </div>
+        <div class="flow-node" style="min-width: 140px; font-size: 11px; background: var(--bg-card);">
+          FCA COBS 4.5.2<br>
+          <span class="flow-label" style="font-size: 9px;">Projections must not be presented as certain</span>
+        </div>
+        <div class="flow-node" style="min-width: 140px; font-size: 11px; background: var(--bg-card);">
+          Client internal policy<br>
+          <span class="flow-label" style="font-size: 9px;">No specific price targets in retail content</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-node agent" style="min-width: 280px;">
+          Compliance Agent reasons over claim + retrieved rules + client profile<br>
+          <span class="flow-label">Decides: flag, modify, add disclaimer, or approve</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-node output" style="min-width: 280px;">
+          Result: "Rewrite as: <em>analysts project a potential move toward 1.20, subject to macro conditions</em>
+          + add forward-looking statement disclaimer"
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>
+        <strong>The key advantage:</strong> When ESMA publishes new guidance on AI-generated financial communications —
+        which is actively being developed — FinFlow's system picks it up automatically. The compliance agent
+        starts applying the new rules to the very next report, <strong>without any code change or manual update</strong>.
+        Clients who rely on static compliance templates will be non-compliant until someone notices and manually updates them.
+      </p>
+    </div>
+
+    <h3>What WordwideFX adds on top of automation</h3>
+
+    <p>
+      The automated pipeline handles 80-90% of the work. WordwideFX's compliance team adds the critical 10-20%
+      that requires human expertise:
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <span class="card-icon" style="color: var(--success);">&#9889;</span>
+        <h4>Automated</h4>
+        <p><strong>Detecting</strong> new publications via RSS/API/scraping.<br>
+        <strong>Filtering</strong> for relevance to financial content.<br>
+        <strong>Ingesting</strong> into the knowledge base (chunk + embed).<br>
+        <strong>Retrieving</strong> relevant rules during compliance review.<br>
+        <strong>Applying</strong> rules to flag or modify report content.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon" style="color: var(--warning);">&#128100;</span>
+        <h4>Expert human judgment</h4>
+        <p><strong>Interpreting</strong> ambiguous new regulations — what does this mean in practice?<br>
+        <strong>Prioritizing</strong> which changes are urgent vs. informational.<br>
+        <strong>Validating</strong> the system's application of new rules to actual content.<br>
+        <strong>Advising</strong> clients on how regulatory changes affect their content strategy.</p>
+      </div>
+    </div>
+
+    <h3>This is another moat — and a potential standalone product</h3>
+
+    <div class="card-grid card-grid-3">
+      <div class="card" style="text-align: center;">
+        <div style="font-family: var(--font-mono); font-size: 36px; font-weight: 500; color: var(--accent); margin-bottom: 8px;">8</div>
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Regulators monitored</div>
+      </div>
+      <div class="card" style="text-align: center;">
+        <div style="font-family: var(--font-mono); font-size: 36px; font-weight: 500; color: var(--info); margin-bottom: 8px;">7</div>
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Jurisdictions covered</div>
+      </div>
+      <div class="card" style="text-align: center;">
+        <div style="font-family: var(--font-mono); font-size: 36px; font-weight: 500; color: var(--success); margin-bottom: 8px;">24h</div>
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Max time to apply new rules</div>
+      </div>
+    </div>
+
+    <p>
+      The curated, financial-content-specific regulatory knowledge base is an asset in itself.
+      Generic RegTech platforms monitor everything — capital adequacy, licensing, AML.
+      FinFlow's knowledge base covers <strong>exactly what matters for financial content communications</strong>,
+      curated by a team with 15 years of experience knowing which rules apply to broker marketing and research.
+      Even clients who don't use the full FinFlow pipeline may pay for compliance monitoring alerts alone.
+    </p>
+  </div>
+</div>
+
 <!-- ═══════════════ SUMMARY ═══════════════ -->
 <div class="section">
   <div class="container">
     <div class="section-label">Summary</div>
-    <h2>The personalization engine in three sentences</h2>
+    <h2>The personalization engine in four sentences</h2>
 
     <p style="font-size: 17px; color: var(--text-primary); line-height: 1.8; max-width: 720px;">
       FinFlow's AI agents don't just produce financial content — they produce <strong>your</strong> financial content,
@@ -1492,8 +1771,14 @@ tbody td:first-child {
       mistake never happens twice.
     </p>
     <p style="font-size: 17px; color: var(--text-primary); line-height: 1.8; max-width: 720px;">
+      An automated regulatory monitoring system watches 8 regulators across 7 jurisdictions, ingesting new rules
+      into a RAG knowledge base that the Compliance Agent queries in real time — ensuring every report reflects
+      the latest regulatory requirements without manual updates.
+    </p>
+    <p style="font-size: 17px; color: var(--text-primary); line-height: 1.8; max-width: 720px;">
       The result is a <strong>compounding moat</strong>: seeded with 15 years of WordwideFX client data, growing with every
-      interaction, and creating structural switching costs that make the platform more defensible every month.
+      interaction, fed by live regulatory intelligence, and creating structural switching costs
+      that make the platform more defensible every month.
     </p>
   </div>
 </div>
