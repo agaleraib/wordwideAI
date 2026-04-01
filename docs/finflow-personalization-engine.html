@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinFlow — The Personalization Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-root: #060608;
+  --bg-surface: #0f0f14;
+  --bg-raised: #14141a;
+  --bg-card: #0c0c11;
+  --border: rgba(255,255,255,0.06);
+  --border-light: rgba(255,255,255,0.10);
+  --text-primary: #e8e6e3;
+  --text-secondary: #8a8a8e;
+  --text-muted: #4a4a50;
+  --accent: #5ba8a0;
+  --accent-muted: rgba(91,168,160,0.7);
+  --accent-subtle: rgba(91,168,160,0.12);
+  --accent-glow: rgba(91,168,160,0.06);
+  --success: #4a9a6a;
+  --success-subtle: rgba(74,154,106,0.12);
+  --danger: #c96b6b;
+  --warning: #c9a85b;
+  --info: #6b8fc9;
+  --purple: #9b8ac9;
+  --purple-subtle: rgba(155,138,201,0.12);
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  background: var(--bg-root);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.7;
+}
+
+body { min-height: 100vh; }
+
+/* ── Layout ── */
+.container {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+/* ── Hero ── */
+.hero {
+  padding: 100px 0 80px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 500px;
+  background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.hero-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.hero h1 {
+  font-family: var(--font-serif);
+  font-size: 48px;
+  font-weight: 400;
+  letter-spacing: -1px;
+  line-height: 1.2;
+  margin-bottom: 20px;
+}
+
+.hero h1 span { color: var(--accent); }
+
+.hero-sub {
+  font-size: 18px;
+  color: var(--text-secondary);
+  max-width: 640px;
+  margin: 0 auto 40px;
+  line-height: 1.7;
+}
+
+.hero-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+/* ── Sections ── */
+.section {
+  padding: 80px 0;
+  border-top: 1px solid var(--border);
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.section h2 {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  margin-bottom: 16px;
+  line-height: 1.3;
+}
+
+.section h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  margin-top: 40px;
+}
+
+.section p {
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  max-width: 720px;
+}
+
+.section p strong { color: var(--text-primary); }
+
+/* ── Cards ── */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin: 32px 0;
+}
+
+.card-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  transition: all 0.25s ease;
+}
+
+.card:hover {
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+}
+
+.card-icon {
+  font-size: 24px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.card h4 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.card p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 0;
+}
+
+/* ── Flow Diagram ── */
+.flow-diagram {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 48px 40px;
+  margin: 40px 0;
+  overflow-x: auto;
+}
+
+.flow-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.flow-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.flow-node {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 14px 22px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  min-width: 160px;
+  position: relative;
+}
+
+.flow-node.accent {
+  border-color: var(--accent-muted);
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.flow-node.human {
+  border-color: rgba(201,168,91,0.4);
+  background: rgba(201,168,91,0.08);
+  color: var(--warning);
+}
+
+.flow-node.agent {
+  border-color: rgba(155,138,201,0.4);
+  background: rgba(155,138,201,0.08);
+  color: var(--purple);
+}
+
+.flow-node.output {
+  border-color: rgba(74,154,106,0.4);
+  background: rgba(74,154,106,0.08);
+  color: var(--success);
+}
+
+.flow-arrow {
+  color: var(--text-muted);
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.flow-arrow-down {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 18px;
+  margin: 8px 0;
+}
+
+.flow-branch {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.flow-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+/* ── Charts ── */
+.chart-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px;
+  margin: 40px 0;
+}
+
+.chart-title {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 400;
+  margin-bottom: 8px;
+}
+
+.chart-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 32px;
+}
+
+/* Learning Curve Chart */
+.curve-chart {
+  position: relative;
+  height: 300px;
+  margin: 20px 0;
+}
+
+.curve-chart svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Bar Chart */
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 200px;
+  padding-top: 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.bar {
+  width: 100%;
+  max-width: 48px;
+  border-radius: 6px 6px 0 0;
+  transition: height 0.6s ease;
+  position: relative;
+}
+
+.bar-value {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.bar-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Legend */
+.chart-legend {
+  display: flex;
+  gap: 24px;
+  margin-top: 20px;
+  justify-content: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* ── Tables ── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 24px 0;
+  font-size: 13px;
+}
+
+thead th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+tbody tr:hover td {
+  background: var(--accent-glow);
+}
+
+tbody td:first-child {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ── Example Box ── */
+.example-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 32px 0;
+}
+
+.example-header {
+  background: var(--bg-raised);
+  padding: 14px 24px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+
+.example-body {
+  padding: 24px;
+}
+
+.example-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: start;
+}
+
+.example-row:last-child { margin-bottom: 0; }
+
+.example-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding-top: 3px;
+}
+
+.example-text {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.example-text.corrected {
+  color: var(--text-primary);
+}
+
+.correction-highlight {
+  background: rgba(74,154,106,0.15);
+  color: var(--success);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.correction-removed {
+  background: rgba(201,107,107,0.15);
+  color: var(--danger);
+  text-decoration: line-through;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* ── Extraction Results ── */
+.extraction-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.extraction-card {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.extraction-card h5 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.extraction-card h5.term { color: var(--accent); }
+.extraction-card h5.style { color: var(--purple); }
+.extraction-card h5.pattern { color: var(--warning); }
+
+.extraction-item {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+}
+
+.extraction-item:last-child { border-bottom: none; }
+
+.extraction-item code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: rgba(255,255,255,0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ── Stacked Area Chart (SVG) ── */
+.area-chart-container {
+  position: relative;
+  margin: 24px 0;
+}
+
+.area-chart-container svg {
+  width: 100%;
+  display: block;
+}
+
+/* ── Callout ── */
+.callout {
+  background: var(--accent-subtle);
+  border: 1px solid rgba(91,168,160,0.2);
+  border-radius: 12px;
+  padding: 24px 28px;
+  margin: 40px 0;
+}
+
+.callout p {
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.7;
+  margin-bottom: 0;
+  max-width: none;
+}
+
+.callout p strong {
+  color: var(--text-primary);
+}
+
+/* ── Comparison ── */
+.vs-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  align-items: start;
+  margin: 32px 0;
+}
+
+.vs-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.vs-card h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.vs-card.competitor h4 { color: var(--text-muted); }
+.vs-card.finflow h4 { color: var(--accent); }
+
+.vs-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding-top: 28px;
+}
+
+.vs-item {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 6px 0;
+  display: flex;
+  align-items: start;
+  gap: 8px;
+}
+
+.vs-item::before {
+  content: '·';
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ── Footer ── */
+.footer {
+  padding: 60px 0;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.footer p {
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: none;
+}
+
+.footer a {
+  color: var(--accent-muted);
+  text-decoration: none;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .hero h1 { font-size: 32px; }
+  .card-grid, .card-grid-3, .extraction-grid { grid-template-columns: 1fr; }
+  .vs-grid { grid-template-columns: 1fr; }
+  .vs-divider { padding: 0; }
+  .container { padding: 0 20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<div class="container">
+  <div class="hero">
+    <div class="hero-label">FinFlow White Paper</div>
+    <h1>The <span>Personalization</span> Engine</h1>
+    <p class="hero-sub">
+      How 15 years of financial translation expertise becomes a self-improving AI system
+      that learns each client's voice, terminology, and compliance style —
+      creating a compounding moat no competitor can replicate.
+    </p>
+    <div class="hero-meta">WordwideFX &mdash; April 2026 &mdash; Confidential</div>
+  </div>
+</div>
+
+<!-- ═══════════════ THE INSIGHT ═══════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">The Core Insight</div>
+    <h2>Any company can connect an LLM to a news feed.<br>Nobody else can make it sound like <em>your</em> company.</h2>
+
+    <p>
+      FinFlow's competitive advantage is not the AI models it uses — those are commodities available to anyone.
+      The advantage is <strong>deep, client-specific personalization</strong> across every agent in the pipeline,
+      powered by 15 years of financial client data and a learning loop that compounds with every human interaction.
+    </p>
+
+    <div class="vs-grid">
+      <div class="vs-card competitor">
+        <h4>A competitor starting today</h4>
+        <div class="vs-item">Generic financial glossary</div>
+        <div class="vs-item">One-size-fits-all tone</div>
+        <div class="vs-item">Standard compliance templates</div>
+        <div class="vs-item">No client-specific examples</div>
+        <div class="vs-item">12+ months to learn each client's voice</div>
+        <div class="vs-item">Every new client starts from zero</div>
+      </div>
+      <div class="vs-divider">vs</div>
+      <div class="vs-card finflow">
+        <h4>FinFlow on day one</h4>
+        <div class="vs-item">100+ client glossaries from 15 years of work</div>
+        <div class="vs-item">Tone profiles built from real translations</div>
+        <div class="vs-item">Compliance rules from 7 jurisdictions, field-tested</div>
+        <div class="vs-item">Thousands of approved translation examples</div>
+        <div class="vs-item">Seeded with client data from day one</div>
+        <div class="vs-item">Every correction makes the system smarter</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ WHAT WE PERSONALIZE ═══════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">Personalization Depth</div>
+    <h2>Every agent adapts to every client</h2>
+
+    <p>
+      FinFlow doesn't just translate differently per client — it <strong>thinks</strong> differently.
+      Each agent in the pipeline receives a comprehensive client profile that shapes its behavior,
+      from the analysis it produces to the compliance rules it enforces to the words it chooses.
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <span class="card-icon">&#9998;</span>
+        <h4>Tone &amp; Register</h4>
+        <p>Formal institutional language for private banks. Approachable retail language for online brokers.
+        Aggressive directional calls for CFD providers. Each client gets their natural voice.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">&#128218;</span>
+        <h4>Terminology &amp; Glossary</h4>
+        <p>OANDA says "units," Alpari says "lots." Goldman says "collateral," a crypto broker says "margin."
+        Per-client, per-language glossary with <strong>enforced</strong> term usage — not suggestions.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">&#9878;</span>
+        <h4>Content Aggressiveness</h4>
+        <p>How directional can the analysis be? Can it name price targets? Suggest entries and exits?
+        Each client's risk appetite shapes the output — from "potential opportunity" to "strong buy signal."</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">&#128274;</span>
+        <h4>Compliance &amp; Restrictions</h4>
+        <p>Beyond jurisdictional rules (MiFID II, SEC, FCA), each client has internal policies —
+        forbidden topics, required disclaimers, acceptable risk language. The system knows them all.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">&#127463;</span>
+        <h4>Brand Voice Examples</h4>
+        <p>The most powerful personalization: real paragraphs from the client's existing published content.
+        The AI doesn't just follow rules — it <strong>pattern-matches on how you actually write</strong>.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">&#127760;</span>
+        <h4>Locale &amp; Formatting</h4>
+        <p>Decimal separators, date formats, number grouping, currency symbols, percentage formatting —
+        all configured per language per client. "1.1602" vs "1,1602" is not a detail, it's credibility.</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p>
+        This is not cosmetic customization. A <strong>conservative Swiss wealth manager</strong> and an <strong>aggressive Cyprus CFD broker</strong>
+        analyzing the same EUR/USD movement will receive fundamentally different content — different framing,
+        different terminology, different conviction level, different risk language, different disclaimers.
+        From the same pipeline, at the same time.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ THE LEARNING LOOP ═══════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">The Learning Loop</div>
+    <h2>A system that gets smarter with every human interaction</h2>
+
+    <p>
+      At the heart of FinFlow is a <strong>Correction Analysis Agent</strong> — a dedicated AI that watches every human review,
+      understands exactly what was changed and why, and feeds those learnings back into the system.
+      The reviewer just edits naturally; the agent does the heavy lifting.
+    </p>
+
+    <!-- Main Flow Diagram -->
+    <div class="flow-diagram">
+      <div class="flow-title">The Learning Loop &mdash; How Every Correction Makes the System Smarter</div>
+
+      <div class="flow-row">
+        <div class="flow-node accent">
+          AI Agent produces output<br>
+          <span class="flow-label">Using current client profile</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-node human">
+          Human reviewer edits output<br>
+          <span class="flow-label">Track-changes style, natural editing</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-node agent">
+          Correction Analysis Agent<br>
+          <span class="flow-label">Analyzes diff &mdash; classifies every change</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row" style="gap: 12px;">
+        <div class="flow-node output" style="min-width: 140px;">
+          Glossary<br>updated
+          <span class="flow-label">Immediate</span>
+        </div>
+        <div class="flow-node output" style="min-width: 140px;">
+          Examples<br>stored
+          <span class="flow-label">For few-shot selection</span>
+        </div>
+        <div class="flow-node output" style="min-width: 140px;">
+          Patterns<br>detected
+          <span class="flow-label">Accumulated &rarr; rules</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow-down">&#8595;</div>
+
+      <div class="flow-row">
+        <div class="flow-node accent" style="border-style: dashed;">
+          Client profile enriched &rarr; next output is better<br>
+          <span class="flow-label">Continuous improvement cycle</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Example: Real Correction -->
+    <h3>Example: How a single human correction generates three types of learning</h3>
+
+    <div class="example-box">
+      <div class="example-header">Translation Correction &mdash; OANDA / Spanish / EUR/USD Analysis</div>
+      <div class="example-body">
+        <div class="example-row">
+          <div class="example-label">English</div>
+          <div class="example-text">
+            "The pair shows a moderate bearish bias with consolidation expected in the 1.1525–1.1650 range ahead of US data releases."
+          </div>
+        </div>
+        <div class="example-row">
+          <div class="example-label">AI Output</div>
+          <div class="example-text">
+            "El par muestra una <span class="correction-removed">tendencia</span> bajista moderada con consolidación esperada en el <span class="correction-removed">rango</span> 1.1525–1.1650 antes de las <span class="correction-removed">publicaciones de datos estadounidenses</span>."
+          </div>
+        </div>
+        <div class="example-row">
+          <div class="example-label">Human Edit</div>
+          <div class="example-text corrected">
+            "<span class="correction-highlight">EUR/USD</span> mantiene un <span class="correction-highlight">sesgo</span> bajista moderado, con consolidación prevista en el <span class="correction-highlight">corredor</span> <span class="correction-highlight">1,1525–1,1650</span> a la espera de los <span class="correction-highlight">datos macroeconómicos de EE.UU.</span>"
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- What the agent extracts -->
+    <div class="extraction-grid">
+      <div class="extraction-card">
+        <h5 class="term">&#128218; Terms Updated</h5>
+        <div class="extraction-item">
+          <code>bias</code> &rarr; <code>sesgo</code><br>
+          not "tendencia" (more precise financial Spanish)
+        </div>
+        <div class="extraction-item">
+          <code>range</code> &rarr; <code>corredor</code><br>
+          client prefers for price channels
+        </div>
+        <div class="extraction-item">
+          <code>US data releases</code> &rarr; <code>datos macroeconómicos de EE.UU.</code><br>
+          more specific + standard abbreviation
+        </div>
+      </div>
+      <div class="extraction-card">
+        <h5 class="style">&#127912; Examples Stored</h5>
+        <div class="extraction-item">
+          Full corrected paragraph stored as an approved few-shot example with embedding vector
+        </div>
+        <div class="extraction-item">
+          Similarity-indexed so it will be retrieved when translating similar EUR/USD technical content in the future
+        </div>
+        <div class="extraction-item">
+          Quality score: 72/100 &mdash; AI was close but key terms were wrong
+        </div>
+      </div>
+      <div class="extraction-card">
+        <h5 class="pattern">&#128161; Patterns Detected</h5>
+        <div class="extraction-item">
+          Client uses ticker format <code>EUR/USD</code> not "el par" &mdash; add formatting rule after 5 observations
+        </div>
+        <div class="extraction-item">
+          European decimal format: <code>1,1525</code> not <code>1.1525</code> &mdash; high confidence
+        </div>
+        <div class="extraction-item">
+          Prefers "mantiene" (maintains) over "muestra" (shows) &mdash; more authoritative tone
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ LEARNING CURVES ═══════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">Learning Curves</div>
+    <h2>Four agents that improve independently — and compound together</h2>
+
+    <p>
+      The learning loop doesn't just apply to translation. Every agent with a human-in-the-loop checkpoint
+      accumulates corrections, examples, and rules. Each agent learns at its own pace,
+      but the combined effect is a system that becomes dramatically better over time.
+    </p>
+
+    <!-- Translation Learning Curve -->
+    <div class="chart-container">
+      <div class="chart-title">Translation Agent — Learning Curve</div>
+      <div class="chart-subtitle">Human review percentage decreases as the system learns each client's voice</div>
+
+      <div class="bar-chart">
+        <div class="bar-group">
+          <div class="bar" style="height: 100%; background: linear-gradient(to top, var(--accent), var(--accent-muted));">
+            <span class="bar-value" style="color: var(--accent);">100%</span>
+          </div>
+          <div class="bar-label">Month<br>1–2</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 70%; background: linear-gradient(to top, var(--accent), var(--accent-muted));">
+            <span class="bar-value" style="color: var(--accent);">70%</span>
+          </div>
+          <div class="bar-label">Month<br>3–4</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 50%; background: linear-gradient(to top, var(--accent), var(--accent-muted));">
+            <span class="bar-value" style="color: var(--accent);">50%</span>
+          </div>
+          <div class="bar-label">Month<br>5–6</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 20%; background: linear-gradient(to top, var(--accent), var(--accent-muted));">
+            <span class="bar-value" style="color: var(--accent);">20%</span>
+          </div>
+          <div class="bar-label">Month<br>7–8</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 10%; background: linear-gradient(to top, var(--accent), var(--accent-muted));">
+            <span class="bar-value" style="color: var(--accent);">10%</span>
+          </div>
+          <div class="bar-label">Month<br>9–12</div>
+        </div>
+      </div>
+
+      <table style="margin-top: 24px;">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Glossary Terms</th>
+            <th>Approved Examples</th>
+            <th>Learned Rules</th>
+            <th>HITL Rate</th>
+            <th>What the client sees</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Month 1–2</td>
+            <td>50 (seeded)</td>
+            <td>0</td>
+            <td>0</td>
+            <td>100%</td>
+            <td>"Building our language profile"</td>
+          </tr>
+          <tr>
+            <td>Month 3–4</td>
+            <td>180</td>
+            <td>90</td>
+            <td>3</td>
+            <td>70%</td>
+            <td>"Getting noticeably better"</td>
+          </tr>
+          <tr>
+            <td>Month 5–6</td>
+            <td>300</td>
+            <td>250</td>
+            <td>12</td>
+            <td>50%</td>
+            <td>"Impressive — knows our style"</td>
+          </tr>
+          <tr>
+            <td>Month 7–8</td>
+            <td>400</td>
+            <td>500</td>
+            <td>20</td>
+            <td>20%</td>
+            <td>"Almost like our own team"</td>
+          </tr>
+          <tr>
+            <td>Month 9–12</td>
+            <td>450+</td>
+            <td>800+</td>
+            <td>25+</td>
+            <td>10%</td>
+            <td>"Spot-check only"</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Compliance Learning Curve -->
+    <div class="chart-container">
+      <div class="chart-title">Compliance Agent — Learning Curve</div>
+      <div class="chart-subtitle">Learns each client's specific regulatory preferences and internal policies beyond base jurisdiction rules</div>
+
+      <div class="bar-chart">
+        <div class="bar-group">
+          <div class="bar" style="height: 100%; background: linear-gradient(to top, var(--info), rgba(107,143,201,0.7));">
+            <span class="bar-value" style="color: var(--info);">100%</span>
+          </div>
+          <div class="bar-label">Month<br>1–2</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 85%; background: linear-gradient(to top, var(--info), rgba(107,143,201,0.7));">
+            <span class="bar-value" style="color: var(--info);">85%</span>
+          </div>
+          <div class="bar-label">Month<br>3–4</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 60%; background: linear-gradient(to top, var(--info), rgba(107,143,201,0.7));">
+            <span class="bar-value" style="color: var(--info);">60%</span>
+          </div>
+          <div class="bar-label">Month<br>5–6</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 40%; background: linear-gradient(to top, var(--info), rgba(107,143,201,0.7));">
+            <span class="bar-value" style="color: var(--info);">40%</span>
+          </div>
+          <div class="bar-label">Month<br>7–8</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 25%; background: linear-gradient(to top, var(--info), rgba(107,143,201,0.7));">
+            <span class="bar-value" style="color: var(--info);">25%</span>
+          </div>
+          <div class="bar-label">Month<br>9–12</div>
+        </div>
+      </div>
+
+      <table style="margin-top: 24px;">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>What the agent learns</th>
+            <th>Correction Rate</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Month 1–2</td>
+            <td>Base jurisdiction rules only (MiFID II template)</td>
+            <td>100% reviewed</td>
+            <td>Officer adds 3 extra disclaimers the base template didn't include</td>
+          </tr>
+          <tr>
+            <td>Month 3–4</td>
+            <td>Client's internal policies, preferred disclaimer wording</td>
+            <td>85% reviewed</td>
+            <td>Learns that this client requires "capital at risk" warning even for informational content</td>
+          </tr>
+          <tr>
+            <td>Month 5–6</td>
+            <td>Content boundary patterns — what gets flagged vs approved</td>
+            <td>60% reviewed</td>
+            <td>Learns that "potential opportunity" is OK but "buy signal" always gets rejected</td>
+          </tr>
+          <tr>
+            <td>Month 7–8</td>
+            <td>Edge cases, seasonal patterns, event-specific rules</td>
+            <td>40% reviewed</td>
+            <td>Learns to add extra volatility warnings during central bank weeks</td>
+          </tr>
+          <tr>
+            <td>Month 9–12</td>
+            <td>Rare scenarios, new regulation adaptations</td>
+            <td>25% reviewed</td>
+            <td>Officer only reviews novel situations — routine content auto-approved</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout" style="margin-top: 24px;">
+        <p>
+          <strong>Note:</strong> Compliance never reaches 10% HITL like translation. Regulatory content requires
+          higher human oversight by design — but the agent dramatically reduces false positives and
+          handles routine compliance autonomously, saving the compliance officer hours per day.
+        </p>
+      </div>
+    </div>
+
+    <!-- TA & FA Learning Curve -->
+    <div class="chart-container">
+      <div class="chart-title">Analysis Agents (TA &amp; FA) — Learning Curve</div>
+      <div class="chart-subtitle">Learn each client's preferred indicators, depth, framing, and directional conviction</div>
+
+      <div class="bar-chart">
+        <div class="bar-group">
+          <div class="bar" style="height: 80%; background: linear-gradient(to top, var(--purple), rgba(155,138,201,0.7));">
+            <span class="bar-value" style="color: var(--purple);">80%</span>
+          </div>
+          <div class="bar-label">Month<br>1–2</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 55%; background: linear-gradient(to top, var(--purple), rgba(155,138,201,0.7));">
+            <span class="bar-value" style="color: var(--purple);">55%</span>
+          </div>
+          <div class="bar-label">Month<br>3–4</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 30%; background: linear-gradient(to top, var(--purple), rgba(155,138,201,0.7));">
+            <span class="bar-value" style="color: var(--purple);">30%</span>
+          </div>
+          <div class="bar-label">Month<br>5–6</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 15%; background: linear-gradient(to top, var(--purple), rgba(155,138,201,0.7));">
+            <span class="bar-value" style="color: var(--purple);">15%</span>
+          </div>
+          <div class="bar-label">Month<br>7–8</div>
+        </div>
+        <div class="bar-group">
+          <div class="bar" style="height: 5%; min-height: 8px; background: linear-gradient(to top, var(--purple), rgba(155,138,201,0.7));">
+            <span class="bar-value" style="color: var(--purple);">5%</span>
+          </div>
+          <div class="bar-label">Month<br>9–12</div>
+        </div>
+      </div>
+
+      <table style="margin-top: 24px;">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>What the agents learn</th>
+            <th>Correction Rate</th>
+            <th>Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Month 1–2</td>
+            <td>Client's preferred indicators, timeframes, basic tone</td>
+            <td>80% adjusted</td>
+            <td>Editor removes Bollinger Bands section — client only uses RSI, MACD, and Ichimoku</td>
+          </tr>
+          <tr>
+            <td>Month 3–4</td>
+            <td>Framing preferences, directional conviction level</td>
+            <td>55% adjusted</td>
+            <td>Learns that this client wants probabilities ("65% chance") not vague language ("likely")</td>
+          </tr>
+          <tr>
+            <td>Month 5–6</td>
+            <td>Audience-specific depth, section ordering, emphasis patterns</td>
+            <td>30% adjusted</td>
+            <td>Learns to lead with macro context for this client's institutional audience, not price action</td>
+          </tr>
+          <tr>
+            <td>Month 7–8</td>
+            <td>Instrument-specific patterns, seasonal adjustments</td>
+            <td>15% adjusted</td>
+            <td>Learns that gold analysis for this client always includes central bank reserve data</td>
+          </tr>
+          <tr>
+            <td>Month 9–12</td>
+            <td>Rare edge cases, new instrument coverage</td>
+            <td>5% adjusted</td>
+            <td>Editor only adjusts analysis for unusual market conditions</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Combined Learning Effect -->
+    <div class="chart-container">
+      <div class="chart-title">Combined Learning Effect — All Agents</div>
+      <div class="chart-subtitle">Total human intervention across the entire pipeline decreases from near-100% to under 15%</div>
+
+      <div class="area-chart-container">
+        <svg viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg">
+          <!-- Grid lines -->
+          <line x1="80" y1="40" x2="80" y2="260" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+          <line x1="80" y1="260" x2="760" y2="260" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+          <line x1="80" y1="205" x2="760" y2="205" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="4"/>
+          <line x1="80" y1="150" x2="760" y2="150" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="4"/>
+          <line x1="80" y1="95" x2="760" y2="95" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="4"/>
+
+          <!-- Y-axis labels -->
+          <text x="70" y="264" fill="#4a4a50" font-size="11" text-anchor="end" font-family="Inter">0%</text>
+          <text x="70" y="209" fill="#4a4a50" font-size="11" text-anchor="end" font-family="Inter">25%</text>
+          <text x="70" y="154" fill="#4a4a50" font-size="11" text-anchor="end" font-family="Inter">50%</text>
+          <text x="70" y="99" fill="#4a4a50" font-size="11" text-anchor="end" font-family="Inter">75%</text>
+          <text x="70" y="44" fill="#4a4a50" font-size="11" text-anchor="end" font-family="Inter">100%</text>
+
+          <!-- X-axis labels -->
+          <text x="148" y="285" fill="#4a4a50" font-size="11" text-anchor="middle" font-family="Inter">Month 2</text>
+          <text x="284" y="285" fill="#4a4a50" font-size="11" text-anchor="middle" font-family="Inter">Month 4</text>
+          <text x="420" y="285" fill="#4a4a50" font-size="11" text-anchor="middle" font-family="Inter">Month 6</text>
+          <text x="556" y="285" fill="#4a4a50" font-size="11" text-anchor="middle" font-family="Inter">Month 8</text>
+          <text x="692" y="285" fill="#4a4a50" font-size="11" text-anchor="middle" font-family="Inter">Month 12</text>
+
+          <!-- Translation area (bottom layer, teal) -->
+          <path d="M148,40 L284,95 L420,150 L556,216 L692,238 L692,260 L148,260 Z"
+                fill="rgba(91,168,160,0.2)" stroke="none"/>
+          <polyline points="148,40 284,95 420,150 556,216 692,238"
+                    fill="none" stroke="#5ba8a0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- Compliance area (middle layer, blue) -->
+          <path d="M148,40 L284,73 L420,128 L556,172 L692,205 L692,260 L148,260 Z"
+                fill="rgba(107,143,201,0.15)" stroke="none"/>
+          <polyline points="148,40 284,73 420,128 556,172 692,205"
+                    fill="none" stroke="#6b8fc9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- Analysis area (top layer, purple) -->
+          <path d="M148,84 L284,161 L420,194 L556,227 L692,249 L692,260 L148,260 Z"
+                fill="rgba(155,138,201,0.1)" stroke="none"/>
+          <polyline points="148,84 284,161 420,194 556,227 692,249"
+                    fill="none" stroke="#9b8ac9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- Data point dots -->
+          <circle cx="148" cy="40" r="4" fill="#5ba8a0"/>
+          <circle cx="284" cy="95" r="4" fill="#5ba8a0"/>
+          <circle cx="420" cy="150" r="4" fill="#5ba8a0"/>
+          <circle cx="556" cy="216" r="4" fill="#5ba8a0"/>
+          <circle cx="692" cy="238" r="4" fill="#5ba8a0"/>
+
+          <circle cx="148" cy="40" r="4" fill="#6b8fc9"/>
+          <circle cx="284" cy="73" r="4" fill="#6b8fc9"/>
+          <circle cx="420" cy="128" r="4" fill="#6b8fc9"/>
+          <circle cx="556" cy="172" r="4" fill="#6b8fc9"/>
+          <circle cx="692" cy="205" r="4" fill="#6b8fc9"/>
+
+          <circle cx="148" cy="84" r="4" fill="#9b8ac9"/>
+          <circle cx="284" cy="161" r="4" fill="#9b8ac9"/>
+          <circle cx="420" cy="194" r="4" fill="#9b8ac9"/>
+          <circle cx="556" cy="227" r="4" fill="#9b8ac9"/>
+          <circle cx="692" cy="249" r="4" fill="#9b8ac9"/>
+
+          <!-- Value annotations -->
+          <text x="148" y="32" fill="#5ba8a0" font-size="10" text-anchor="middle" font-family="JetBrains Mono" font-weight="500">100%</text>
+          <text x="692" y="232" fill="#5ba8a0" font-size="10" text-anchor="middle" font-family="JetBrains Mono" font-weight="500">10%</text>
+          <text x="692" y="199" fill="#6b8fc9" font-size="10" text-anchor="middle" font-family="JetBrains Mono" font-weight="500">25%</text>
+          <text x="692" y="244" fill="#9b8ac9" font-size="10" text-anchor="end" font-family="JetBrains Mono" font-weight="500">5%</text>
+        </svg>
+      </div>
+
+      <div class="chart-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #5ba8a0;"></div>
+          Translation Agent — HITL Review %
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #6b8fc9;"></div>
+          Compliance Agent — HITL Review %
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background: #9b8ac9;"></div>
+          Analysis Agents (TA/FA) — Editor Adjustment %
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ THE CORRECTION ANALYSIS AGENT ═══════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">Under the Hood</div>
+    <h2>The Correction Analysis Agent</h2>
+
+    <p>
+      The invisible engine behind the learning loop. Every time a human reviewer makes a correction —
+      a term change, a tone adjustment, a compliance flag — this dedicated AI agent analyzes the diff
+      and extracts structured learning. The reviewer never sees it; they just edit naturally.
+    </p>
+
+    <div class="card-grid card-grid-3">
+      <div class="card">
+        <span class="card-icon" style="color: var(--accent);">&#128218;</span>
+        <h4>Term Extraction</h4>
+        <p>Identifies every term substitution. Compares AI's choice vs human's choice. Determines if it's a glossary candidate. Updates the glossary <strong>immediately</strong> — the next translation uses the corrected term.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon" style="color: var(--purple);">&#127912;</span>
+        <h4>Example Curation</h4>
+        <p>Stores approved human translations as few-shot examples with embedding vectors. Uses <strong>semantic similarity</strong> to select the most relevant examples for each new translation — not random, but contextually matched.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon" style="color: var(--warning);">&#128161;</span>
+        <h4>Pattern Distillation</h4>
+        <p>Accumulates observations across corrections. When a pattern appears 5+ times with high confidence, it's <strong>promoted to a rule</strong> that's injected into every future prompt for this client.</p>
+      </div>
+    </div>
+
+    <h3>How it works across all four agent types</h3>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Who Reviews</th>
+          <th>What Gets Learned</th>
+          <th>Learning Speed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color: var(--accent);">Translation</td>
+          <td>WordwideFX translator</td>
+          <td>Terms, tone, sentence structure, formatting, brand voice patterns</td>
+          <td>Fast — high volume of corrections, clear right/wrong</td>
+        </tr>
+        <tr>
+          <td style="color: var(--info);">Compliance</td>
+          <td>Licensed compliance officer</td>
+          <td>Internal policies, disclaimer preferences, content boundaries, risk language thresholds</td>
+          <td>Medium — fewer corrections but each is high-signal</td>
+        </tr>
+        <tr>
+          <td style="color: var(--purple);">Technical Analysis</td>
+          <td>Client editor / analyst</td>
+          <td>Preferred indicators, directional conviction, section ordering, timeframe emphasis</td>
+          <td>Medium — editors make structural adjustments</td>
+        </tr>
+        <tr>
+          <td style="color: var(--purple);">Fundamental Analysis</td>
+          <td>Client editor / analyst</td>
+          <td>Macro focus areas, institutional vs retail framing, geopolitical treatment, data depth</td>
+          <td>Slower — subjective preferences take longer to crystallize</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Cost: nearly invisible</h3>
+
+    <p>
+      The Correction Analysis Agent uses Claude Haiku for routine corrections (~$0.002 per correction)
+      and Sonnet for complex ambiguous cases (~$0.01). At 100 corrections per day during month 1
+      (peak HITL period), that's <strong>$0.20/day</strong> — less than a cup of coffee to power a
+      self-improving system that compounds over the client's entire lifetime.
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════ THE MOAT ═══════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">The Competitive Moat</div>
+    <h2>Why this gets harder to compete with every month</h2>
+
+    <p>
+      Most AI products face a simple threat: if someone else uses the same models, they can build the same thing.
+      FinFlow's personalization engine inverts this dynamic. <strong>The product gets more defensible over time</strong>,
+      not less — because the value accumulates in client-specific data that no competitor has access to.
+    </p>
+
+    <div class="flow-diagram" style="padding: 40px;">
+      <div class="flow-title">The Compounding Moat &mdash; Three Layers of Defense</div>
+
+      <table style="margin: 0;">
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>What It Is</th>
+            <th>Replication Time</th>
+            <th>Switching Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="color: var(--accent);">Layer 1: Seed Data</td>
+            <td>100+ client glossaries, tone profiles, compliance rules from 15 years of WordwideFX</td>
+            <td style="color: var(--danger);">15 years</td>
+            <td>N/A — competitor can't access this</td>
+          </tr>
+          <tr>
+            <td style="color: var(--info);">Layer 2: Learned Profiles</td>
+            <td>Per-client corrections, examples, rules accumulated through the learning loop</td>
+            <td style="color: var(--danger);">12+ months per client</td>
+            <td>Client loses all accumulated learning</td>
+          </tr>
+          <tr>
+            <td style="color: var(--purple);">Layer 3: Network Effect</td>
+            <td>Cross-client learnings — patterns that improve the base system for all clients</td>
+            <td style="color: var(--danger);">Requires 50+ clients</td>
+            <td>Competitor's system is fundamentally weaker</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The switching cost calculation</h3>
+
+    <p>
+      After 12 months on FinFlow, a client has accumulated:
+    </p>
+
+    <div class="card-grid card-grid-3" style="margin: 24px 0;">
+      <div class="card" style="text-align: center;">
+        <div style="font-family: var(--font-mono); font-size: 36px; font-weight: 500; color: var(--accent); margin-bottom: 8px;">450+</div>
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Glossary terms per language</div>
+      </div>
+      <div class="card" style="text-align: center;">
+        <div style="font-family: var(--font-mono); font-size: 36px; font-weight: 500; color: var(--purple); margin-bottom: 8px;">800+</div>
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Approved translation examples</div>
+      </div>
+      <div class="card" style="text-align: center;">
+        <div style="font-family: var(--font-mono); font-size: 36px; font-weight: 500; color: var(--info); margin-bottom: 8px;">25+</div>
+        <div style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;">Learned style &amp; compliance rules</div>
+      </div>
+    </div>
+
+    <p>
+      Switching to a competitor means <strong>starting from zero</strong>. No glossary. No examples. No learned rules.
+      The competitor's AI will make every mistake FinFlow stopped making months ago.
+      The client would need 12 months of human review to get back to where they are today.
+    </p>
+
+    <div class="callout">
+      <p>
+        <strong>The key insight for investors:</strong> FinFlow's retention model is not contractual — it's structural.
+        Clients stay because leaving is expensive in quality degradation, not because of lock-in clauses.
+        This is the same retention dynamic as Salesforce (CRM data) or Palantir (operational data) —
+        the product becomes the system of record for the client's content voice.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CROSS-CLIENT LEARNING ═══════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">Network Effect</div>
+    <h2>Cross-client learning: every client makes the platform better for all</h2>
+
+    <p>
+      While client-specific data stays isolated, <strong>anonymized patterns</strong> improve the base system.
+      When five different clients' compliance officers all flag the same type of content,
+      that becomes a base rule for all new clients.
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <h4>Translation patterns</h4>
+        <p>When multiple clients correct the same financial term in Japanese, the default glossary gets updated.
+        New clients start with a better baseline than the previous generation.</p>
+      </div>
+      <div class="card">
+        <h4>Compliance patterns</h4>
+        <p>When MiFID II rules change and three compliance officers make similar edits,
+        the base compliance module updates automatically for all EU-regulated clients.</p>
+      </div>
+      <div class="card">
+        <h4>Analysis patterns</h4>
+        <p>When editors at 10 different brokers consistently remove a certain type of analysis section,
+        the base TA/FA agents learn that it's not valuable for that asset class.</p>
+      </div>
+      <div class="card">
+        <h4>Quality patterns</h4>
+        <p>The more reports that pass through the system, the better the Quality Arbitration agent
+        becomes at predicting which analyses will be accepted vs. rejected.</p>
+      </div>
+    </div>
+
+    <p>
+      This creates a <strong>data network effect</strong>: client 50 gets a better out-of-the-box experience than client 1 did,
+      because the base system has absorbed learning from 49 previous clients. A competitor starting with
+      zero clients has no base learning to offer.
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════ SUMMARY ═══════════════ -->
+<div class="section">
+  <div class="container">
+    <div class="section-label">Summary</div>
+    <h2>The personalization engine in three sentences</h2>
+
+    <p style="font-size: 17px; color: var(--text-primary); line-height: 1.8; max-width: 720px;">
+      FinFlow's AI agents don't just produce financial content — they produce <strong>your</strong> financial content,
+      in <strong>your</strong> voice, in <strong>your</strong> clients' languages, compliant with <strong>your</strong> regulations and internal policies.
+    </p>
+    <p style="font-size: 17px; color: var(--text-primary); line-height: 1.8; max-width: 720px;">
+      Every human correction makes the system smarter. A dedicated Correction Analysis Agent extracts terms,
+      examples, and patterns from every edit — automatically enriching the client's profile so the same
+      mistake never happens twice.
+    </p>
+    <p style="font-size: 17px; color: var(--text-primary); line-height: 1.8; max-width: 720px;">
+      The result is a <strong>compounding moat</strong>: seeded with 15 years of WordwideFX client data, growing with every
+      interaction, and creating structural switching costs that make the platform more defensible every month.
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════ FOOTER ═══════════════ -->
+<div class="footer">
+  <div class="container">
+    <p>
+      FinFlow by WordwideFX &mdash; April 2026 &mdash; Confidential<br>
+      <a href="https://agaleraib.github.io/finflow-deck/">Product Deck</a> &middot;
+      <a href="https://agaleraib.github.io/finflow-deck/mockup/finflow-ui-mockup.html">Interactive UI Mockup</a>
+    </p>
+  </div>
+</div>
+
+</body>
+</html>
