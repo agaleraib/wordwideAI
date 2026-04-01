@@ -29,7 +29,7 @@ The core insight: GoBot already solves the hardest problems (agent orchestration
 | Cross-agent invocation | `[INVOKE:agent\|question]` tags, parsed by `src/lib/cross-agent.ts`, with permission map in `AGENT_INVOCATION_MAP` | TA and FA agents deliberate via invoke tags; Quality agent orchestrates |
 | HITL decisions | `src/lib/board/decisions.ts` - inline Telegram buttons (approve/defer/reject/discuss), `async_tasks` in Supabase | Report approval, compliance sign-off, translation approval, publish authorization |
 | Board orchestrator | `src/lib/board/orchestrator.ts` - sequential agent execution, structured output via `tool_use`, synthesis | Report generation pipeline: gather data, run agents, synthesize, present for review |
-| Model router | `src/lib/model-router.ts` - tiered routing (qwen/local/haiku/sonnet/opus) with budget tracking | News classification (Qwen 7B), translation (Qwen 32B/local), analysis (Sonnet), arbitration (Opus) |
+| Model router | `src/lib/model-router.ts` - tiered routing (haiku/sonnet/opus + GPT-4o/Gemini) with budget tracking | News classification (Haiku), translation (Sonnet/GPT-4o per language), analysis (Sonnet), arbitration (Opus) |
 | Scheduled jobs | `src/scheduler/executor.ts` - ScheduledJobDef with classification, locking, failure tracking | Market monitoring schedules, report generation cadences, distribution windows |
 | Light pipeline | `src/lib/light-pipeline.ts` - Analyze(Sonnet) -> Execute(Local) -> Review(Sonnet) | News triage: Classify(Haiku) -> Summarize(Qwen) -> Relevance(Haiku) |
 | Task queue | `src/lib/task-queue.ts` - async tasks with inline keyboards, stale reminders | Client review queue with approval buttons per report |
@@ -227,19 +227,19 @@ config/clients/{client-slug}/
 
 ### 3.7 Translation Agents
 
-**LLM selection per language pair:**
+**LLM selection per language tier (all API-based):**
 
-| Target Language | Model | Reason |
-|---|---|---|
-| Spanish | Qwen 32B (local) | Excellent Spanish, $0 cost |
-| Portuguese | Qwen 32B (local) | Good Romance language coverage |
-| Chinese (Simplified) | Claude Sonnet | Best financial Chinese terminology |
-| Japanese | Claude Sonnet | Nuanced keigo for institutional |
-| Arabic | Gemini Flash | Best Arabic among frontier models |
-| German | Qwen 32B (local) | Good European coverage |
-| French | Qwen 32B / Mistral | French-company fine-tuning |
-| Korean | Claude Haiku | Cost-efficient, adequate quality |
-| Russian | Qwen 32B (local) | Adequate for financial content |
+| Language Tier | Primary Model | Fallback | Cost/Lang/Report |
+|---|---|---|---|
+| European (ES, PT, DE, FR, IT, NL, etc.) | Claude Sonnet 4 | GPT-4o | ~$0.07 |
+| Chinese (Simplified) | GPT-4o / GPT-4.1 | Claude Sonnet 4 | ~$0.07 |
+| Japanese | Claude Sonnet 4 | GPT-4o | ~$0.07 |
+| Korean | Gemini 2.5 Pro | GPT-4o | ~$0.07 |
+| Arabic / RTL | GPT-4o | Claude Sonnet 4 | ~$0.07 |
+| South/Southeast Asian | Gemini 2.5 Pro | GPT-4o | ~$0.07 |
+| Volume/Draft tier | GPT-4o-mini | Gemini 2.0 Flash | ~$0.003 |
+
+**Model selection rationale:** Claude Sonnet 4 is the default for its best-in-class instruction adherence — critical for maintaining client-specific glossary terms, tone profiles, and brand voice constraints. GPT-4o excels for CJK financial content. Gemini 2.5 Pro is strongest for Korean and South/Southeast Asian languages.
 
 **Translation Learning Loop (WordwideFX advantage):**
 1. AI generates initial translation using client-specific glossary + tone profile
@@ -283,7 +283,7 @@ config/clients/{client-slug}/
 | Database | Supabase (self-hosted at 10.1.10.233) |
 | Queue | BullMQ + Redis (proper job queues for multi-tenant) |
 | LLM Primary | Anthropic Claude (Opus/Sonnet/Haiku) |
-| LLM Local | Qwen 32B/235B via MLX ($0 for translations, personalization) |
+| LLM Secondary | OpenAI GPT-4o/4.1/4o-mini, Google Gemini 2.5 Pro/2.0 Flash |
 | Charts | TradingView Lightweight + Plotly + Puppeteer |
 | Storage | Supabase Storage |
 | Auth | Supabase Auth + API keys (multi-tenant RLS) |
@@ -295,20 +295,19 @@ config/clients/{client-slug}/
 
 | Task | Model | Cost |
 |---|---|---|
-| News classification | Qwen 7B | $0 |
-| News summarization | Qwen 32B | $0 |
+| News classification | Haiku | ~$0.02 |
 | Relevance scoring | Haiku | ~$0.02 |
 | Technical Analysis | Sonnet | ~$0.15 |
 | Fundamental Analysis | Sonnet | ~$0.15 |
-| Quality Arbitration | Opus | ~$0.80 |
+| Quality Arbitration | Opus (Enterprise) / Sonnet | ~$0.80 / ~$0.15 |
 | Deliberation rounds (2x) | Sonnet | ~$0.20 |
 | Compliance review | Sonnet | ~$0.10 |
-| Personalization/rewrite | Qwen 32B | $0 |
-| Translation (local langs) | Qwen 32B | $0 |
-| Translation (CJK/Arabic) | Sonnet/Gemini | ~$0.08 |
-| **Total per report** | | **~$1.50** |
+| Personalization/rewrite | Sonnet | ~$0.10 |
+| Translation (10 langs, Premium) | Sonnet / GPT-4o mix | ~$0.70 |
+| **Total per report (Enterprise, 10 langs)** | | **~$2.24** |
+| **Total per report (Hybrid, 10 langs)** | | **~$1.10** |
 
-At scale (100 clients, 2 reports/day): ~$300/day, ~$9,000/month.
+At scale (100 clients, 2 reports/day): ~$600/day, ~$18,000/month. Gross margin: ~92%.
 
 ---
 
@@ -366,4 +365,4 @@ src/
 | Data source API changes/outages | Medium | High | Multiple sources per type; circuit breaker; graceful degradation |
 | Report accuracy credibility | Medium | High | Backtesting (Phase 6); transparent confidence scores |
 | Client data isolation failure | Low | Critical | Supabase RLS; separate schemas; penetration testing |
-| LLM cost spike at scale | Low | Medium | Local-first (60%+ on Qwen); daily budget tracking; per-client caps |
+| LLM API cost at scale | Medium | Medium | Intelligent model routing (Haiku/mini for triage, Sonnet for quality); daily budget tracking; per-client caps; API costs trending down ~30% YoY |

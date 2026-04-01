@@ -38,7 +38,8 @@ FinFlow is an autonomous, event-driven financial content platform that monitors 
 - **Hybrid architecture.** TypeScript (Bun) for API, orchestration, and agent execution. Python (FastAPI) for data processing where the ecosystem is stronger (pandas, numpy, mplfinance).
 - **Standalone project.** Copies proven architectural patterns from the GoBot multi-agent framework, but does not depend on GoBot as a runtime dependency.
 - **Multi-tenant from day one.** Row-Level Security (RLS) in PostgreSQL, tenant-scoped everything, white-label branding per client.
-- **Translation as a first-class pipeline stage.** Not an afterthought. Translation with client-specific glossaries and adaptive human review is a core differentiator.
+- **Translation as a first-class pipeline stage.** Not an afterthought. Translation with client-specific glossaries, tone profiles, brand voice, and adaptive human review is a core differentiator.
+- **Deep personalization across all agents.** Every agent — analysis, compliance, translation — is configured per client with tone, terminology, aggressiveness, allowed content, and brand voice. This is the platform's primary competitive advantage: 15 years of financial client data shaping every output.
 
 ### Technology Rationale
 
@@ -181,7 +182,36 @@ interface AgentConfig {
   temperature: number;
   retryPolicy: { maxRetries: number; backoffMs: number };
 }
+
+// Every agent receives a client personalization profile at runtime
+interface ClientProfile {
+  tenantId: string;
+  companyName: string;
+  tone: 'formal' | 'approachable' | 'institutional' | 'retail-friendly';
+  aggressiveness: 'conservative' | 'moderate' | 'aggressive';
+  allowedContent: {
+    instruments: string[];          // which instruments can be discussed
+    forwardLooking: boolean;        // can the content make predictions?
+    tradeSetups: boolean;           // can it suggest entries/exits?
+    priceTargets: boolean;          // can it name specific prices?
+    restrictedTopics: string[];     // topics to never discuss
+  };
+  brandVoice: {
+    examples: string[];             // actual paragraphs from client's existing content
+    vocabulary: Record<string, string>; // preferred terms ("units" not "lots")
+    avoidTerms: string[];           // terms the client never uses
+    formattingRules: string[];      // e.g., "use comma for decimals in European markets"
+  };
+  compliance: {
+    jurisdictions: string[];        // MiFID II, SEC, FCA, etc.
+    internalPolicies: string[];     // client-specific content restrictions
+    requiredDisclaimers: string[];  // per-jurisdiction disclaimers
+  };
+  glossaries: Record<string, GlossaryTerms>; // per-language glossary
+}
 ```
+
+**Every agent in the pipeline** receives the `ClientProfile` and adapts its behavior accordingly. This is not cosmetic — it fundamentally shapes the output. A conservative wealth manager and an aggressive CFD broker analyzing the same EUR/USD movement will receive meaningfully different content: different framing, different terminology, different level of directional conviction, different risk language.
 
 All agent calls use streaming via `@anthropic-ai/sdk`, with token tracking per call for cost attribution.
 
@@ -191,8 +221,10 @@ All agent calls use streaming via `@anthropic-ai/sdk`, with token tracking per c
 |----------|-------|
 | **Model** | `claude-sonnet-4-5` |
 | **Reasoning** | Chain-of-Thought (CoT) |
-| **Input** | OHLCV data, indicator values (RSI, MACD, BB, MAs), recent price action |
+| **Input** | OHLCV data, indicator values (RSI, MACD, BB, MAs), recent price action, **client profile** |
 | **Output** | Trend analysis, key levels (support/resistance), pattern recognition, indicator readings, trade setup (entry/stop/targets), confidence score + dissenting signals |
+
+**Personalization:** The TA agent adapts based on the client's `aggressiveness` and `allowedContent` settings. A conservative client gets hedged language ("potential support zone") while an aggressive broker gets direct calls ("strong buy at 1.1550"). If `tradeSetups` or `priceTargets` are disabled in the client profile, the agent omits those sections entirely.
 
 ### 4.3 Fundamental Analysis Agent
 
@@ -200,8 +232,10 @@ All agent calls use streaming via `@anthropic-ai/sdk`, with token tracking per c
 |----------|-------|
 | **Model** | `claude-sonnet-4-5` |
 | **Reasoning** | ReAct (Reason-Act-Observe) |
-| **Input** | News articles, economic calendar events, central bank decisions, macro data |
+| **Input** | News articles, economic calendar events, central bank decisions, macro data, **client profile** |
 | **Output** | Macro environment summary, central bank stance, economic calendar impact, cross-asset correlations, geopolitical risk assessment, sentiment indicators (COT, positioning) |
+
+**Personalization:** The FA agent adjusts depth and focus based on the client's audience. An institutional client gets COT positioning data and yield curve analysis; a retail broker gets simplified macro context. The agent respects `restrictedTopics` (e.g., some clients cannot discuss geopolitical events) and uses the client's preferred terminology throughout.
 
 ### 4.4 Quality/Arbitration Agent
 
@@ -243,6 +277,8 @@ Cross-agent invocation uses the `[INVOKE:agent|question]` tag pattern, parsed by
 
 The compliance agent applies a hybrid approach: rule-based checks for mechanical requirements (disclaimer presence, risk warning format) combined with LLM reasoning for subjective assessments (is this claim misleading? does this constitute advice?).
 
+**Personalization:** Beyond jurisdiction rules, the compliance agent loads the client's `internalPolicies` — restrictions that go beyond regulatory requirements. For example, a client may prohibit all forward-looking price statements even in jurisdictions where they're legally permitted, or require specific risk language that exceeds the regulatory minimum. The agent also applies the client's `requiredDisclaimers` which may differ from the regulatory default.
+
 ### 4.6 Translation Agent
 
 | Property | Value |
@@ -253,15 +289,27 @@ The compliance agent applies a hybrid approach: rule-based checks for mechanical
 
 ### 4.7 Model Router
 
-Tiered model selection adapted from GoBot's `src/lib/model-router.ts`:
+Tiered model selection adapted from GoBot's `src/lib/model-router.ts`. All models are API-based — no local inference.
 
-| Task | Model | Cost |
-|------|-------|------|
-| News triage + event classification | `claude-haiku-4-5` | ~$0.02 |
-| TA / FA / Compliance / Translation | `claude-sonnet-4-5` | ~$0.10–0.15 |
-| Quality arbitration (Enterprise) | `claude-opus-4-6` | ~$0.80 |
-| European language translation | Qwen 32B (local MLX) | $0 |
-| Personalization / rewriting | Qwen 32B (local MLX) | $0 |
+| Task | Primary Model | Fallback | Est. Cost |
+|------|--------------|----------|-----------|
+| News triage + event classification | `claude-haiku-4-5` | `gpt-4.1-nano` | ~$0.02 |
+| Technical Analysis | `claude-sonnet-4-5` | `gpt-4o` | ~$0.15 |
+| Fundamental Analysis | `claude-sonnet-4-5` | `gpt-4o` | ~$0.15 |
+| Quality arbitration (Enterprise) | `claude-opus-4-6` | `claude-sonnet-4-5` | ~$0.80 / ~$0.15 |
+| Compliance review | `claude-sonnet-4-5` | `gpt-4.1` | ~$0.10 |
+| Translation (European, Tier 1) | `claude-sonnet-4-5` | `gpt-4o` | ~$0.07/lang |
+| Translation (CJK) | `gpt-4o` / `claude-sonnet-4-5` | `gemini-2.5-pro` | ~$0.07/lang |
+| Translation (Arabic/RTL) | `gpt-4o` | `gemini-2.5-pro` | ~$0.07/lang |
+| Translation (volume/drafts) | `gpt-4o-mini` | `gemini-2.0-flash` | ~$0.003/lang |
+| Personalization / rewriting | `claude-sonnet-4-5` | `gpt-4o` | ~$0.10 |
+
+**Model selection rationale for translation:**
+- **Claude Sonnet 4** is the primary translation model due to best-in-class instruction adherence — critical for maintaining glossary terms, tone profiles, and brand voice constraints across long documents.
+- **GPT-4o** excels for CJK financial content (particularly Chinese) and serves as a strong fallback for all language tiers.
+- **Gemini 2.5 Pro** is competitive for Korean and South/Southeast Asian languages where Google has strong training data.
+- **GPT-4o-mini / Gemini 2.0 Flash** provide cost-efficient draft translations for internal summaries or lower-priority languages (~$0.003 per language per report).
+- **DeepL API** (optional) can run in parallel as a quality-assurance cross-reference for European pairs — flagging significant divergences for human review.
 
 ---
 
@@ -538,45 +586,130 @@ The translation HITL percentage decreases automatically based on correction rate
 
 ## 8. Translation Engine
 
+Translation is the core competitive advantage of FinFlow. Unlike competitors who bolt on generic machine translation, FinFlow's translation agents are deeply personalized per client and per language, backed by 15 years of financial translation expertise from WordwideFX.
+
 ### 8.1 Per-Language Model Routing
 
-| Target Language | Model | Rationale | Cost/Report |
-|----------------|-------|-----------|-------------|
-| Spanish | Qwen 32B (local MLX) | Excellent Spanish, $0 cost | $0 |
-| Portuguese | Qwen 32B (local MLX) | Good Romance language coverage | $0 |
-| German | Qwen 32B (local MLX) | Good European coverage | $0 |
-| French | Qwen 32B / Mistral (local) | French-company fine-tuning | $0 |
-| Russian | Qwen 32B (local MLX) | Adequate for financial content | $0 |
-| Chinese (Simplified) | Claude Sonnet | Best financial Chinese terminology | ~$0.04 |
-| Japanese | Claude Sonnet | Nuanced keigo for institutional clients | ~$0.04 |
-| Arabic | Gemini Flash | Best Arabic among frontier models | ~$0.02 |
-| Korean | Claude Haiku | Cost-efficient, adequate quality | ~$0.01 |
+All translation uses API-based LLMs. Model selection is optimized per language tier for quality and personalization adherence.
 
-### 8.2 Translation Pipeline
+**Tier 1: European Languages** (EN, DE, FR, ES, IT, PT, NL, PL, SV, DA, NO, FI, etc.)
 
-1. Load client-specific glossary for target language from `glossaries` table
-2. Load tone profile and brand rules
-3. Construct translation prompt with glossary terms injected as constraints
-4. Execute translation with selected model
-5. Post-process: verify glossary terms were used correctly, format numbers per locale (e.g., `1.1602` → `1,1602` for European locales)
-6. If HITL is active for this language: create approval request
-7. If corrected: store corrections in `glossary_corrections`, apply to glossary
+| Model | Role | Cost/Language/Report |
+|-------|------|---------------------|
+| Claude Sonnet 4 | **Primary** — best instruction adherence for glossary/tone/voice constraints | ~$0.07 |
+| GPT-4o | Fallback — comparable quality, slightly more "creative" deviations from style | ~$0.06 |
+| DeepL API | Optional QA cross-reference — flags divergences for review | ~$0.02 |
 
-### 8.3 Translation Learning Loop
+**Tier 2: CJK Languages** (Chinese, Japanese, Korean)
+
+| Model | Role | Cost/Language/Report |
+|-------|------|---------------------|
+| GPT-4o / GPT-4.1 | **Primary for Chinese** — strongest financial Chinese training data | ~$0.07 |
+| Claude Sonnet 4 | **Primary for Japanese** — best keigo/formality control via instructions | ~$0.07 |
+| Gemini 2.5 Pro | **Primary for Korean** — Google's strong Korean training data | ~$0.07 |
+
+**Tier 3: Arabic / RTL Languages** (Arabic, Hebrew, Farsi)
+
+| Model | Role | Cost/Language/Report |
+|-------|------|---------------------|
+| GPT-4o | **Primary** — best MSA financial content | ~$0.07 |
+| Claude Sonnet 4 | Secondary — strong instruction-following for dialect specification | ~$0.07 |
+
+**Tier 4: South/Southeast Asian** (Hindi, Thai, Vietnamese, Bahasa, etc.)
+
+| Model | Role | Cost/Language/Report |
+|-------|------|---------------------|
+| Gemini 2.5 Pro | **Primary** — Google's regional language strength | ~$0.07 |
+| GPT-4o | Fallback | ~$0.06 |
+| Google Cloud Translation | Baseline fallback for languages where LLMs are unreliable | ~$0.02 |
+
+**Volume/Draft Tier** (internal summaries, lower-priority content)
+
+| Model | Role | Cost/Language/Report |
+|-------|------|---------------------|
+| GPT-4o-mini | Draft translations — adequate glossary adherence | ~$0.003 |
+| Gemini 2.0 Flash | Ultra-cheap drafts | ~$0.002 |
+
+### 8.2 Translation Personalization Architecture
+
+The translation agent is the most heavily personalized agent in the pipeline. Each translation call is constructed with a structured system prompt:
 
 ```
-AI translates → Human reviews → Corrections stored
-                                      ↓
-                              Glossary updated
-                                      ↓
-                          Next translation uses updated glossary
-                                      ↓
-                        Fewer corrections needed over time
-                                      ↓
-                      Adaptive HITL reduces review percentage
+[ROLE]
+You are a financial translation specialist for {client_name}.
+You have been translating their content for years and know their voice intimately.
+
+[TONE PROFILE]
+Register: {formal | approachable | institutional | retail-friendly}
+Aggressiveness: {conservative | moderate | aggressive}
+Style notes: {client-specific style guide excerpts}
+
+[GLOSSARY — {language}]
+{english_term}: {approved_translation}
+{english_term}: {approved_translation}
+... (top 50-100 client-specific terms for this language)
+
+[BRAND VOICE EXAMPLES]
+{2-3 actual paragraphs from the client's existing published content in the target language}
+
+[CONSTRAINTS]
+- Terms to NEVER use: {avoid_terms}
+- Formatting: {locale-specific rules — decimal separators, date formats, number grouping}
+- Content restrictions: {what to omit or soften based on client's internal policies}
+
+[SOURCE DOCUMENT]
+{English report to translate}
 ```
 
-This creates measurable improvement (clients can see correction rates declining) and natural lock-in (switching to a competitor means losing the accumulated learning).
+Claude Sonnet 4 is the primary model because it demonstrates the highest fidelity to these multi-layered instructions. In testing, it maintains glossary term usage, tone consistency, and style constraints across documents of 5,000+ words without instruction drift.
+
+### 8.3 Translation Pipeline
+
+1. Load `ClientProfile` for the target tenant
+2. Load client-specific glossary for target language from `glossaries` table
+3. Load tone profile, brand voice examples, and content constraints
+4. Select optimal model for this language tier
+5. Construct personalized translation prompt (see architecture above)
+6. Execute translation with selected model (streaming for UI responsiveness)
+7. **Post-process validation:**
+   - Verify glossary terms were used correctly (automated term-matching)
+   - Validate number/date formatting per locale (e.g., `1.1602` → `1,1602` for EU)
+   - Flag any content that appears to deviate from brand voice constraints
+   - Optional: run DeepL/Google NMT in parallel, flag significant divergences
+8. If HITL is active for this language: create approval request with highlighted changes
+9. If corrected by human reviewer: store corrections in `glossary_corrections`, apply to glossary for next run
+
+### 8.4 Translation Learning Loop
+
+```
+Client profile loaded (tone, glossary, brand voice, constraints)
+        ↓
+AI translates with full personalization context
+        ↓
+Human reviewer checks output
+        ↓
+Corrections stored in glossary_corrections table
+        ↓
+Glossary + brand voice examples updated
+        ↓
+Next translation uses enriched profile
+        ↓
+Fewer corrections needed → HITL percentage decreases automatically
+        ↓
+System measurably improves → client sees correction rate declining
+        ↓
+Switching cost grows every month (competitor starts from zero)
+```
+
+### 8.5 Cost Estimates Per Report (40 languages)
+
+| Strategy | Model Mix | Est. Cost | Quality |
+|----------|-----------|-----------|---------|
+| **Premium** (all languages via Sonnet/GPT-4o) | Tier 1-3 models for all | ~$2.80 | Highest — full personalization |
+| **Hybrid** (top 10 via Sonnet, rest via mini) | Sonnet + GPT-4o-mini | ~$1.00 | High for key languages, adequate for rest |
+| **Budget** (all via GPT-4o-mini) | GPT-4o-mini only | ~$0.12 | Adequate — glossary adherence but weaker tone control |
+
+Recommended default: **Premium** for Hybrid/Enterprise plans, **Hybrid** for Automated plan.
 
 ---
 
@@ -758,7 +891,9 @@ In addition to SSE for pipeline streaming, Supabase Realtime subscriptions are u
 
 ## 13. LLM Cost Model
 
-### Per-Report Breakdown
+All inference is API-based. Costs are optimized through intelligent model routing — each task uses the most cost-efficient model that meets the quality bar for that task.
+
+### Per-Report Breakdown (assuming 10 languages)
 
 | Task | Model | Cost |
 |------|-------|------|
@@ -768,21 +903,30 @@ In addition to SSE for pipeline streaming, Supabase Realtime subscriptions are u
 | Quality Arbitration | Opus (Enterprise) / Sonnet | ~$0.80 / ~$0.15 |
 | Deliberation rounds (2x) | Sonnet | ~$0.20 |
 | Compliance review | Sonnet | ~$0.10 |
-| Personalization/rewrite | Qwen 32B (local) | $0 |
-| Translation (European languages) | Qwen 32B (local) | $0 |
-| Translation (CJK/Arabic) | Sonnet/Gemini | ~$0.08 |
-| **Total (Enterprise)** | | **~$1.50** |
-| **Total (Hybrid/Automated)** | | **~$0.85** |
+| Personalization / rewriting | Sonnet | ~$0.10 |
+| Translation (10 langs, Premium) | Sonnet / GPT-4o mix | ~$0.70 |
+| Translation (10 langs, Hybrid) | Sonnet (top 3) + GPT-4o-mini (7) | ~$0.23 |
+| **Total (Enterprise, 10 langs, Premium)** | | **~$2.22** |
+| **Total (Hybrid, 10 langs)** | | **~$1.10** |
+| **Total (Automated, 10 langs)** | | **~$0.95** |
+
+### Scaling to 40 Languages
+
+| Strategy | 40-Lang Translation Cost | Total Report Cost (Enterprise) |
+|----------|------------------------|-------------------------------|
+| Premium (all Sonnet/GPT-4o) | ~$2.80 | ~$4.32 |
+| Hybrid (top 10 Sonnet + 30 mini) | ~$1.00 | ~$2.52 |
+| Budget (all GPT-4o-mini) | ~$0.12 | ~$1.64 |
 
 ### At Scale
 
-| Scale | Reports/Day | Monthly LLM Cost | Monthly Revenue |
-|-------|------------|-------------------|-----------------|
-| 10 clients | 20 | ~$900 | $20K+ |
-| 50 clients | 100 | ~$4,500 | $100K+ |
-| 100 clients | 200 | ~$9,000 | $200K+ |
+| Scale | Reports/Day | Monthly LLM Cost | Monthly Revenue | Gross Margin |
+|-------|------------|-------------------|-----------------|-------------|
+| 10 clients | 20 | ~$1,500 | $20K+ | 92% |
+| 50 clients | 100 | ~$7,500 | $100K+ | 92% |
+| 100 clients | 200 | ~$15,000 | $200K+ | 92% |
 
-Gross margin: **93–97%** depending on tier mix.
+**Key insight:** Even with all-API translation, gross margins remain >90% because the personalization moat supports premium pricing. Clients pay for their unique voice, not generic AI output. As API costs continue declining (industry trend: ~30% YoY price drops), margins improve automatically.
 
 ---
 
@@ -870,9 +1014,10 @@ Gross margin: **93–97%** depending on tier mix.
 | Regulatory liability | Medium | Critical | "Informational purposes only" positioning; compliance templates per jurisdiction; external legal review |
 | Data source API changes/outages | Medium | High | Multiple sources per data type; circuit breaker pattern; graceful degradation to cached data |
 | Client data isolation failure | Low | Critical | Supabase RLS on all tables; tenant middleware; penetration testing; separate storage buckets |
-| LLM cost spike at scale | Low | Medium | 60%+ on local models ($0); daily budget tracking per tenant; per-client cost caps; model downgrade fallbacks |
-| Translation quality for niche languages | Medium | Medium | Start with top 10 languages; HITL mandatory for new language pairs; correction feedback loop |
+| LLM API cost at scale | Medium | Medium | Intelligent model routing (Haiku/mini for triage, Sonnet for quality); daily budget tracking per tenant; per-client cost caps; model downgrade fallbacks; API costs trending down ~30% YoY |
+| Translation quality for niche languages | Medium | Medium | Start with top 10 languages; HITL mandatory for new language pairs; correction feedback loop; fallback to NMT for unreliable LLM languages |
 | Pipeline latency exceeding 30-min target | Medium | High | Parallel agent execution where possible; cached market data; pre-computed indicators; streaming SSE for perceived responsiveness |
+| Personalization profile drift | Low | Medium | Periodic human review of output quality; correction rate monitoring per client; alert if correction rate increases after a period of decline |
 
 ---
 

@@ -65,17 +65,45 @@ Published: Email, Blog, Social, PDF — all branded, all languages
 
 Each level is generated simultaneously, translated simultaneously, and distributed to the appropriate audience segments.
 
+### The personalization difference:
+
+Every piece of content FinFlow produces is shaped by the client's unique profile:
+
+| Dimension | What we configure | Example |
+|-----------|------------------|---------|
+| **Tone** | Formal, approachable, institutional, retail-friendly | Goldman Sachs vs. a crypto startup — completely different register |
+| **Terminology** | Client-specific glossary per language | "pips" vs. "points," "lots" vs. "units," "margin" vs. "collateral" |
+| **Aggressiveness** | How directional can analysis be? | Conservative wealth manager: "potential opportunity" vs. aggressive broker: "strong buy signal" |
+| **Allowed content** | Topics, instruments, claim types | Some clients cannot discuss crypto; others cannot make forward-looking statements |
+| **Brand voice** | Actual examples of client's writing style | The AI learns to write as if it were the client's own research desk |
+| **Compliance rules** | Per-jurisdiction + per-client internal policies | What disclaimers, what risk warnings, what content restrictions |
+
+This is not cosmetic customization. It is deep behavioral configuration of every AI agent in the pipeline. A competitor without WordwideFX's 15 years of financial client data would need to build these profiles from scratch — a process that takes months per client.
+
 ---
 
 ## 4. Competitive Moat
 
-### What no competitor can replicate:
+### The core differentiator: Deep Personalization Powered by 15 Years of Expertise
 
-**1. 15 years of client-specific financial translation data.**  
-WordwideFX has accumulated glossaries, tone profiles, and compliance terminology for 100+ financial clients over 15 years. When FinFlow translates "margin call" for OANDA's Japanese clients, it uses OANDA's exact terminology — not a generic dictionary lookup. This data is the single most defensible asset in the business.
+Any company can connect an LLM to a news feed. What no competitor can replicate is the deep, client-specific personalization that comes from 15 years of serving 100+ financial institutions. FinFlow doesn't produce generic content — it produces content that sounds like **your** company wrote it, in **your** clients' languages, using **your** terminology, in **your** tone.
 
-**2. The Translation Learning Loop (client lock-in).**  
-Human translators review AI output. Their corrections feed back into the system. Over 12 months, the system learns each client's voice:
+### What makes this unreplicable:
+
+**1. Client-Specific Voice Profiles — Every Agent Is Personalized.**  
+Every agent in the FinFlow pipeline — not just translation — is configured per client. This means:
+
+- **Analysis agents** adjust their aggressiveness, directional bias tolerance, and risk framing to match the client's brand positioning. A conservative wealth manager gets different language than an aggressive CFD broker — even when analyzing the same market event.
+- **Compliance agents** load jurisdiction-specific rules AND the client's internal content policies — what topics to avoid, what disclaimers to emphasize, what level of specificity is allowed.
+- **Translation agents** don't just translate words — they translate the client's **voice**. Tone (formal vs. approachable), register (institutional vs. retail), terminology (OANDA says "units," Alpari says "lots"), content aggressiveness (how direct can trade setups be?), and even formatting preferences per market.
+
+This is not a glossary lookup. It's a complete personality profile built from years of real client interactions that shapes every piece of content the system produces.
+
+**2. 15 Years of Client-Specific Financial Translation Data.**  
+WordwideFX has accumulated glossaries, tone profiles, compliance terminology, style guides, and client feedback for 100+ financial institutions. When FinFlow translates "margin call" for OANDA's Japanese clients, it uses OANDA's exact terminology, their preferred formality level, and their specific risk disclosure style — not a generic dictionary. This data is the single most defensible asset in the business.
+
+**3. The Translation Learning Loop (client lock-in).**  
+Human translators review AI output. Their corrections feed back into the system. Over 12 months, the system learns each client's exact voice:
 
 | Period | Human Review | Automation | Client Perception |
 |--------|-------------|------------|-------------------|
@@ -85,16 +113,16 @@ Human translators review AI output. Their corrections feed back into the system.
 | Month 7–8 | 20% | 80% | "Almost autonomous" |
 | Month 9–12 | 10% | 90% | "Spot-check only" |
 
-Switching to a competitor means starting from zero. The system literally gets better the longer a client stays.
+Switching to a competitor means starting from zero — no glossary, no tone profile, no learning. The system literally gets better the longer a client stays, and the cost of switching grows every month.
 
-**3. Agent deliberation (not single-pass AI).**  
-Unlike competitors that run a single LLM prompt, FinFlow's Technical and Fundamental Analysis agents debate each other — challenging assumptions, resolving contradictions, documenting disagreements. A Quality Arbitration agent mediates. The result reads like a real research desk's output, not a chatbot summary.
+**4. Agent Deliberation (not single-pass AI).**  
+Unlike competitors that run a single LLM prompt, FinFlow's Technical and Fundamental Analysis agents debate each other — challenging assumptions, resolving contradictions, documenting disagreements. A Quality Arbitration agent mediates. The result reads like a real research desk's output, not a chatbot summary. And each agent's personality is tuned to the client's preferences.
 
-**4. Built-in compliance across 7 jurisdictions.**  
-MiFID II (EU), SEC/FINRA (US), FCA (UK), ASIC (Australia), MAS (Singapore), FSCA (South Africa), BMA (Bermuda). Compliance is a pipeline stage, not an afterthought. Each report is reviewed against the client's specific jurisdictional requirements before it can be published.
+**5. Built-in Compliance Across 7 Jurisdictions.**  
+MiFID II (EU), SEC/FINRA (US), FCA (UK), ASIC (Australia), MAS (Singapore), FSCA (South Africa), BMA (Bermuda). Compliance is a pipeline stage, not an afterthought. Each report is reviewed against the client's specific jurisdictional requirements AND their internal content policies before it can be published.
 
-**5. 40+ languages, financial-specialized.**  
-Not Google Translate. Not generic machine translation. Financial-domain translation with per-client terminology, optimized model selection per language pair (local models for European languages at $0 cost, frontier models for CJK), and human review that improves the system over time.
+**6. 40+ Languages, Financial-Specialized, Client-Voiced.**  
+Not Google Translate. Not generic machine translation. FinFlow uses best-in-class API LLMs (Claude, GPT-4, Gemini) selected per language for optimal quality, with deep personalization: client-specific glossaries, tone profiles, brand voice examples, content aggressiveness settings, and formatting rules. Human review feeds corrections back into the system, creating an ever-improving translation engine that speaks each client's language — literally and figuratively.
 
 ---
 
@@ -125,8 +153,8 @@ Not Google Translate. Not generic machine translation. Financial-domain translat
 | **Enterprise** | $7,999+ | Unlimited | 40+ | All tiers incl. Bloomberg | Dedicated translation team |
 
 ### Unit economics
-- **Cost per report:** ~$1.50–$2.00 (LLM inference + infrastructure)
-- **Gross margin:** 93–97%
+- **Cost per report:** ~$3.00–$4.00 (LLM inference across all agents + translation + infrastructure)
+- **Gross margin:** 90–95%
 - **Break-even:** ~5 Automated clients ($4,995 MRR)
 
 ### Revenue projections (conservative)
@@ -139,10 +167,11 @@ Not Google Translate. Not generic machine translation. Financial-domain translat
 | Month 24 | 100 | $250K | $3M |
 
 ### Why margins are sustainable
-- 60%+ of LLM inference runs on local models (Qwen 32B) at $0 marginal cost
-- Translation costs decrease per-client over time as automation increases
+- Smart model routing: each task uses the most cost-efficient API model that meets quality requirements (e.g., Haiku for classification, Sonnet for analysis, GPT-4o-mini for draft translations)
+- Translation costs decrease per-client over time as HITL automation increases (fewer human review hours)
 - Infrastructure costs are shared across tenants (multi-tenant architecture)
 - Data source costs are tiered — Essential sources are free, Professional/Institutional are passed through to clients
+- The personalization moat means pricing power — clients pay for **their** voice, not generic AI output
 
 ---
 
