@@ -1,0 +1,1992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinFlow — Translation Engine E2E Test &amp; Quality Evaluation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-root: #060608;
+  --bg-surface: #0f0f14;
+  --bg-raised: #14141a;
+  --bg-card: #0c0c11;
+  --border: rgba(255,255,255,0.06);
+  --border-light: rgba(255,255,255,0.10);
+  --text-primary: #e8e6e3;
+  --text-secondary: #8a8a8e;
+  --text-muted: #4a4a50;
+  --accent: #5ba8a0;
+  --accent-muted: rgba(91,168,160,0.7);
+  --accent-subtle: rgba(91,168,160,0.12);
+  --accent-glow: rgba(91,168,160,0.06);
+  --success: #4a9a6a;
+  --success-subtle: rgba(74,154,106,0.12);
+  --danger: #c96b6b;
+  --danger-subtle: rgba(201,107,107,0.12);
+  --warning: #c9a85b;
+  --warning-subtle: rgba(201,168,91,0.12);
+  --info: #6b8fc9;
+  --purple: #9b8ac9;
+  --purple-subtle: rgba(155,138,201,0.12);
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  background: var(--bg-root);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.7;
+  scroll-behavior: smooth;
+}
+
+body { min-height: 100vh; }
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+/* -- Animations -- */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes barFill {
+  from { width: 0; }
+}
+
+.fade-in {
+  opacity: 0;
+  animation: fadeUp 0.7s ease forwards;
+}
+
+.fade-in:nth-child(1) { animation-delay: 0.05s; }
+.fade-in:nth-child(2) { animation-delay: 0.12s; }
+.fade-in:nth-child(3) { animation-delay: 0.19s; }
+.fade-in:nth-child(4) { animation-delay: 0.26s; }
+.fade-in:nth-child(5) { animation-delay: 0.33s; }
+.fade-in:nth-child(6) { animation-delay: 0.40s; }
+
+/* -- Hero -- */
+.hero {
+  padding: 100px 0 80px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 500px;
+  background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.hero-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+.hero h1 {
+  font-family: var(--font-serif);
+  font-size: 44px;
+  font-weight: 400;
+  letter-spacing: -1px;
+  line-height: 1.2;
+  margin-bottom: 20px;
+}
+
+.hero h1 span { color: var(--accent); }
+
+.hero-sub {
+  font-size: 17px;
+  color: var(--text-secondary);
+  max-width: 680px;
+  margin: 0 auto 40px;
+  line-height: 1.7;
+}
+
+.hero-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  font-family: var(--font-mono);
+}
+
+/* -- TOC -- */
+.toc {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 32px;
+  margin: 0 0 60px;
+}
+
+.toc-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.toc ol {
+  list-style: none;
+  counter-reset: toc;
+}
+
+.toc ol li {
+  counter-increment: toc;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.toc ol li:last-child { border-bottom: none; }
+
+.toc ol li a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toc ol li a:hover { color: var(--accent); }
+
+.toc ol li a::before {
+  content: counter(toc, decimal-leading-zero);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  width: 24px;
+  flex-shrink: 0;
+}
+
+/* -- Sections -- */
+.section {
+  padding: 80px 0;
+  border-top: 1px solid var(--border);
+}
+
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.section h2 {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  margin-bottom: 16px;
+  line-height: 1.3;
+}
+
+.section h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  margin-top: 40px;
+}
+
+.section h3:first-of-type { margin-top: 28px; }
+
+.section p, .section-text {
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  max-width: 720px;
+  line-height: 1.7;
+}
+
+.section p strong { color: var(--text-primary); }
+
+/* -- Diagram Container -- */
+.diagram-wrap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 40px 24px;
+  margin: 40px 0;
+  overflow-x: auto;
+}
+
+.diagram-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.diagram-wrap svg {
+  display: block;
+  margin: 0 auto;
+}
+
+/* -- Cards -- */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin: 32px 0;
+}
+
+.card-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.card-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  transition: all 0.25s ease;
+}
+
+.card:hover {
+  border-color: var(--border-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+}
+
+.card-number {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  margin-bottom: 12px;
+  display: block;
+}
+
+.card h4 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.card p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 0;
+  max-width: none;
+}
+
+/* -- Metric Table -- */
+.metric-table-wrap {
+  margin: 32px 0;
+  overflow-x: auto;
+}
+
+.metric-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.metric-table thead th {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-raised);
+}
+
+.metric-table thead th:first-child {
+  border-radius: 8px 0 0 0;
+}
+
+.metric-table thead th:last-child {
+  border-radius: 0 8px 0 0;
+}
+
+.metric-table tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  vertical-align: top;
+}
+
+.metric-table tbody tr:hover td {
+  background: rgba(255,255,255,0.015);
+}
+
+.metric-table tbody td:first-child {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.metric-table .threshold-val {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.metric-table .method-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.method-tag.deterministic {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.method-tag.llm {
+  background: var(--purple-subtle);
+  color: var(--purple);
+}
+
+/* -- Category Header -- */
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 48px 0 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.category-header:first-of-type { margin-top: 32px; }
+
+.category-number {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+.category-header h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.category-header .specialist-tag {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  padding: 3px 10px;
+  border-radius: 4px;
+  margin-left: auto;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* -- Scorecard -- */
+.scorecard {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  margin: 40px 0;
+}
+
+.scorecard-header {
+  background: var(--bg-raised);
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.scorecard-header h4 {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.scorecard-header .scorecard-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.scorecard-body {
+  padding: 28px;
+}
+
+.scorecard-category {
+  margin-bottom: 28px;
+}
+
+.scorecard-category:last-child { margin-bottom: 0; }
+
+.scorecard-category-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  color: var(--text-muted);
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: 1fr 200px 70px;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.metric-row:last-child { border-bottom: none; }
+
+.metric-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.metric-bar-track {
+  height: 6px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.metric-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  animation: barFill 1.2s ease forwards;
+}
+
+.metric-bar-fill.pass { background: var(--accent); }
+.metric-bar-fill.fail { background: var(--danger); }
+
+.metric-bar-threshold {
+  position: absolute;
+  top: -3px;
+  height: 12px;
+  width: 1px;
+  background: var(--text-muted);
+}
+
+.metric-score {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: right;
+}
+
+.metric-score.pass { color: var(--success); }
+.metric-score.fail { color: var(--danger); }
+
+.scorecard-aggregate {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.aggregate-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.aggregate-score {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.scorecard-verdict {
+  margin-top: 16px;
+  padding: 14px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.scorecard-verdict.pass-verdict {
+  background: var(--success-subtle);
+  border: 1px solid rgba(74,154,106,0.2);
+  color: var(--success);
+}
+
+.scorecard-verdict.fail-verdict {
+  background: var(--danger-subtle);
+  border: 1px solid rgba(201,107,107,0.2);
+  color: var(--danger);
+}
+
+/* -- Code blocks -- */
+.code-block {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin: 24px 0;
+  overflow: hidden;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+}
+
+.code-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.code-lang {
+  font-size: 10px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.code-block pre {
+  padding: 20px 24px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.code-block pre .comment { color: var(--text-muted); }
+.code-block pre .cmd { color: var(--accent); }
+.code-block pre .flag { color: var(--warning); }
+.code-block pre .string { color: var(--success); }
+.code-block pre .key { color: var(--purple); }
+.code-block pre .val { color: var(--info); }
+
+/* -- Info Callout -- */
+.callout {
+  padding: 20px 24px;
+  border-radius: 10px;
+  margin: 24px 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.callout-info {
+  background: rgba(107,143,201,0.08);
+  border: 1px solid rgba(107,143,201,0.15);
+  color: var(--info);
+}
+
+.callout-warn {
+  background: var(--warning-subtle);
+  border: 1px solid rgba(201,168,91,0.2);
+  color: var(--warning);
+}
+
+.callout strong { color: inherit; }
+
+/* -- Step List -- */
+.step-list {
+  list-style: none;
+  margin: 24px 0;
+}
+
+.step-list li {
+  display: flex;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.step-list li:last-child { border-bottom: none; }
+
+.step-num {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.step-content { flex: 1; }
+
+.step-content strong {
+  display: block;
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.step-content span {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* -- Specialist Pipeline -- */
+.pipeline-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 32px 0;
+}
+
+.pipeline-step {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 16px;
+  align-items: start;
+  transition: all 0.25s ease;
+}
+
+.pipeline-step:hover {
+  border-color: var(--border-light);
+  transform: translateX(4px);
+}
+
+.pipeline-step-order {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.pipeline-step h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.pipeline-step p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: none;
+}
+
+.pipeline-step .preserve-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* -- Profile Structure -- */
+.profile-block {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 28px;
+  margin: 20px 0;
+}
+
+.profile-block h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.profile-field {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.profile-field:last-child { border-bottom: none; }
+
+.profile-field .field-key {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.profile-field .field-val {
+  color: var(--text-secondary);
+}
+
+/* -- Connector Arrow -- */
+.connector {
+  text-align: center;
+  padding: 8px 0;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* -- Footer -- */
+.footer {
+  padding: 60px 0;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.footer p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 auto;
+}
+
+.footer .footer-brand {
+  font-family: var(--font-serif);
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+/* -- Responsive -- */
+@media (max-width: 768px) {
+  .hero h1 { font-size: 32px; }
+  .section h2 { font-size: 26px; }
+  .card-grid, .card-grid-3, .card-grid-4 { grid-template-columns: 1fr; }
+  .metric-row { grid-template-columns: 1fr 120px 60px; gap: 8px; }
+  .container { padding: 0 20px; }
+  .diagram-wrap { padding: 24px 16px; }
+  .scorecard-header { flex-direction: column; gap: 8px; align-items: flex-start; }
+  .metric-table { font-size: 12px; }
+  .metric-table thead th, .metric-table tbody td { padding: 10px 10px; }
+}
+
+@media (max-width: 480px) {
+  .hero { padding: 60px 0 40px; }
+  .hero h1 { font-size: 26px; }
+  .section { padding: 48px 0; }
+  .metric-row { grid-template-columns: 1fr 60px; }
+  .metric-bar-track { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="container fade-in">
+    <p class="hero-label">FinFlow Translation Engine</p>
+    <h1>E2E Test Workflow &amp;<br><span>Quality Evaluation</span></h1>
+    <p class="hero-sub">
+      A complete guide to how every document flows through the FinFlow Translation Engine, and how quality is measured across 13 objective metrics with configurable thresholds.
+    </p>
+    <p class="hero-meta">WordwideFX &mdash; Technical Reference &mdash; April 2026</p>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<div class="container fade-in">
+  <nav class="toc">
+    <p class="toc-title">Contents</p>
+    <ol>
+      <li><a href="#workflow">E2E Test Workflow</a></li>
+      <li><a href="#metrics">Quality Evaluation Parameters</a></li>
+      <li><a href="#scoring">Scoring System Deep Dive</a></li>
+      <li><a href="#specialists">Specialist Correction Pipeline</a></li>
+      <li><a href="#profiles">Client Profile Parameters</a></li>
+      <li><a href="#running">Running an E2E Test</a></li>
+      <li><a href="#example">Example Scorecard</a></li>
+    </ol>
+  </nav>
+</div>
+
+
+<!-- ============ SECTION 1: E2E WORKFLOW ============ -->
+<section class="section" id="workflow">
+  <div class="container">
+    <p class="section-label fade-in">Section 01</p>
+    <h2 class="fade-in">E2E Test Workflow</h2>
+    <p class="fade-in">Every document follows a deterministic pipeline. The system either produces a fully-scored, quality-gated translation, or escalates to human review with a complete audit trail explaining exactly where and why quality thresholds were not met.</p>
+
+    <ul class="step-list fade-in">
+      <li>
+        <span class="step-num">1</span>
+        <div class="step-content">
+          <strong>Prepare</strong>
+          <span>Provide the source document (Document A) and a client identifier. The system accepts plain text or Markdown. For new clients, provide reference translation pairs for profile extraction.</span>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <div class="step-content">
+          <strong>Profile Load / Extract</strong>
+          <span>Load the client profile from the store: glossary, tone targets, regional variant, brand rules, compliance patterns, and per-metric scoring thresholds. If no profile exists, extract one from reference pairs.</span>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <div class="step-content">
+          <strong>Translation</strong>
+          <span>The Translation Agent (Opus) produces the initial translation with the full client profile injected into its system prompt &mdash; glossary, tone, formality level, regional variant, brand rules, and all constraints.</span>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">4</span>
+        <div class="step-content">
+          <strong>Scoring</strong>
+          <span>The Scoring Agent (Opus) evaluates all 13 metrics. Six are deterministic (code-based checks for glossary, numbers, formatting, etc.). Seven use LLM-as-judge with structured output at temperature=0 for consistency.</span>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">5</span>
+        <div class="step-content">
+          <strong>Quality Gate</strong>
+          <span>Pass condition: every metric meets its individual threshold X<sub>i</sub> AND the weighted aggregate score meets the overall threshold Y (default 88). If both conditions hold, the translation is released.</span>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">6</span>
+        <div class="step-content">
+          <strong>Correction Loop (if failed)</strong>
+          <span>The Quality Arbiter (Haiku) reads the scorecard and routes to specialist agents in sequence. Each specialist targets only its failed category and preserves all prior corrections. After specialists run, the Scoring Agent re-evaluates. Maximum 2 correction rounds.</span>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">7</span>
+        <div class="step-content">
+          <strong>Output</strong>
+          <span>The final result includes the translated text, a full scorecard with all 13 metric scores, pass/fail verdict, and the complete audit trail. If thresholds are still not met after 2 rounds, the system escalates to HITL review.</span>
+        </div>
+      </li>
+    </ul>
+
+    <!-- SVG Flowchart -->
+    <div class="diagram-wrap fade-in">
+      <p class="diagram-title">Complete Pipeline Flow</p>
+      <svg viewBox="0 0 860 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:860px;">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6" fill="#5ba8a0"/>
+          </marker>
+          <marker id="arrow-muted" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6" fill="#4a4a50"/>
+          </marker>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Step 1: Source + Profile -->
+        <rect x="100" y="20" width="280" height="52" rx="8" fill="#0f0f14" stroke="rgba(255,255,255,0.08)"/>
+        <text x="240" y="43" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#5ba8a0" font-weight="600" letter-spacing="1.5">STEP 1</text>
+        <text x="240" y="60" text-anchor="middle" font-family="Inter,sans-serif" font-size="12" fill="#e8e6e3">Source Document + Client Profile</text>
+
+        <rect x="440" y="20" width="280" height="52" rx="8" fill="#0f0f14" stroke="rgba(255,255,255,0.08)"/>
+        <text x="580" y="43" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#5ba8a0" font-weight="600" letter-spacing="1.5">PROFILE</text>
+        <text x="580" y="60" text-anchor="middle" font-family="Inter,sans-serif" font-size="12" fill="#e8e6e3">Glossary / Tone / Brand / Thresholds</text>
+
+        <!-- Arrow down -->
+        <line x1="240" y1="72" x2="240" y2="108" stroke="#5ba8a0" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="580" y1="72" x2="430" y2="108" stroke="#5ba8a0" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+        <!-- Step 2: Translation Agent -->
+        <rect x="140" y="110" width="280" height="52" rx="8" fill="#14141a" stroke="#5ba8a0" stroke-width="1" filter="url(#glow)"/>
+        <text x="280" y="133" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#5ba8a0" font-weight="600" letter-spacing="1.5">TRANSLATION AGENT</text>
+        <text x="280" y="150" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#8a8a8e">Opus &mdash; full profile context</text>
+
+        <!-- Arrow down -->
+        <line x1="280" y1="162" x2="280" y2="198" stroke="#5ba8a0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- Step 3: Scoring Agent -->
+        <rect x="140" y="200" width="280" height="52" rx="8" fill="#14141a" stroke="#9b8ac9" stroke-width="1"/>
+        <text x="280" y="223" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#9b8ac9" font-weight="600" letter-spacing="1.5">SCORING AGENT</text>
+        <text x="280" y="240" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#8a8a8e">Opus &mdash; 13 metrics evaluated</text>
+
+        <!-- Arrow down to decision -->
+        <line x1="280" y1="252" x2="280" y2="290" stroke="#5ba8a0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- Decision diamond -->
+        <polygon points="280,292 360,332 280,372 200,332" fill="#0f0f14" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+        <text x="280" y="328" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" fill="#e8e6e3" font-weight="500">All X<tspan baseline-shift="sub" font-size="8">i</tspan> met</text>
+        <text x="280" y="342" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" fill="#e8e6e3" font-weight="500">&amp; agg >= Y?</text>
+
+        <!-- YES path -->
+        <line x1="360" y1="332" x2="500" y2="332" stroke="#4a9a6a" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="420" y="324" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#4a9a6a" font-weight="600">YES</text>
+
+        <rect x="502" y="310" width="200" height="44" rx="8" fill="rgba(74,154,106,0.08)" stroke="rgba(74,154,106,0.3)"/>
+        <text x="602" y="336" text-anchor="middle" font-family="Inter,sans-serif" font-size="12" fill="#4a9a6a" font-weight="600">PASS &mdash; Output Final</text>
+
+        <!-- NO path -->
+        <line x1="280" y1="372" x2="280" y2="410" stroke="#c96b6b" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="295" y="396" font-family="JetBrains Mono,monospace" font-size="10" fill="#c96b6b" font-weight="600">NO</text>
+
+        <!-- Step 5: Quality Arbiter -->
+        <rect x="140" y="412" width="280" height="52" rx="8" fill="#14141a" stroke="#c9a85b" stroke-width="1"/>
+        <text x="280" y="435" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#c9a85b" font-weight="600" letter-spacing="1.5">QUALITY ARBITER</text>
+        <text x="280" y="452" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#8a8a8e">Haiku &mdash; routes to specialists</text>
+
+        <!-- Arrow down -->
+        <line x1="280" y1="464" x2="280" y2="500" stroke="#5ba8a0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- Specialist boxes -->
+        <rect x="30" y="502" width="150" height="40" rx="6" fill="#0f0f14" stroke="rgba(255,255,255,0.08)"/>
+        <text x="105" y="526" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#5ba8a0">Terminology</text>
+
+        <rect x="195" y="502" width="150" height="40" rx="6" fill="#0f0f14" stroke="rgba(255,255,255,0.08)"/>
+        <text x="270" y="526" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#5ba8a0">Style &amp; Voice</text>
+
+        <rect x="360" y="502" width="150" height="40" rx="6" fill="#0f0f14" stroke="rgba(255,255,255,0.08)"/>
+        <text x="435" y="526" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#5ba8a0">Structural</text>
+
+        <rect x="525" y="502" width="150" height="40" rx="6" fill="#0f0f14" stroke="rgba(255,255,255,0.08)"/>
+        <text x="600" y="526" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#5ba8a0">Linguistic</text>
+
+        <!-- Arrows between specialists -->
+        <line x1="180" y1="522" x2="193" y2="522" stroke="#4a4a50" stroke-width="1" marker-end="url(#arrow-muted)"/>
+        <line x1="345" y1="522" x2="358" y2="522" stroke="#4a4a50" stroke-width="1" marker-end="url(#arrow-muted)"/>
+        <line x1="510" y1="522" x2="523" y2="522" stroke="#4a4a50" stroke-width="1" marker-end="url(#arrow-muted)"/>
+
+        <text x="430" y="558" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#4a4a50">Only failed categories invoked &mdash; corrections compound sequentially</text>
+
+        <!-- Arrow down to re-score -->
+        <line x1="350" y1="560" x2="350" y2="590" stroke="#5ba8a0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- Re-score -->
+        <rect x="210" y="592" width="280" height="44" rx="8" fill="#14141a" stroke="#9b8ac9" stroke-width="1"/>
+        <text x="350" y="612" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#9b8ac9" font-weight="600" letter-spacing="1.5">RE-SCORE</text>
+        <text x="350" y="626" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#8a8a8e">Scoring Agent &mdash; all 13 metrics</text>
+
+        <!-- Loop / Decision -->
+        <line x1="350" y1="636" x2="350" y2="660" stroke="#5ba8a0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <rect x="190" y="662" width="130" height="30" rx="6" fill="rgba(74,154,106,0.08)" stroke="rgba(74,154,106,0.3)"/>
+        <text x="255" y="681" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#4a9a6a" font-weight="500">Pass? DONE</text>
+
+        <rect x="340" y="662" width="190" height="30" rx="6" fill="rgba(201,168,91,0.08)" stroke="rgba(201,168,91,0.3)"/>
+        <text x="435" y="681" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#c9a85b" font-weight="500">Fail + round &lt; 2? Loop</text>
+
+        <rect x="550" y="662" width="180" height="30" rx="6" fill="rgba(201,107,107,0.08)" stroke="rgba(201,107,107,0.3)"/>
+        <text x="640" y="681" text-anchor="middle" font-family="Inter,sans-serif" font-size="10" fill="#c96b6b" font-weight="500">Round 2 exhausted? HITL</text>
+
+        <!-- Loop arrow back -->
+        <path d="M530,677 C560,677 570,460 530,440" stroke="#c9a85b" stroke-width="1" stroke-dasharray="4,3" fill="none" marker-end="url(#arrow-muted)"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============ SECTION 2: QUALITY PARAMETERS ============ -->
+<section class="section" id="metrics">
+  <div class="container">
+    <p class="section-label fade-in">Section 02</p>
+    <h2 class="fade-in">Quality Evaluation Parameters</h2>
+    <p class="fade-in">The Scoring Agent evaluates every translation against 13 metrics organized into four categories. Each metric is scored 0&ndash;100 with a configurable per-client threshold. Six metrics use deterministic code-based checks; seven use LLM-as-judge evaluation.</p>
+
+    <!-- CATEGORY 1 -->
+    <div class="category-header fade-in">
+      <span class="category-number">C1</span>
+      <h3>Terminology Accuracy</h3>
+      <span class="specialist-tag">Specialist: Terminology</span>
+    </div>
+
+    <div class="metric-table-wrap fade-in">
+      <table class="metric-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>What It Measures</th>
+            <th>Method</th>
+            <th>Threshold</th>
+            <th>Failure Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>glossary_compliance</td>
+            <td>Percentage of glossary terms correctly translated. For each source term found in the document, checks whether the expected target translation appears in the output.</td>
+            <td><span class="method-tag deterministic">Deterministic</span></td>
+            <td><span class="threshold-val">95</span></td>
+            <td>Source contains "support level" but output uses "nivel de apoyo" instead of the glossary-mandated "nivel de soporte".</td>
+          </tr>
+          <tr>
+            <td>term_consistency</td>
+            <td>Whether the same source term is always translated the same way throughout the document. Derived from glossary compliance in MVP; full NLP alignment planned.</td>
+            <td><span class="method-tag deterministic">Deterministic</span></td>
+            <td><span class="threshold-val">90</span></td>
+            <td>"Resistance level" translated as "nivel de resistencia" in paragraph 1 but "barrera de resistencia" in paragraph 4.</td>
+          </tr>
+          <tr>
+            <td>untranslated_terms</td>
+            <td>Financial terms left in the source language without justification. Proper nouns, currency pairs (EUR/USD), and indicator abbreviations (RSI, MACD) are excluded.</td>
+            <td><span class="method-tag deterministic">Deterministic</span></td>
+            <td><span class="threshold-val">95</span></td>
+            <td>English word "bearish" left untranslated in the Spanish output when glossary defines it as "bajista".</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- CATEGORY 2 -->
+    <div class="category-header fade-in">
+      <span class="category-number">C2</span>
+      <h3>Style &amp; Voice</h3>
+      <span class="specialist-tag">Specialist: Style</span>
+    </div>
+
+    <div class="metric-table-wrap fade-in">
+      <table class="metric-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>What It Measures</th>
+            <th>Method</th>
+            <th>Threshold</th>
+            <th>Failure Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>formality_level</td>
+            <td>Register match against the client's target (1=casual to 5=institutional). The LLM classifies the output register and penalizes deviation from the target level.</td>
+            <td><span class="method-tag llm">LLM-as-Judge</span></td>
+            <td><span class="threshold-val">85</span></td>
+            <td>Client targets level 4 (institutional) but output uses colloquial phrasing like "el precio se fue para arriba" instead of "el precio registro un incremento".</td>
+          </tr>
+          <tr>
+            <td>sentence_length_ratio</td>
+            <td>Average sentence length compared to the client's preferred range. Scored based on distance from the client's mean sentence length.</td>
+            <td><span class="method-tag llm">LLM-as-Judge</span></td>
+            <td><span class="threshold-val">80</span></td>
+            <td>Client average is 22 words/sentence but the translation averages 38 words with long compound sentences.</td>
+          </tr>
+          <tr>
+            <td>passive_voice_ratio</td>
+            <td>Percentage of passive constructions compared to the client's baseline. Scored on proximity to the target passive voice percentage.</td>
+            <td><span class="method-tag llm">LLM-as-Judge</span></td>
+            <td><span class="threshold-val">80</span></td>
+            <td>Client targets 25% passive voice but translation uses 48% passive constructions, making the text feel overly detached.</td>
+          </tr>
+          <tr>
+            <td>brand_voice_adherence</td>
+            <td>Compliance with explicit brand rules defined in the client profile. Each rule violation deducts 20 points from the score.</td>
+            <td><span class="method-tag llm">LLM-as-Judge</span></td>
+            <td><span class="threshold-val">95</span></td>
+            <td>Brand rule states "Always write OANDA in uppercase" but output contains "Oanda" or "oanda".</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- CATEGORY 3 -->
+    <div class="category-header fade-in">
+      <span class="category-number">C3</span>
+      <h3>Structural Fidelity</h3>
+      <span class="specialist-tag">Specialist: Structural</span>
+    </div>
+
+    <div class="metric-table-wrap fade-in">
+      <table class="metric-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>What It Measures</th>
+            <th>Method</th>
+            <th>Threshold</th>
+            <th>Failure Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>formatting_preservation</td>
+            <td>Whether structural elements survive translation: headers, bullets, numbered lists, bold text, horizontal rules. Uses 80% tolerance per element type.</td>
+            <td><span class="method-tag deterministic">Deterministic</span></td>
+            <td><span class="threshold-val">90</span></td>
+            <td>Source has 5 bullet points but translation merges them into 2 paragraphs, losing the list structure.</td>
+          </tr>
+          <tr>
+            <td>numerical_accuracy</td>
+            <td>All numbers, prices, percentages, and financial figures from the source must appear in the translation. Handles locale-specific formatting (1,234.56 vs 1.234,56).</td>
+            <td><span class="method-tag deterministic">Deterministic</span></td>
+            <td><span class="threshold-val">100</span></td>
+            <td>Source states "1.0850" as a price level but the translation shows "1.0805" &mdash; a transposition error that could mislead traders.</td>
+          </tr>
+          <tr>
+            <td>paragraph_alignment</td>
+            <td>Output paragraph count is proportional to source. Ratios of 0.8&ndash;1.2 score 100; wider deviations are penalized progressively.</td>
+            <td><span class="method-tag deterministic">Deterministic</span></td>
+            <td><span class="threshold-val">85</span></td>
+            <td>Source has 12 paragraphs but translation compresses into 6, losing the document's informational structure.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- CATEGORY 4 -->
+    <div class="category-header fade-in">
+      <span class="category-number">C4</span>
+      <h3>Linguistic Quality</h3>
+      <span class="specialist-tag">Specialist: Linguistic</span>
+    </div>
+
+    <div class="metric-table-wrap fade-in">
+      <table class="metric-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>What It Measures</th>
+            <th>Method</th>
+            <th>Threshold</th>
+            <th>Failure Example</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>fluency</td>
+            <td>Natural reading flow in the target language. No awkward phrasings, no calques from English, natural flow for a native speaker. LLM-judged on a 0&ndash;100 scale.</td>
+            <td><span class="method-tag llm">LLM-as-Judge</span></td>
+            <td><span class="threshold-val">85</span></td>
+            <td>Sentence reads "El par hizo un alto mas arriba" (calque of "the pair made a high above") instead of natural "El par alcanzo un nuevo maximo".</td>
+          </tr>
+          <tr>
+            <td>meaning_preservation</td>
+            <td>Semantic equivalence between source and translation. No additions, omissions, or distortions of meaning. LLM compares source meaning against output.</td>
+            <td><span class="method-tag llm">LLM-as-Judge</span></td>
+            <td><span class="threshold-val">90</span></td>
+            <td>Source says "the pair may test resistance" (possibility) but translation says "el par probara la resistencia" (certainty), distorting the hedging.</td>
+          </tr>
+          <tr>
+            <td>regional_variant</td>
+            <td>Correct regional variant used consistently. Checks vocabulary, grammar markers (vosotros/ustedes), spelling conventions for the target variant (es-ES, es-AR, es-MX, etc.).</td>
+            <td><span class="method-tag llm">LLM-as-Judge</span></td>
+            <td><span class="threshold-val">90</span></td>
+            <td>Profile targets es-ES but translation uses Latin American "computadora" instead of Peninsular "ordenador", or mixes "ustedes" with "vosotros".</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============ SECTION 3: SCORING DEEP DIVE ============ -->
+<section class="section" id="scoring">
+  <div class="container">
+    <p class="section-label fade-in">Section 03</p>
+    <h2 class="fade-in">Scoring System Deep Dive</h2>
+    <p class="fade-in">Quality is binary: a translation either meets every threshold or it does not. This section details the exact mechanics of how pass/fail is determined and how clients can customize the scoring configuration.</p>
+
+    <h3>Per-Metric Thresholds (X<sub>i</sub>)</h3>
+    <p>Each metric has its own minimum acceptable score. These are configurable per client and per language. The defaults are tuned for institutional-grade financial translation where terminology accuracy and numerical correctness are paramount.</p>
+
+    <div class="callout callout-info">
+      <strong>Key principle:</strong> A translation with 12 metrics passing at 100 and 1 metric at 79 (threshold 80) is still a FAIL. Every single threshold must be met. There is no "close enough" in financial translation.
+    </div>
+
+    <h3>Aggregate Score Calculation</h3>
+    <p>The aggregate score is a <strong>weighted average</strong> of all 13 metric scores. By default, all metrics carry equal weight (1/13 each). The formula:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Aggregate Computation</span>
+        <span class="code-lang">Python</span>
+      </div>
+      <pre><span class="comment"># From scoring_agent.py &mdash; _compute_aggregate()</span>
+<span class="key">weighted_sum</span> = 0.0
+<span class="key">total_weight</span> = 0.0
+
+<span class="cmd">for</span> metric_name, metric_score <span class="cmd">in</span> card.metrics.items():
+    weight = scoring.get_weight(metric_name)  <span class="comment"># default: 1/13</span>
+    weighted_sum += metric_score.score * weight
+    total_weight += weight
+
+<span class="key">aggregate</span> = weighted_sum / total_weight</pre>
+    </div>
+
+    <h3>Overall Threshold (Y)</h3>
+    <p>The aggregate score must meet the overall threshold <strong>Y</strong>, which defaults to <strong>88</strong>. This ensures that even when every individual metric passes, the translation must also demonstrate strong quality across the board.</p>
+
+    <h3>Pass Condition</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Pass/Fail Logic</span>
+        <span class="code-lang">Definition</span>
+      </div>
+      <pre><span class="key">PASS</span> requires BOTH:
+  1. ALL metrics[i].score >= threshold[i]    <span class="comment"># every X_i met</span>
+  2. aggregate_score >= aggregate_threshold   <span class="comment"># Y met (default: 88)</span>
+
+<span class="key">FAIL</span> triggers if EITHER:
+  1. ANY metric[i].score < threshold[i]      <span class="comment"># any X_i missed</span>
+  2. aggregate_score < aggregate_threshold    <span class="comment"># Y missed</span></pre>
+    </div>
+
+    <h3>Weight Customization</h3>
+    <p>Clients can override metric weights to prioritize certain quality dimensions. Weights are normalized to sum to 1.0. If <code>metric_weights</code> is empty (the default), all metrics are weighted equally.</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Custom Weights Example</span>
+        <span class="code-lang">JSON</span>
+      </div>
+      <pre><span class="comment">// OANDA: prioritize numerical accuracy and glossary</span>
+{
+  <span class="key">"metric_weights"</span>: {
+    <span class="string">"numerical_accuracy"</span>: <span class="val">3.0</span>,
+    <span class="string">"glossary_compliance"</span>: <span class="val">2.0</span>,
+    <span class="string">"meaning_preservation"</span>: <span class="val">2.0</span>,
+    <span class="string">"brand_voice_adherence"</span>: <span class="val">1.5</span>
+    <span class="comment">// Unspecified metrics get weight 0.0 when custom weights are set.</span>
+    <span class="comment">// To keep other metrics, include them explicitly.</span>
+  }
+}</pre>
+    </div>
+
+    <div class="callout callout-warn">
+      <strong>Important:</strong> When custom weights are set, any metric not listed receives a weight of 0.0 and is excluded from the aggregate calculation. It is still evaluated and must still pass its individual threshold. This means a client can exclude a metric from the aggregate while still enforcing its minimum.
+    </div>
+  </div>
+</section>
+
+
+<!-- ============ SECTION 4: SPECIALIST PIPELINE ============ -->
+<section class="section" id="specialists">
+  <div class="container">
+    <p class="section-label fade-in">Section 04</p>
+    <h2 class="fade-in">Specialist Correction Pipeline</h2>
+    <p class="fade-in">When a translation fails the quality gate, the system does not simply re-prompt the same agent. Research shows that LLMs anchor to their own output. Instead, failed metrics are routed to domain-specific specialist agents, each an expert in one quality dimension.</p>
+
+    <h3>Quality Arbiter Routing</h3>
+    <p>The Quality Arbiter (Haiku) reads the full scorecard and produces a structured correction plan:</p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-label">Arbiter Output Schema</span>
+        <span class="code-lang">JSON</span>
+      </div>
+      <pre>{
+  <span class="key">"failed_categories"</span>: [<span class="string">"terminology"</span>, <span class="string">"style"</span>],
+  <span class="key">"correction_sequence"</span>: [<span class="string">"terminology"</span>, <span class="string">"style"</span>],
+  <span class="key">"rationale"</span>: <span class="string">"Fix terms first (mechanical), then style (depends on final wording)"</span>,
+  <span class="key">"conflict_risks"</span>: [<span class="string">"Style rewrite may re-introduce non-glossary terms"</span>],
+  <span class="key">"escalate_to_hitl"</span>: <span class="val">false</span>,
+  <span class="key">"escalation_reason"</span>: <span class="string">""</span>
+}</pre>
+    </div>
+
+    <h3>Specialist Execution Order</h3>
+    <p>The default execution order is <strong>most mechanical first, most nuanced last</strong>. This ensures that deterministic corrections (glossary, numbers) are locked in before subjective polishing occurs. The Arbiter can reorder if the scorecard suggests a different priority.</p>
+
+    <div class="pipeline-steps fade-in">
+      <div class="pipeline-step">
+        <span class="pipeline-step-order">1</span>
+        <div>
+          <h4>Terminology Specialist <span style="color:var(--text-muted);font-weight:400;font-size:12px">&mdash; Opus</span></h4>
+          <p>Corrects glossary compliance, term consistency, and untranslated terms. Receives the full glossary and a list of missed terms with evidence.</p>
+          <p class="preserve-note">Preserves: style, formatting, numbers, sentence structure, regional variant.</p>
+        </div>
+      </div>
+      <div class="connector">|</div>
+      <div class="pipeline-step">
+        <span class="pipeline-step-order">2</span>
+        <div>
+          <h4>Style &amp; Voice Specialist <span style="color:var(--text-muted);font-weight:400;font-size:12px">&mdash; Opus</span></h4>
+          <p>Rewrites for formality, sentence structure, passive/active voice balance, and brand voice adherence. Receives tone profile and brand rules.</p>
+          <p class="preserve-note">Preserves: glossary terms, numbers, formatting, paragraph structure.</p>
+        </div>
+      </div>
+      <div class="connector">|</div>
+      <div class="pipeline-step">
+        <span class="pipeline-step-order">3</span>
+        <div>
+          <h4>Structural Specialist <span style="color:var(--text-muted);font-weight:400;font-size:12px">&mdash; Opus</span></h4>
+          <p>Fixes formatting preservation, numerical accuracy, and paragraph alignment. Ensures all structural elements from the source survive in the translation.</p>
+          <p class="preserve-note">Preserves: terminology, style, voice, linguistic quality.</p>
+        </div>
+      </div>
+      <div class="connector">|</div>
+      <div class="pipeline-step">
+        <span class="pipeline-step-order">4</span>
+        <div>
+          <h4>Linguistic Specialist <span style="color:var(--text-muted);font-weight:400;font-size:12px">&mdash; Opus</span></h4>
+          <p>Polishes fluency, validates meaning preservation, and enforces regional variant correctness. The "native speaker" final pass.</p>
+          <p class="preserve-note">Preserves: all terminology, style, structural, and brand corrections from prior specialists.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>Correction Rounds &amp; Escalation</h3>
+    <p>The system allows a maximum of <strong>2 correction rounds</strong> (configurable via <code>max_revision_attempts</code>). After each round, the full scorecard is re-evaluated. Escalation to HITL (Human-in-the-Loop) occurs when:</p>
+
+    <div class="card-grid fade-in">
+      <div class="card">
+        <span class="card-number">Escalation Trigger 1</span>
+        <h4>No Improvement Detected</h4>
+        <p>After a correction round, the Arbiter compares the current scorecard to the previous one. If failing metrics did not improve (or regressed), further specialist passes are unlikely to help.</p>
+      </div>
+      <div class="card">
+        <span class="card-number">Escalation Trigger 2</span>
+        <h4>Max Rounds Exhausted</h4>
+        <p>After 2 correction rounds, if thresholds still are not met, the system stops. The human reviewer receives the full audit trail: original translation, every specialist correction, reasoning, and all scores.</p>
+      </div>
+    </div>
+
+    <h3>Selective Invocation</h3>
+    <p>Only specialists whose categories have failing metrics are invoked. If only terminology fails, only the Terminology Specialist runs. This minimizes unnecessary agent calls and preserves quality in domains that already pass. In the best case (translation passes first try), the pipeline is just 2 agent calls: Translation + Scoring.</p>
+
+    <div class="callout callout-info">
+      <strong>Agent call counts:</strong> Best case: 2 calls (translate + score). Typical case (1&ndash;2 categories fail): 4&ndash;5 calls. Worst case (all 4 categories fail): 8 calls per document.
+    </div>
+  </div>
+</section>
+
+
+<!-- ============ SECTION 5: CLIENT PROFILE ============ -->
+<section class="section" id="profiles">
+  <div class="container">
+    <p class="section-label fade-in">Section 05</p>
+    <h2 class="fade-in">Client Profile Parameters</h2>
+    <p class="fade-in">The client profile is the complete personalization layer. It defines everything the system needs to translate and evaluate a document for a specific client and language pair. Profiles are extracted from reference translation pairs or built manually.</p>
+
+    <div class="card-grid fade-in">
+      <div class="profile-block">
+        <h4>Tone Profile</h4>
+        <div class="profile-field"><span class="field-key">formality_level</span><span class="field-val">1&ndash;5 (1=casual, 5=institutional)</span></div>
+        <div class="profile-field"><span class="field-key">description</span><span class="field-val">e.g. "professional, conservative, institutional"</span></div>
+        <div class="profile-field"><span class="field-key">passive_voice_target_pct</span><span class="field-val">Target % of passive constructions (e.g. 25.0)</span></div>
+        <div class="profile-field"><span class="field-key">avg_sentence_length</span><span class="field-val">Mean words per sentence (e.g. 22.0)</span></div>
+        <div class="profile-field"><span class="field-key">sentence_length_stddev</span><span class="field-val">Acceptable variation (e.g. 6.0)</span></div>
+        <div class="profile-field"><span class="field-key">person_preference</span><span class="field-val">first / second / third person</span></div>
+        <div class="profile-field"><span class="field-key">hedging_frequency</span><span class="field-val">low / moderate / high</span></div>
+      </div>
+
+      <div class="profile-block">
+        <h4>Glossary</h4>
+        <div class="profile-field"><span class="field-key">format</span><span class="field-val">Source term &rarr; target translation mapping</span></div>
+        <div class="profile-field"><span class="field-key">enforcement</span><span class="field-val">Mandatory &mdash; scored by glossary_compliance</span></div>
+        <div class="profile-field"><span class="field-key">example</span><span class="field-val">"support level" &rarr; "nivel de soporte"</span></div>
+        <div class="profile-field"><span class="field-key">meta fields</span><span class="field-val">Keys starting with _ are skipped during scoring</span></div>
+      </div>
+    </div>
+
+    <div class="card-grid fade-in">
+      <div class="profile-block">
+        <h4>Regional Variant</h4>
+        <div class="profile-field"><span class="field-key">format</span><span class="field-val">BCP-47 tag (e.g. es-ES, es-AR, es-MX, en-GB)</span></div>
+        <div class="profile-field"><span class="field-key">effect</span><span class="field-val">Controls vocabulary, grammar, spelling conventions</span></div>
+        <div class="profile-field"><span class="field-key">scoring</span><span class="field-val">Checked by regional_variant metric (LLM-judged)</span></div>
+      </div>
+
+      <div class="profile-block">
+        <h4>Brand Rules</h4>
+        <div class="profile-field"><span class="field-key">format</span><span class="field-val">List of explicit mandates (string[])</span></div>
+        <div class="profile-field"><span class="field-key">example</span><span class="field-val">"Always write OANDA in uppercase"</span></div>
+        <div class="profile-field"><span class="field-key">penalty</span><span class="field-val">-20 points per violation in brand_voice_adherence</span></div>
+      </div>
+    </div>
+
+    <div class="card-grid fade-in">
+      <div class="profile-block">
+        <h4>Forbidden Terms</h4>
+        <div class="profile-field"><span class="field-key">format</span><span class="field-val">List of terms that must never appear in output</span></div>
+        <div class="profile-field"><span class="field-key">enforcement</span><span class="field-val">Checked during translation and scoring</span></div>
+      </div>
+
+      <div class="profile-block">
+        <h4>Scoring Configuration</h4>
+        <div class="profile-field"><span class="field-key">metric_thresholds</span><span class="field-val">Per-metric minimum scores (dict[str, int])</span></div>
+        <div class="profile-field"><span class="field-key">aggregate_threshold</span><span class="field-val">Overall minimum (default: 88)</span></div>
+        <div class="profile-field"><span class="field-key">metric_weights</span><span class="field-val">Custom weights (empty = equal weighting)</span></div>
+        <div class="profile-field"><span class="field-key">max_revision_attempts</span><span class="field-val">Correction rounds before HITL (default: 2)</span></div>
+      </div>
+    </div>
+
+    <h3>Full Profile JSON Structure</h3>
+
+    <div class="code-block fade-in">
+      <div class="code-header">
+        <span class="code-label">ClientProfile Schema</span>
+        <span class="code-lang">JSON</span>
+      </div>
+      <pre>{
+  <span class="key">"client_id"</span>: <span class="string">"oanda"</span>,
+  <span class="key">"client_name"</span>: <span class="string">"OANDA"</span>,
+  <span class="key">"source_language"</span>: <span class="string">"en"</span>,
+  <span class="key">"languages"</span>: {
+    <span class="key">"es"</span>: {
+      <span class="key">"regional_variant"</span>: <span class="string">"es-ES"</span>,
+      <span class="key">"glossary"</span>: {
+        <span class="string">"support level"</span>: <span class="string">"nivel de soporte"</span>,
+        <span class="string">"resistance level"</span>: <span class="string">"nivel de resistencia"</span>
+      },
+      <span class="key">"tone"</span>: {
+        <span class="key">"formality_level"</span>: <span class="val">4</span>,
+        <span class="key">"description"</span>: <span class="string">"professional, conservative, institutional"</span>,
+        <span class="key">"passive_voice_target_pct"</span>: <span class="val">25</span>,
+        <span class="key">"avg_sentence_length"</span>: <span class="val">22</span>,
+        <span class="key">"sentence_length_stddev"</span>: <span class="val">6</span>,
+        <span class="key">"person_preference"</span>: <span class="string">"third"</span>,
+        <span class="key">"hedging_frequency"</span>: <span class="string">"moderate"</span>
+      },
+      <span class="key">"brand_rules"</span>: [
+        <span class="string">"Always write OANDA in uppercase"</span>,
+        <span class="string">"Refer to platform as plataforma de trading de OANDA"</span>
+      ],
+      <span class="key">"forbidden_terms"</span>: [],
+      <span class="key">"compliance_patterns"</span>: [],
+      <span class="key">"scoring"</span>: {
+        <span class="key">"metric_thresholds"</span>: { <span class="string">"glossary_compliance"</span>: <span class="val">95</span>, <span class="comment">...</span> },
+        <span class="key">"aggregate_threshold"</span>: <span class="val">88</span>,
+        <span class="key">"metric_weights"</span>: {},
+        <span class="key">"max_revision_attempts"</span>: <span class="val">2</span>
+      }
+    }
+  }
+}</pre>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============ SECTION 6: RUNNING E2E TEST ============ -->
+<section class="section" id="running">
+  <div class="container">
+    <p class="section-label fade-in">Section 06</p>
+    <h2 class="fade-in">Running an E2E Test</h2>
+    <p class="fade-in">The engine is accessible via CLI commands and Flask API endpoints. Both interfaces provide the same pipeline: translate, score, quality gate, specialist correction, and audit trail.</p>
+
+    <h3>CLI Commands</h3>
+
+    <div class="code-block fade-in">
+      <div class="code-header">
+        <span class="code-label">Check available client profiles</span>
+        <span class="code-lang">Shell</span>
+      </div>
+      <pre><span class="cmd">python</span> -m finflow profiles list</pre>
+    </div>
+
+    <div class="code-block fade-in">
+      <div class="code-header">
+        <span class="code-label">Translate with full scoring pipeline</span>
+        <span class="code-lang">Shell</span>
+      </div>
+      <pre><span class="cmd">python</span> -m finflow translate \
+  <span class="flag">--input</span> <span class="string">source.md</span> \
+  <span class="flag">--client</span> <span class="string">oanda</span> \
+  <span class="flag">--language</span> <span class="string">es</span> \
+  <span class="flag">--output</span> <span class="string">translated.md</span> \
+  <span class="flag">--score-report</span> <span class="string">scores.json</span></pre>
+    </div>
+
+    <div class="code-block fade-in">
+      <div class="code-header">
+        <span class="code-label">Score an existing translation (no translation step)</span>
+        <span class="code-lang">Shell</span>
+      </div>
+      <pre><span class="cmd">python</span> -m finflow score \
+  <span class="flag">--source</span> <span class="string">source.md</span> \
+  <span class="flag">--translation</span> <span class="string">existing.md</span> \
+  <span class="flag">--client</span> <span class="string">oanda</span> \
+  <span class="flag">--language</span> <span class="string">es</span></pre>
+    </div>
+
+    <div class="code-block fade-in">
+      <div class="code-header">
+        <span class="code-label">View profile details</span>
+        <span class="code-lang">Shell</span>
+      </div>
+      <pre><span class="cmd">python</span> -m finflow profiles show <span class="string">oanda</span></pre>
+    </div>
+
+    <h3>Flask API Endpoints</h3>
+
+    <div class="metric-table-wrap fade-in">
+      <table class="metric-table">
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Endpoint</th>
+            <th>Description</th>
+            <th>Key Parameters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="color:var(--success)">POST</td>
+            <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-primary)">/api/translate</td>
+            <td>Full pipeline: translate + score + correction loop. Streams SSE events during processing.</td>
+            <td style="font-size:12px">document, client_id, language</td>
+          </tr>
+          <tr>
+            <td style="color:var(--success)">POST</td>
+            <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-primary)">/api/score</td>
+            <td>Score an existing translation against a client profile. No translation step.</td>
+            <td style="font-size:12px">source, translation, client_id, language</td>
+          </tr>
+          <tr>
+            <td style="color:var(--info)">GET</td>
+            <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-primary)">/api/profiles</td>
+            <td>List all client profiles with supported languages.</td>
+            <td style="font-size:12px">&mdash;</td>
+          </tr>
+          <tr>
+            <td style="color:var(--info)">GET</td>
+            <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-primary)">/api/profiles/:client_id</td>
+            <td>Get full profile for a specific client.</td>
+            <td style="font-size:12px">client_id (path)</td>
+          </tr>
+          <tr>
+            <td style="color:var(--warning)">PUT</td>
+            <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-primary)">/api/profiles/:client_id/thresholds</td>
+            <td>Update scoring thresholds and weights for a client/language.</td>
+            <td style="font-size:12px">language, metric_thresholds, aggregate_threshold</td>
+          </tr>
+          <tr>
+            <td style="color:var(--success)">POST</td>
+            <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-primary)">/api/extract-profile</td>
+            <td>Extract a client profile from reference translation pairs.</td>
+            <td style="font-size:12px">pairs, client_id, language</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>API Response Example</h3>
+
+    <div class="code-block fade-in">
+      <div class="code-header">
+        <span class="code-label">POST /api/translate Response</span>
+        <span class="code-lang">JSON</span>
+      </div>
+      <pre>{
+  <span class="key">"client_id"</span>: <span class="string">"oanda"</span>,
+  <span class="key">"language"</span>: <span class="string">"es"</span>,
+  <span class="key">"passed"</span>: <span class="val">true</span>,
+  <span class="key">"revision_count"</span>: <span class="val">1</span>,
+  <span class="key">"escalated_to_hitl"</span>: <span class="val">false</span>,
+  <span class="key">"aggregate_score"</span>: <span class="val">93.4</span>,
+  <span class="key">"scores"</span>: {
+    <span class="key">"metrics"</span>: { <span class="comment">/* all 13 metrics with score, threshold, passed, evidence */</span> },
+    <span class="key">"aggregate_score"</span>: <span class="val">93.4</span>,
+    <span class="key">"aggregate_threshold"</span>: <span class="val">88</span>,
+    <span class="key">"passed"</span>: <span class="val">true</span>,
+    <span class="key">"failed_metrics"</span>: [],
+    <span class="key">"failed_categories"</span>: []
+  },
+  <span class="key">"audit_trail"</span>: [ <span class="comment">/* timestamped entries for every agent invocation */</span> ]
+}</pre>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============ SECTION 7: EXAMPLE SCORECARD ============ -->
+<section class="section" id="example">
+  <div class="container">
+    <p class="section-label fade-in">Section 07</p>
+    <h2 class="fade-in">Example Scorecard</h2>
+    <p class="fade-in">A worked example: OANDA EUR/USD Daily Analysis translated from English to Spanish (es-ES). The initial translation fails on two metrics, triggering the correction pipeline.</p>
+
+    <h3>Initial Score &mdash; Round 0</h3>
+
+    <!-- Scorecard: Round 0 -->
+    <div class="scorecard fade-in">
+      <div class="scorecard-header">
+        <h4>OANDA EUR/USD Analysis &mdash; EN to ES (es-ES)</h4>
+        <span class="scorecard-meta">Round 0 &mdash; Initial Translation</span>
+      </div>
+      <div class="scorecard-body">
+
+        <div class="scorecard-category">
+          <p class="scorecard-category-label">Terminology Accuracy</p>
+          <div class="metric-row">
+            <span class="metric-name">glossary_compliance</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:97%"></div>
+              <div class="metric-bar-threshold" style="left:95%"></div>
+            </div>
+            <span class="metric-score pass">97 / 95</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">term_consistency</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:92%"></div>
+              <div class="metric-bar-threshold" style="left:90%"></div>
+            </div>
+            <span class="metric-score pass">92 / 90</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">untranslated_terms</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:98%"></div>
+              <div class="metric-bar-threshold" style="left:95%"></div>
+            </div>
+            <span class="metric-score pass">98 / 95</span>
+          </div>
+        </div>
+
+        <div class="scorecard-category">
+          <p class="scorecard-category-label">Style &amp; Voice</p>
+          <div class="metric-row">
+            <span class="metric-name">formality_level</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:88%"></div>
+              <div class="metric-bar-threshold" style="left:85%"></div>
+            </div>
+            <span class="metric-score pass">88 / 85</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">sentence_length_ratio</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:82%"></div>
+              <div class="metric-bar-threshold" style="left:80%"></div>
+            </div>
+            <span class="metric-score pass">82 / 80</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">passive_voice_ratio</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill fail" style="width:78%"></div>
+              <div class="metric-bar-threshold" style="left:80%"></div>
+            </div>
+            <span class="metric-score fail">78 / 80</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">brand_voice_adherence</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:100%"></div>
+              <div class="metric-bar-threshold" style="left:95%"></div>
+            </div>
+            <span class="metric-score pass">100 / 95</span>
+          </div>
+        </div>
+
+        <div class="scorecard-category">
+          <p class="scorecard-category-label">Structural Fidelity</p>
+          <div class="metric-row">
+            <span class="metric-name">formatting_preservation</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:95%"></div>
+              <div class="metric-bar-threshold" style="left:90%"></div>
+            </div>
+            <span class="metric-score pass">95 / 90</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">numerical_accuracy</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill fail" style="width:93%"></div>
+              <div class="metric-bar-threshold" style="left:100%"></div>
+            </div>
+            <span class="metric-score fail">93 / 100</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">paragraph_alignment</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:90%"></div>
+              <div class="metric-bar-threshold" style="left:85%"></div>
+            </div>
+            <span class="metric-score pass">90 / 85</span>
+          </div>
+        </div>
+
+        <div class="scorecard-category">
+          <p class="scorecard-category-label">Linguistic Quality</p>
+          <div class="metric-row">
+            <span class="metric-name">fluency</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:91%"></div>
+              <div class="metric-bar-threshold" style="left:85%"></div>
+            </div>
+            <span class="metric-score pass">91 / 85</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">meaning_preservation</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:93%"></div>
+              <div class="metric-bar-threshold" style="left:90%"></div>
+            </div>
+            <span class="metric-score pass">93 / 90</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">regional_variant</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:95%"></div>
+              <div class="metric-bar-threshold" style="left:90%"></div>
+            </div>
+            <span class="metric-score pass">95 / 90</span>
+          </div>
+        </div>
+
+        <div class="scorecard-aggregate">
+          <span class="aggregate-label">Aggregate Score</span>
+          <span class="aggregate-score">92.2 / 88</span>
+        </div>
+
+        <div class="scorecard-verdict fail-verdict">
+          FAIL &mdash; 2 metrics below threshold: passive_voice_ratio (78 &lt; 80), numerical_accuracy (93 &lt; 100). Routing to specialist correction.
+        </div>
+      </div>
+    </div>
+
+    <!-- Arbiter Decision -->
+    <h3>Arbiter Routing Decision</h3>
+    <p>The Quality Arbiter analyzes the scorecard and produces a correction plan. Two categories have failures: <strong>Style</strong> (passive_voice_ratio) and <strong>Structural</strong> (numerical_accuracy).</p>
+
+    <div class="code-block fade-in">
+      <div class="code-header">
+        <span class="code-label">Arbiter Correction Plan</span>
+        <span class="code-lang">JSON</span>
+      </div>
+      <pre>{
+  <span class="key">"failed_categories"</span>: [<span class="string">"structural"</span>, <span class="string">"style"</span>],
+  <span class="key">"correction_sequence"</span>: [<span class="string">"structural"</span>, <span class="string">"style"</span>],
+  <span class="key">"rationale"</span>: <span class="string">"Fix numerical accuracy first (mechanical/deterministic), then
+    adjust passive voice ratio (subjective, won't affect numbers)"</span>,
+  <span class="key">"conflict_risks"</span>: [<span class="string">"Low risk: style changes are unlikely to affect numerical values"</span>],
+  <span class="key">"escalate_to_hitl"</span>: <span class="val">false</span>
+}</pre>
+    </div>
+
+    <p>The Structural Specialist identifies the missing number (a price level "1.0780" was omitted during translation) and restores it. The Style Specialist rewrites 3 sentences from passive to active voice, bringing the passive ratio from 38% down to 26% (target: 25%).</p>
+
+    <!-- Scorecard: Round 1 -->
+    <h3>Re-Score &mdash; Round 1</h3>
+
+    <div class="scorecard fade-in">
+      <div class="scorecard-header">
+        <h4>OANDA EUR/USD Analysis &mdash; After Specialist Correction</h4>
+        <span class="scorecard-meta">Round 1 &mdash; Post-Correction</span>
+      </div>
+      <div class="scorecard-body">
+
+        <div class="scorecard-category">
+          <p class="scorecard-category-label">Terminology Accuracy</p>
+          <div class="metric-row">
+            <span class="metric-name">glossary_compliance</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:97%"></div>
+              <div class="metric-bar-threshold" style="left:95%"></div>
+            </div>
+            <span class="metric-score pass">97 / 95</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">term_consistency</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:92%"></div>
+              <div class="metric-bar-threshold" style="left:90%"></div>
+            </div>
+            <span class="metric-score pass">92 / 90</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">untranslated_terms</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:98%"></div>
+              <div class="metric-bar-threshold" style="left:95%"></div>
+            </div>
+            <span class="metric-score pass">98 / 95</span>
+          </div>
+        </div>
+
+        <div class="scorecard-category">
+          <p class="scorecard-category-label">Style &amp; Voice</p>
+          <div class="metric-row">
+            <span class="metric-name">formality_level</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:88%"></div>
+              <div class="metric-bar-threshold" style="left:85%"></div>
+            </div>
+            <span class="metric-score pass">88 / 85</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">sentence_length_ratio</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:84%"></div>
+              <div class="metric-bar-threshold" style="left:80%"></div>
+            </div>
+            <span class="metric-score pass">84 / 80</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">passive_voice_ratio</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:87%"></div>
+              <div class="metric-bar-threshold" style="left:80%"></div>
+            </div>
+            <span class="metric-score pass">87 / 80</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">brand_voice_adherence</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:100%"></div>
+              <div class="metric-bar-threshold" style="left:95%"></div>
+            </div>
+            <span class="metric-score pass">100 / 95</span>
+          </div>
+        </div>
+
+        <div class="scorecard-category">
+          <p class="scorecard-category-label">Structural Fidelity</p>
+          <div class="metric-row">
+            <span class="metric-name">formatting_preservation</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:95%"></div>
+              <div class="metric-bar-threshold" style="left:90%"></div>
+            </div>
+            <span class="metric-score pass">95 / 90</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">numerical_accuracy</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:100%"></div>
+              <div class="metric-bar-threshold" style="left:100%"></div>
+            </div>
+            <span class="metric-score pass">100 / 100</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">paragraph_alignment</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:90%"></div>
+              <div class="metric-bar-threshold" style="left:85%"></div>
+            </div>
+            <span class="metric-score pass">90 / 85</span>
+          </div>
+        </div>
+
+        <div class="scorecard-category">
+          <p class="scorecard-category-label">Linguistic Quality</p>
+          <div class="metric-row">
+            <span class="metric-name">fluency</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:92%"></div>
+              <div class="metric-bar-threshold" style="left:85%"></div>
+            </div>
+            <span class="metric-score pass">92 / 85</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">meaning_preservation</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:93%"></div>
+              <div class="metric-bar-threshold" style="left:90%"></div>
+            </div>
+            <span class="metric-score pass">93 / 90</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-name">regional_variant</span>
+            <div class="metric-bar-track">
+              <div class="metric-bar-fill pass" style="width:95%"></div>
+              <div class="metric-bar-threshold" style="left:90%"></div>
+            </div>
+            <span class="metric-score pass">95 / 90</span>
+          </div>
+        </div>
+
+        <div class="scorecard-aggregate">
+          <span class="aggregate-label">Aggregate Score</span>
+          <span class="aggregate-score">93.4 / 88</span>
+        </div>
+
+        <div class="scorecard-verdict pass-verdict">
+          PASS &mdash; All 13 metrics meet their individual thresholds. Aggregate 93.4 exceeds threshold of 88. Translation released after 1 correction round.
+        </div>
+      </div>
+    </div>
+
+    <!-- Audit Trail Summary -->
+    <h3>Audit Trail Summary</h3>
+    <p>Every E2E test produces a timestamped audit trail recording each agent invocation, input/output hashes, reasoning, and scores. This trail is included with HITL escalations and stored for compliance review.</p>
+
+    <div class="code-block fade-in">
+      <div class="code-header">
+        <span class="code-label">Audit Trail (Condensed)</span>
+        <span class="code-lang">Log</span>
+      </div>
+      <pre><span class="comment">[2026-04-02T14:00:01Z]</span> <span class="key">translation</span>   TranslationAgent (Opus)
+  Input hash: <span class="val">a3f8c21b</span>  Output hash: <span class="val">7e2d4f91</span>
+  Glossary compliance: 97.0%
+
+<span class="comment">[2026-04-02T14:00:12Z]</span> <span class="key">scoring</span>       ScoringAgent (Opus)
+  Aggregate: 92.2/88  Failed: [passive_voice_ratio, numerical_accuracy]
+
+<span class="comment">[2026-04-02T14:00:13Z]</span> <span class="key">arbiter</span>       QualityArbiter (Haiku)
+  Plan: structural -> style  Conflicts: Low risk
+
+<span class="comment">[2026-04-02T14:00:18Z]</span> <span class="key">structural</span>    StructuralSpecialist (Opus)
+  Restored missing price level 1.0780 in paragraph 3
+
+<span class="comment">[2026-04-02T14:00:25Z]</span> <span class="key">style</span>         StyleSpecialist (Opus)
+  Converted 3 passive constructions to active voice
+
+<span class="comment">[2026-04-02T14:00:36Z]</span> <span class="key">scoring</span>       ScoringAgent (Opus)
+  Round 1 re-score. Aggregate: 93.4/88  Failed: []
+
+<span class="comment">[2026-04-02T14:00:36Z]</span> <span class="key">gate</span>          <span class="string">PASSED</span> after 1 correction round</pre>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============ FOOTER ============ -->
+<footer class="footer">
+  <div class="container">
+    <p class="footer-brand">FinFlow Translation Engine</p>
+    <p>WordwideFX &mdash; Objective Quality Scoring for Financial Translation &mdash; April 2026</p>
+  </div>
+</footer>
+
+</body>
+</html>
