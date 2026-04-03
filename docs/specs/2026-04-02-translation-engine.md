@@ -355,119 +355,71 @@ Input: (base_document, client_translated_version) pairs + client_id + language
 
 ## API Surface
 
-### CLI Commands
+### Dev Server
+
+```bash
+# Start the Hono API server (Bun runtime)
+bun run packages/api/src/index.ts
+```
+
+### Hono API Endpoints
+
+```
+GET  /health
+  Response: { "status": "ok", ... }
+
+POST /translate
+  Body: { "document": "...", "clientId": "oanda", "language": "es" }
+  Response: { "translation": "...", "scores": {...}, "passed": true/false }
+
+POST /translate/stream
+  Body: { "document": "...", "clientId": "oanda", "language": "es" }
+  Response: SSE stream of translation progress, scoring, specialist corrections in real-time.
+
+GET  /profiles
+  Response: [{ "clientId": "oanda", "languages": ["es", "zh"], ... }]
+
+POST /profiles
+  Body: { full ClientProfile object }
+  Response: { created profile }
+
+DELETE /profiles/:clientId
+  Response: { "deleted": true }
+
+GET  /profiles/:clientId
+  Response: { full profile object }
+```
+
+### CLI Usage (via curl)
 
 ```bash
 # Translate a document with scoring
-python -m finflow.translate \
-  --input report.md \
-  --client oanda \
-  --language es \
-  --output translated.md \
-  --score-report score.json
+curl -X POST http://localhost:3000/translate \
+  -H 'Content-Type: application/json' \
+  -d '{"document": "...", "clientId": "oanda", "language": "es"}'
 
-# Extract profile from reference pairs
-python -m finflow.extract_profile \
-  --pairs pairs.json \
-  --client oanda \
-  --language es
-
-# Score an existing translation (no translation, just scoring)
-python -m finflow.score \
-  --source report.md \
-  --translation translated.md \
-  --client oanda \
-  --language es
+# Stream translation with SSE
+curl -N http://localhost:3000/translate/stream \
+  -H 'Content-Type: application/json' \
+  -d '{"document": "...", "clientId": "oanda", "language": "es"}'
 
 # List client profiles
-python -m finflow.profiles list
+curl http://localhost:3000/profiles
 
-# Show profile details
-python -m finflow.profiles show oanda
-```
+# Create a profile
+curl -X POST http://localhost:3000/profiles \
+  -H 'Content-Type: application/json' \
+  -d '{ ... }'
 
-`pairs.json` format:
-```json
-[
-  {
-    "source": "path/to/base_report_1.md",
-    "translation": "path/to/client_version_1.md",
-    "language": "es"
-  }
-]
-```
-
-### Flask Endpoints
-
-```
-POST /api/translate
-  Body: { "document": "...", "client_id": "oanda", "language": "es" }
-  Response: { "translation": "...", "scores": {...}, "passed": true/false }
-  Streams SSE events during processing.
-
-POST /api/extract-profile
-  Body: { "pairs": [...], "client_id": "oanda", "language": "es" }
-  Response: { "profile": {...}, "validation_score": 92.5 }
-
-POST /api/score
-  Body: { "source": "...", "translation": "...", "client_id": "oanda", "language": "es" }
-  Response: { "scores": {...}, "passed": true/false }
-
-GET  /api/profiles
-  Response: [{ "client_id": "oanda", "languages": ["es", "zh"], ... }]
-
-GET  /api/profiles/:client_id
-  Response: { full profile object }
-
-PUT  /api/profiles/:client_id/thresholds
-  Body: { "language": "es", "metric_thresholds": {...}, "aggregate_threshold": 88 }
-  Response: { updated profile }
+# Delete a profile
+curl -X DELETE http://localhost:3000/profiles/oanda
 ```
 
 ## Storage
 
-SQLite for MVP. Single database file at `finflow/data/translation_engine.db`.
+DB-agnostic store (in-memory `Map`-based implementations for dev, Convex or Supabase TBD for production). Store interfaces are defined in `packages/api/src/lib/store.ts` and `packages/api/src/lib/types.ts`, with concrete implementations in `packages/api/src/profiles/store.ts`.
 
-### Schema
-
-```sql
-CREATE TABLE client_profiles (
-  client_id     TEXT PRIMARY KEY,
-  client_name   TEXT NOT NULL,
-  profile_json  TEXT NOT NULL,   -- full ClientProfile as JSON
-  created_at    TEXT NOT NULL,
-  updated_at    TEXT NOT NULL
-);
-
-CREATE TABLE translations (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  client_id       TEXT NOT NULL,
-  language        TEXT NOT NULL,
-  source_hash     TEXT NOT NULL,    -- SHA-256 of source document
-  source_text     TEXT NOT NULL,
-  translated_text TEXT NOT NULL,
-  scores_json     TEXT NOT NULL,    -- full scoring breakdown
-  passed          INTEGER NOT NULL, -- 0 or 1
-  aggregate_score REAL NOT NULL,
-  revision_count  INTEGER DEFAULT 0,
-  created_at      TEXT NOT NULL,
-  FOREIGN KEY (client_id) REFERENCES client_profiles(client_id)
-);
-
-CREATE TABLE reference_pairs (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  client_id     TEXT NOT NULL,
-  language      TEXT NOT NULL,
-  source_text   TEXT NOT NULL,
-  translation   TEXT NOT NULL,
-  source_hash   TEXT NOT NULL,
-  added_at      TEXT NOT NULL,
-  FOREIGN KEY (client_id) REFERENCES client_profiles(client_id)
-);
-
-CREATE INDEX idx_translations_client ON translations(client_id, language);
-CREATE INDEX idx_translations_score ON translations(aggregate_score);
-```
+Profile and translation data are managed through typed store interfaces, not raw SQL. The schema is implicit in the Zod schemas (`packages/api/src/profiles/types.ts`, `packages/api/src/scoring/scorecard.ts`).
 
 ## Implementation Phases
 
@@ -476,54 +428,53 @@ CREATE INDEX idx_translations_score ON translations(aggregate_score);
 This phase delivers the fundamental value: translate a document and get an objective score.
 
 #### 1a. Scoring Agent
-- New `finflow/agents/scoring_agent.py`
-- Takes source text, translated text, and client profile
-- Evaluates all 13 metrics, returns scores
-- Deterministic metrics (glossary_compliance, numerical_accuracy, formatting_preservation) use code-based checks
-- Subjective metrics (fluency, meaning_preservation, formality_level) use LLM-as-judge with structured output
+- `packages/api/src/agents/scoring-agent.ts` — orchestrates deterministic + LLM scoring
+- `packages/api/src/scoring/deterministic.ts` — 6 code-based metrics (glossary_compliance, term_consistency, untranslated_terms, formatting_preservation, numerical_accuracy, paragraph_alignment)
+- `packages/api/src/scoring/llm-judge.ts` — 7 LLM-judged metrics via `tool_use` structured output (fluency, meaning_preservation, formality_level, etc.)
+- `packages/api/src/scoring/scorecard.ts` — Zod schemas for scorecard, metric results, pass/fail logic
+- `packages/api/src/scoring/metrics.ts` — metric definitions and threshold defaults
 - Each metric scorer is a standalone function, testable in isolation
 - Error case: if LLM scoring fails, flag metric as "unscored" and exclude from aggregate
 
 #### 1b. Client Profile Loader
-- New `finflow/profiles/` module
-- Load profiles from SQLite; fall back to existing `finflow/glossaries/client_*.json` files
-- Migration script to convert existing glossary JSONs into full profile format
+- `packages/api/src/profiles/types.ts` — Zod schemas: `ClientProfile`, `ToneProfile`, `ScoringConfig`
+- `packages/api/src/profiles/store.ts` — in-memory profile store (Convex/Supabase TBD)
 - Error case: missing profile returns clear error, does not fall back to empty profile
 
 #### 1c. Enhanced Translation Agent
-- Extend `TranslationAgent.translate()` to accept full client profile (not just glossary)
-- Inject tone targets, regional variant, brand rules into system prompt
-- Return `TranslationResult` with raw text (scoring happens separately)
-- Backward-compatible: if no profile exists, behaves exactly as today
+- `packages/api/src/agents/translation-agent.ts` — accepts full client profile (glossary, tone, brand rules, regional variant) via enriched system prompt
+- Returns `TranslationResult` with raw text (scoring happens separately)
 
 #### 1d. Quality Arbiter
-- New `finflow/agents/quality_arbiter.py`
+- `packages/api/src/agents/quality-arbiter.ts`
 - Model: Haiku (structured classification task — routing decisions, not rewriting)
 - Input: full scorecard with per-metric scores, thresholds, and pass/fail status
-- Output: structured JSON — which specialists to invoke, in what order, conflict risks
+- Output: structured JSON via `tool_use` — which specialists to invoke, in what order, conflict risks
 - Decides when to escalate to HITL (no improvement after correction, or 2 rounds exhausted)
 - Lightweight by design: reads numbers, outputs routing plan
 
 #### 1e. Specialist Agents
-- New `finflow/agents/terminology_specialist.py` — Opus, glossary/term correction
-- New `finflow/agents/style_specialist.py` — Opus, tone/formality/voice rewriting
-- New `finflow/agents/structural_specialist.py` — Opus, formatting/numbers/alignment
-- New `finflow/agents/linguistic_specialist.py` — Opus, fluency/meaning/regional polish
+- `packages/api/src/agents/specialists/terminology.ts` — Opus, glossary/term correction
+- `packages/api/src/agents/specialists/style.ts` — Opus, tone/formality/voice rewriting
+- `packages/api/src/agents/specialists/structural.ts` — Opus, formatting/numbers/alignment
+- `packages/api/src/agents/specialists/linguistic.ts` — Opus, fluency/meaning/regional polish
+- `packages/api/src/agents/specialists/shared.ts` — shared specialist utilities
 - Each specialist has a narrow system prompt scoped to its domain
 - Each explicitly instructed to preserve corrections from prior specialists
 - Each returns: corrected text + reasoning for changes made
 
 #### 1f. Translation Engine Orchestrator
-- New `finflow/engine/translation_engine.py` orchestrating the full flow:
-  translate → score → gate → arbiter → specialists → re-score → gate → HITL
+- `packages/api/src/pipeline/translation-engine.ts` orchestrating the full flow:
+  translate -> score -> gate -> arbiter -> specialists -> re-score -> gate -> HITL
+- `packages/api/src/pipeline/events.ts` — SSE event types for streaming progress
 - Max 2 correction rounds (configurable)
 - Full audit trail: logs every agent invocation, input/output, scores, reasoning
-- Integrates with existing pipeline's `_translation_loop` as drop-in replacement
-- Error case: after max rounds, returns result with `passed=False`, all scores, and full audit trail for human review
+- Error case: after max rounds, returns result with `passed=false`, all scores, and full audit trail for human review
 
-#### 1g. CLI + API
-- CLI: `translate`, `score` commands
-- Flask: `POST /api/translate`, `POST /api/score`
+#### 1g. API Routes
+- `packages/api/src/routes/translate.ts` — `POST /translate`, `POST /translate/stream` (SSE)
+- `packages/api/src/routes/profiles.ts` — `GET/POST/DELETE /profiles`
+- `packages/api/src/index.ts` — Hono app entry point, `GET /health`
 - SSE streaming for translation progress, scoring, specialist corrections in real-time
 
 #### Phase 1 deliverable
@@ -532,25 +483,24 @@ Given a base document, a client ID, and a target language, produce a scored tran
 ### Phase 2: Profile Extraction
 
 #### 2a. Alignment Engine
-- New `finflow/extraction/aligner.py`
+- New `packages/api/src/extraction/aligner.ts`
 - Sentence-level alignment between source and translated documents
 - Handles paragraph splits/merges gracefully
 - Error case: if alignment confidence is low (< 70%), warn and proceed with paragraph-level alignment
 
 #### 2b. Metric Extractors
-- New `finflow/extraction/extractors.py`
-- One function per metric category: `extract_glossary()`, `extract_tone()`, `extract_regional_variant()`, `extract_brand_rules()`
+- New `packages/api/src/extraction/extractors.ts`
+- One function per metric category: `extractGlossary()`, `extractTone()`, `extractRegionalVariant()`, `extractBrandRules()`
 - Each takes aligned sentence pairs and returns extracted metric values
 - Requires minimum 3 reference pairs for statistical confidence; works with 1 pair but flags as "low confidence"
 
 #### 2c. Profile Builder
-- Merges extracted metrics into `ClientProfile` schema
+- Merges extracted metrics into `ClientProfile` Zod schema (defined in `packages/api/src/profiles/types.ts`)
 - Validates by scoring the client's own reference translation against the profile (sanity check: should score 90+)
 - Error case: if validation score < 80, warn that extraction quality is low
 
-#### 2d. CLI + API
-- CLI: `extract_profile`, `profiles` commands
-- Flask: `POST /api/extract-profile`, `GET /api/profiles`
+#### 2d. API
+- Hono: `POST /extract-profile`, `GET /profiles`
 
 #### Phase 2 deliverable
 Feed (base, client version) pairs and get back a client profile usable by Phase 1's forward pass.
@@ -582,14 +532,13 @@ The system learns from every human correction, profiles improve automatically ov
 - **Multi-agent pipeline**: Worst case (all 4 categories fail): Translation + Scoring + Arbiter + 4 Specialists + Re-score = 8 agent calls per document. Typical case (1-2 categories fail): 4-5 calls. If translation passes first try: 2 calls (translate + score).
 - **Determinism**: LLM-based scorers use temperature=0 and structured output to minimize variance. Future consideration: majority-vote scoring (3 calls) for high-stakes documents.
 - **Language support**: EN->ES (es-ES, es-LATAM) as primary. Architecture must support any language pair without code changes (only profile data).
-- **Backward compatibility**: Existing `TranslationAgent`, glossary files, and pipeline must continue to work unchanged. The engine wraps them, not replaces them.
-- **Storage**: SQLite for MVP. Schema designed to be trivially portable to PostgreSQL/Supabase later.
-- **Python 3.14**: Use modern Python features (type hints, dataclasses, match statements) per existing codebase patterns.
+- **Storage**: DB-agnostic store interfaces (in-memory for dev, Convex or Supabase TBD for production). Store contracts defined in `packages/api/src/lib/types.ts`.
+- **TypeScript (Bun runtime)**: Strict mode, Zod schemas for all data structures, `@anthropic-ai/sdk` with `tool_use` for structured LLM output.
 
 ## Out of Scope
 
 - **Document format parsing** --- MVP accepts plain text / markdown. PDF extraction, DOCX parsing, HTML stripping are separate concerns.
-- **Supabase / pgvector migration** --- SQLite for now. Migration is a future task.
+- **Persistent storage** --- In-memory stores for dev. Convex or Supabase migration is a future task.
 - **Real-time collaborative editing** --- The engine scores completed translations, not in-progress edits.
 - **Multi-document consistency** --- Scoring is per-document. Cross-document terminology consistency tracking is Phase 3+.
 - **Custom metric plugins** --- The 13 metrics are hardcoded for MVP. A plugin system for user-defined metrics is future work.

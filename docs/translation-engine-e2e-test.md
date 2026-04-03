@@ -158,17 +158,18 @@ Each metric has its own minimum acceptable score. These are configurable per cli
 
 The aggregate score is a **weighted average** of all 13 metric scores. By default, all metrics carry equal weight (1/13 each). The formula:
 
-```python
-# From scoring_agent.py -- _compute_aggregate()
-weighted_sum = 0.0
-total_weight = 0.0
+```typescript
+// From packages/api/src/agents/scoring-agent.ts -- computeAggregate()
+let weightedSum = 0;
+let totalWeight = 0;
 
-for metric_name, metric_score in card.metrics.items():
-    weight = scoring.get_weight(metric_name)  # default: 1/13
-    weighted_sum += metric_score.score * weight
-    total_weight += weight
+for (const [metricName, metricScore] of Object.entries(card.metrics)) {
+  const weight = scoring.getWeight(metricName); // default: 1/13
+  weightedSum += metricScore.score * weight;
+  totalWeight += weight;
+}
 
-aggregate = weighted_sum / total_weight
+const aggregate = weightedSum / totalWeight;
 ```
 
 ### Overall Threshold (Y)
@@ -187,13 +188,12 @@ FAIL triggers if EITHER:
   2. aggregate_score < aggregate_threshold    # Y missed
 ```
 
-Implemented in `scoring_agent.py`:
+Implemented in `packages/api/src/agents/scoring-agent.ts`:
 
-```python
-card.passed = (
-    len(card.failed_metrics) == 0
-    and card.aggregate_score >= scoring.aggregate_threshold
-)
+```typescript
+card.passed =
+  card.failedMetrics.length === 0 &&
+  card.aggregateScore >= scoring.aggregateThreshold;
 ```
 
 ### Weight Customization
@@ -214,15 +214,17 @@ Clients can override metric weights to prioritize certain quality dimensions. We
 
 > **Important:** When custom weights are set, any metric not listed receives a weight of 0.0 and is excluded from the aggregate calculation. It is still evaluated and must still pass its individual threshold. This means a client can exclude a metric from the aggregate while still enforcing its minimum.
 
-Weight resolution from `models.py`:
+Weight resolution from `packages/api/src/models.ts`:
 
-```python
-def get_weight(self, metric: str) -> float:
-    """Return weight for a metric. If no custom weights, all equal."""
-    if not self.metric_weights:
-        return 1.0 / len(ALL_METRICS)
-    total = sum(self.metric_weights.values())
-    return self.metric_weights.get(metric, 0.0) / total if total > 0 else 0.0
+```typescript
+getWeight(metric: string): number {
+  // Return weight for a metric. If no custom weights, all equal.
+  if (!this.metricWeights || Object.keys(this.metricWeights).length === 0) {
+    return 1.0 / ALL_METRICS.length;
+  }
+  const total = Object.values(this.metricWeights).reduce((a, b) => a + b, 0);
+  return total > 0 ? (this.metricWeights[metric] ?? 0) / total : 0;
+}
 ```
 
 ---
@@ -358,7 +360,7 @@ The client profile is the complete personalization layer. It defines everything 
 
 | Parameter | Description |
 |-----------|-------------|
-| `metric_thresholds` | Per-metric minimum scores (dict[str, int]) |
+| `metric_thresholds` | Per-metric minimum scores (Record<string, number>) |
 | `aggregate_threshold` | Overall minimum (default: 88) |
 | `metric_weights` | Custom weights (empty = equal weighting) |
 | `max_revision_attempts` | Correction rounds before HITL (default: 2) |
@@ -405,101 +407,131 @@ The client profile is the complete personalization layer. It defines everything 
 
 ### Default Metric Thresholds
 
-All 13 defaults from `models.py`:
+All 13 defaults from `packages/api/src/models.ts`:
 
-```python
-DEFAULT_METRIC_THRESHOLDS = {
-    # Category 1: Terminology Accuracy
-    "glossary_compliance": 95,
-    "term_consistency": 90,
-    "untranslated_terms": 95,
-    # Category 2: Style & Voice
-    "formality_level": 85,
-    "sentence_length_ratio": 80,
-    "passive_voice_ratio": 80,
-    "brand_voice_adherence": 95,
-    # Category 3: Structural Fidelity
-    "formatting_preservation": 90,
-    "numerical_accuracy": 100,
-    "paragraph_alignment": 85,
-    # Category 4: Linguistic Quality
-    "fluency": 85,
-    "meaning_preservation": 90,
-    "regional_variant": 90,
-}
+```typescript
+const DEFAULT_METRIC_THRESHOLDS = {
+  // Category 1: Terminology Accuracy
+  glossary_compliance: 95,
+  term_consistency: 90,
+  untranslated_terms: 95,
+  // Category 2: Style & Voice
+  formality_level: 85,
+  sentence_length_ratio: 80,
+  passive_voice_ratio: 80,
+  brand_voice_adherence: 95,
+  // Category 3: Structural Fidelity
+  formatting_preservation: 90,
+  numerical_accuracy: 100,
+  paragraph_alignment: 85,
+  // Category 4: Linguistic Quality
+  fluency: 85,
+  meaning_preservation: 90,
+  regional_variant: 90,
+} as const;
 
-DEFAULT_AGGREGATE_THRESHOLD = 88
-DEFAULT_MAX_REVISION_ATTEMPTS = 2
+const DEFAULT_AGGREGATE_THRESHOLD = 88;
+const DEFAULT_MAX_REVISION_ATTEMPTS = 2;
 ```
 
 ### Metric-to-Category Mapping
 
-```python
-METRIC_CATEGORIES = {
-    "terminology": ["glossary_compliance", "term_consistency", "untranslated_terms"],
-    "style":       ["formality_level", "sentence_length_ratio", "passive_voice_ratio",
-                    "brand_voice_adherence"],
-    "structural":  ["formatting_preservation", "numerical_accuracy", "paragraph_alignment"],
-    "linguistic":  ["fluency", "meaning_preservation", "regional_variant"],
-}
+```typescript
+const METRIC_CATEGORIES = {
+  terminology: ["glossary_compliance", "term_consistency", "untranslated_terms"],
+  style:       ["formality_level", "sentence_length_ratio", "passive_voice_ratio",
+                "brand_voice_adherence"],
+  structural:  ["formatting_preservation", "numerical_accuracy", "paragraph_alignment"],
+  linguistic:  ["fluency", "meaning_preservation", "regional_variant"],
+} as const;
 ```
 
 ---
 
 ## 6. Running an E2E Test
 
-The engine is accessible via CLI commands and Flask API endpoints. Both interfaces provide the same pipeline: translate, score, quality gate, specialist correction, and audit trail.
+The engine is accessible via the Hono API running on Bun. Start the dev server with `cd packages/api && bun run dev`. The pipeline is the same: translate, score, quality gate, specialist correction, and audit trail.
 
-### CLI Commands
+### Starting the Server
+
+```bash
+cd packages/api && bun run dev
+```
+
+### API Commands (curl)
 
 **Check available client profiles:**
 
 ```bash
-python -m finflow profiles list
+curl http://localhost:3000/profiles
 ```
 
 **Translate with full scoring pipeline:**
 
 ```bash
-python -m finflow translate \
-  --input source.md \
-  --client oanda \
-  --language es \
-  --output translated.md \
-  --score-report scores.json
+curl -X POST http://localhost:3000/translate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceText": "EUR/USD Daily Analysis: The pair tested resistance at 1.0850...",
+    "clientId": "oanda",
+    "language": "es"
+  }'
 ```
 
-**Score an existing translation (no translation step):**
+**Translate with real-time SSE streaming:**
 
 ```bash
-python -m finflow score \
-  --source source.md \
-  --translation existing.md \
-  --client oanda \
-  --language es
+curl -N -X POST http://localhost:3000/translate/stream \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceText": "EUR/USD Daily Analysis: The pair tested resistance at 1.0850...",
+    "clientId": "oanda",
+    "language": "es"
+  }'
 ```
 
 **View profile details:**
 
 ```bash
-python -m finflow profiles show oanda
+curl http://localhost:3000/profiles/oanda
 ```
 
-### Flask API Endpoints
+**Create or update a client profile:**
+
+```bash
+curl -X POST http://localhost:3000/profiles \
+  -H "Content-Type: application/json" \
+  -d '{ "client_id": "oanda", "client_name": "OANDA", ... }'
+```
+
+**Delete a profile:**
+
+```bash
+curl -X DELETE http://localhost:3000/profiles/oanda
+```
+
+**Health check:**
+
+```bash
+curl http://localhost:3000/health
+```
+
+### Hono API Endpoints
 
 | Method | Endpoint | Description | Key Parameters |
 |--------|----------|-------------|----------------|
-| POST | `/api/translate` | Full pipeline: translate + score + correction loop. Streams SSE events during processing. | `document`, `client_id`, `language` |
-| POST | `/api/score` | Score an existing translation against a client profile. No translation step. | `source`, `translation`, `client_id`, `language` |
-| GET | `/api/profiles` | List all client profiles with supported languages. | -- |
-| GET | `/api/profiles/:client_id` | Get full profile for a specific client. | `client_id` (path) |
-| PUT | `/api/profiles/:client_id/thresholds` | Update scoring thresholds and weights for a client/language. | `language`, `metric_thresholds`, `aggregate_threshold` |
-| POST | `/api/extract-profile` | Extract a client profile from reference translation pairs. | `pairs`, `client_id`, `language` |
+| POST | `/translate` | Full pipeline: translate + score + correction loop. Returns full result with scorecard. | `sourceText`, `clientId`, `language` |
+| POST | `/translate/stream` | Same pipeline, returns SSE events for real-time pipeline progress. | `sourceText`, `clientId`, `language` |
+| GET | `/profiles` | List all client profiles. | -- |
+| POST | `/profiles` | Create or update a client profile (Zod-validated body). | ClientProfile JSON |
+| GET | `/profiles/:id` | Get full profile for a specific client. | `id` (path) |
+| DELETE | `/profiles/:id` | Delete a client profile. | `id` (path) |
+| GET | `/health` | Health check. | -- |
 
 ### API Response Example
 
 ```json
-// POST /api/translate Response
+// POST /translate Response
 {
   "client_id": "oanda",
   "language": "es",
