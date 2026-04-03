@@ -327,31 +327,56 @@ At scale (100 clients, 2 reports/day): ~$600/day, ~$18,000/month. Gross margin: 
 
 ## 8. Codebase Structure
 
+The Translation Engine is now a standalone TypeScript project (Bun + Hono + Zod + `@anthropic-ai/sdk`), with patterns adapted from the upstream `autonomee/gobot` framework.
+
 ```
-src/
-  finflow/
-    agents/
-      ta-agent.ts
-      fa-agent.ts
-      quality-agent.ts
-      compliance-agent.ts
-      personalization-agent.ts
-      translation-agent.ts
-    pipeline/
-      report-generator.ts
-      news-aggregator.ts
-      chart-renderer.ts
-      distribution.ts
-    lib/
-      market-data.ts
-      compliance-rules.ts
-      client-config.ts
-      report-templates.ts
-      translation-feedback.ts
-    types.ts
-    api/
-      client-api.ts
-      webhook.ts
+packages/api/src/
+  agents/
+    scoring-agent.ts          # Orchestrates deterministic + LLM scoring
+    translation-agent.ts      # Initial translation with full client profile
+    quality-arbiter.ts        # Haiku-based routing: reads scorecard, outputs correction plan
+    specialists/
+      terminology.ts          # Glossary/term correction (Opus)
+      style.ts                # Tone/formality/voice rewriting (Opus)
+      structural.ts           # Formatting/numbers/alignment (Opus)
+      linguistic.ts           # Fluency/meaning/regional polish (Opus)
+      shared.ts               # Shared specialist utilities
+  scoring/
+    scorecard.ts              # Zod schemas for scorecard, metric results
+    deterministic.ts          # 6 code-based metrics
+    llm-judge.ts              # 7 LLM-judged metrics via tool_use
+    metrics.ts                # Metric definitions and threshold defaults
+  pipeline/
+    translation-engine.ts     # Orchestrator: translate → score → gate → arbiter → specialists
+    events.ts                 # SSE event types for streaming progress
+  profiles/
+    types.ts                  # Zod schemas: ClientProfile, ToneProfile, ScoringConfig
+    store.ts                  # In-memory profile store (Convex/Supabase TBD)
+  lib/
+    anthropic.ts              # SDK wrapper, streaming, tool_use
+    model-router.ts           # Haiku/Sonnet/Opus routing
+    cross-agent.ts            # [INVOKE:agent|question] parsing
+    store.ts                  # In-memory store implementations
+    types.ts                  # AgentConfig, store interfaces
+  routes/
+    translate.ts              # POST /translate, POST /translate/stream (SSE)
+    profiles.ts               # GET/POST/DELETE /profiles
+  index.ts                    # Hono app entry point, GET /health
+```
+
+Future modules (not yet implemented):
+```
+packages/api/src/
+  agents/
+    ta-agent.ts               # Technical Analysis agent
+    fa-agent.ts               # Fundamental Analysis agent
+    compliance-agent.ts        # Jurisdiction-specific compliance
+    personalization-agent.ts   # Client branding/tone/templates
+  pipeline/
+    report-generator.ts        # Full report orchestration
+    news-aggregator.ts         # News ingestion pipeline
+    chart-renderer.ts          # TradingView + Plotly charts
+    distribution.ts            # Multi-channel publishing
 ```
 
 ---

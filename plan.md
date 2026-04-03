@@ -8,11 +8,12 @@
 
 ## Context
 
-FinFlow is WordwideFX's pivot from human financial translation to an AI-powered financial content platform. The product deck at https://agaleraib.github.io/finflow-deck/ defines the full vision. A Python prototype (~3,500 lines) exists as a demo. GoBot (TypeScript/Bun) at `/Users/klorian/workspace/gobot` provides battle-tested patterns for agent orchestration, HITL, model routing, and scheduling.
+FinFlow is WordwideFX's pivot from human financial translation to an AI-powered financial content platform. The product deck at https://agaleraib.github.io/finflow-deck/ defines the full vision. A Python prototype (~6,100 lines) exists in `finflow/` for reference. The Translation Engine has been migrated to TypeScript in `packages/api/src/` (24 files, ~2,900 lines). Patterns adapted from upstream GoBot (`autonomee/gobot`).
 
 **Key decisions:**
-- **Hybrid architecture**: TypeScript (Bun) for API/orchestration/agents + Python microservices for data processing (pandas, indicators, charts)
-- **Standalone project**: Copy GoBot's architectural patterns, don't depend on GoBot directly
+- **Pure TypeScript architecture**: Bun runtime + Hono API + Zod validation + Anthropic SDK with tool_use. No Python sidecar — TS alternatives exist for all data/charting needs (yahoo-finance2, arquero, plotly.js+kaleido, technicalindicators)
+- **Standalone project**: Adapt GoBot's architectural patterns (AgentConfig, INVOKE, model-router), no runtime dependency on GoBot
+- **Database deferred**: Convex vs Supabase TBD. Repository pattern with in-memory store for dev. GoBot community migrated to Convex (Feb 2026) for TS-everywhere benefits
 - **Target**: Demo-ready product first, then pursue clients
 - **Data sources**: 3-tier model (Essential free / Professional client-keys / Institutional client-license)
 - **UI**: Premium dark theme, Bloomberg meets Linear.app, spectacular animations, no AI aesthetic
@@ -134,12 +135,12 @@ Bloomberg Terminal meets Linear.app meets Apple. Dark, muted, professional. No b
                         └──┬─────────┬─────────────┘
                            │         │
               ┌────────────▼──┐  ┌───▼──────────────┐
-              │  Supabase     │  │  Python Services  │
-              │  ─ PostgreSQL │  │  (FastAPI)        │
-              │  ─ Auth       │  │  ─ Market data    │
-              │  ─ Storage    │  │  ─ Indicators     │
-              │  ─ Realtime   │  │  ─ Chart gen      │
-              │  ─ pgvector   │  │  ─ News fetching  │
+              │  Database     │  │  TS Data Layer   │
+              │  (TBD:       │  │  ─ yahoo-finance2│
+              │  Convex or   │  │  ─ technicalind. │
+              │  Supabase)   │  │  ─ plotly+kaleido│
+              │  ─ Auth      │  │  ─ arquero       │
+              │  ─ Realtime  │  │  ─ finnhub       │
               └───────────────┘  └───────────────────┘
                                          │
                                     ┌────▼────┐
@@ -155,12 +156,12 @@ Bloomberg Terminal meets Linear.app meets Apple. Dark, muted, professional. No b
 |---|---|---|
 | **API/Orchestration** | TypeScript + Bun + Hono | GoBot patterns, agent orchestration, async-first |
 | **Job Queue** | BullMQ + Redis | Scheduled scanning, pipeline jobs, concurrent multi-tenant |
-| **AI Agents** | Anthropic SDK + OpenAI SDK + Google Generative AI (TS) | Claude, GPT-4o, Gemini — best model per task via model router |
-| **Data Processing** | Python + FastAPI | pandas, numpy, yfinance, mplfinance — reuse prototype |
-| **Database** | Supabase (PostgreSQL + Auth + Storage + Realtime + pgvector) | Multi-tenant RLS, managed, self-hosted option |
+| **AI Agents** | @anthropic-ai/sdk (tool_use for structured output) | Claude Haiku/Sonnet/Opus per task via model-router |
+| **Data Processing** | yahoo-finance2 + technicalindicators + arquero | Pure TS — market data, indicators, OHLCV transforms |
+| **Database** | TBD: Convex or Supabase | Repository pattern (in-memory for dev). Convex = TS-everywhere; Supabase = PostgreSQL + pgvector |
 | **Frontend** | Next.js 14 + Tailwind + shadcn/ui | SSR for reports, responsive HITL approvals |
 | **Charts (interactive)** | TradingView Lightweight Charts | Financial-grade, themeable, open-source |
-| **Charts (static)** | mplfinance (Python) | PDF/email report images |
+| **Charts (static)** | plotly.js + kaleido | Server-side PNG/SVG without Puppeteer |
 | **Cache/Broker** | Redis 7 | BullMQ broker + data/news caching |
 
 ---
@@ -199,10 +200,12 @@ finflow/
 │   │   │   │   ├── slack.ts          # Slack adapter (Phase 5)
 │   │   │   │   └── web.ts            # Web UI adapter
 │   │   │   ├── lib/
+│   │   │   │   ├── anthropic.ts      # SDK wrapper: streaming + tool_use
 │   │   │   │   ├── cross-agent.ts    # [INVOKE:agent|question] parsing
-│   │   │   │   ├── model-router.ts   # Tiered LLM selection
-│   │   │   │   ├── tenant.ts         # Multi-tenant middleware
-│   │   │   │   └── supabase.ts       # DB client with RLS
+│   │   │   │   ├── model-router.ts   # Haiku/Sonnet/Opus selection
+│   │   │   │   ├── store.ts          # Repository pattern (in-memory; Convex/Supabase later)
+│   │   │   │   ├── types.ts          # AgentConfig, store interfaces, shared types
+│   │   │   │   └── tenant.ts         # Multi-tenant middleware (planned)
 │   │   │   ├── routes/               # Hono API routes
 │   │   │   │   ├── events.ts         # GET /events (SSE live feed)
 │   │   │   │   ├── suggestions.ts    # GET/POST /suggestions
@@ -220,14 +223,11 @@ finflow/
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   │
-│   ├── data-service/                 # Python microservice (FastAPI)
-│   │   ├── app/
-│   │   │   ├── market_data.py        # OHLCV + price data (port from prototype)
-│   │   │   ├── news_scraper.py       # News fetching (port from prototype)
-│   │   │   ├── indicators.py         # Technical indicators (RSI, MACD, BB, etc.)
-│   │   │   ├── charts.py             # Chart generation (port from prototype)
-│   │   │   └── main.py               # FastAPI app
-│   │   └── requirements.txt
+│   │   │   ├── market/                # TS data layer (replaces Python data-service)
+│   │   │   │   ├── data-fetcher.ts    # yahoo-finance2 + finnhub
+│   │   │   │   ├── indicators.ts      # technicalindicators wrapper
+│   │   │   │   ├── ohlcv.ts           # arquero OHLCV transforms
+│   │   │   │   └── charts.ts          # plotly.js + kaleido (server-side)
 │   │
 │   └── web/                          # Next.js frontend
 │       ├── src/
@@ -295,32 +295,26 @@ All tenant-scoped tables enforce Row-Level Security via `tenant_id`.
 
 ### Phase 1: Foundation (Weeks 1-3)
 
-**Goal**: Standing infrastructure — TypeScript API + Python data service + database + basic scanning.
+**Goal**: Standing infrastructure — TypeScript API + database + basic scanning.
 
-1. Initialize Bun workspace with `packages/api`, `packages/data-service`, `packages/web`
-2. Supabase project with initial migration (all core tables + RLS policies)
-3. TypeScript API skeleton:
-   - Hono router with Supabase JWT auth middleware
-   - Tenant context middleware (extracts tenant_id, sets RLS)
-   - Instrument, glossary, data source CRUD routes
-4. Python data service:
-   - Port `market_data.py` → `GET /data/market/{ticker}` (OHLCV + indicators)
-   - Port `news_scraper.py` → `GET /data/news/{category}`
-   - Port `generate_charts.py` → `POST /data/charts` (returns PNG)
+> **DONE (Translation Engine):** `packages/api/src/` contains the migrated Translation Engine (24 files, ~2,900 lines). See `packages/api/src/pipeline/translation-engine.ts` for the core orchestrator.
+
+1. Initialize Bun workspace with `packages/api`, `packages/web` ✅ (Translation Engine done)
+2. Database setup (Convex or Supabase — decision pending) with core tables
+3. TypeScript API skeleton: ✅ (Hono routes: /translate, /profiles, /health done)
+   - Add auth middleware + tenant context when DB is chosen
+   - Add instrument, glossary, data source CRUD routes
+4. **TS data layer** (replaces Python data-service):
+   - `packages/api/src/market/data-fetcher.ts` — yahoo-finance2 + finnhub
+   - `packages/api/src/market/indicators.ts` — technicalindicators (RSI, MACD, BB, etc.)
+   - `packages/api/src/market/charts.ts` — plotly.js + kaleido (server-side PNG/SVG)
 5. **Scanner foundation:**
    - `DataSource` base interface + Finnhub adapter
    - BullMQ scheduled job: scan every 5 minutes
    - Event detection: classify impact level using Haiku
-   - Store events in `market_events` table with pgvector embeddings
-   - Semantic dedup (cosine similarity > 0.92 = skip)
-6. Docker Compose: api (Bun), data-service (Python), Redis
-7. Seed DB with instruments (EUR/USD, Gold, Oil) + glossaries (OANDA, Alpari)
-
-**Key files to port:**
-- `finflow/data/market_data.py` → `packages/data-service/app/market_data.py`
-- `finflow/data/news_scraper.py` → `packages/data-service/app/news_scraper.py`
-- `finflow/output/generate_charts.py` → `packages/data-service/app/charts.py`
-- `finflow/glossaries/*.json` → DB seed data
+   - Semantic dedup
+6. Docker Compose: api (Bun) + Redis
+7. Seed store with instruments (EUR/USD, Gold, Oil) + glossaries (OANDA, Alpari)
 
 ### Phase 2: Agent Pipeline + Suggestions (Weeks 3-5)
 
@@ -335,12 +329,15 @@ All tenant-scoped tables enforce Row-Level Security via `tenant_id`.
    - Sonnet / GPT-4o: TA/FA/Compliance/Translation (best model per language/task)
    - Opus: Quality arbitration (Enterprise tier)
    - GPT-4o-mini / Gemini Flash: volume translation drafts
-3. Port agent system prompts from Python prototype:
+3. Port remaining agent system prompts from Python prototype:
    - `ta_agent.py` → `ta-agent.ts`
    - `fa_agent.py` → `fa-agent.ts`
    - `quality_agent.py` → `quality-agent.ts` (with `[INVOKE:]` deliberation)
    - `compliance_agent.py` → `compliance-agent.ts` (rule-based + Claude hybrid)
-   - `translation_agent.py` → `translation-agent.ts` (glossary loading from DB)
+   - ✅ `translation_agent.py` → `translation-agent.ts` (DONE — in `packages/api/src/agents/`)
+   - ✅ `scoring_agent.py` → `scoring-agent.ts` + `scoring/deterministic.ts` + `scoring/llm-judge.ts` (DONE)
+   - ✅ `quality_arbiter.py` → `quality-arbiter.ts` (DONE)
+   - ✅ 4 specialists → `agents/specialists/` (DONE)
 4. **Report suggestion engine:**
    - When high/medium event detected → determine affected instruments (from tenant's configured list)
    - Generate 1-3 suggestions with direction + rationale
@@ -374,7 +371,7 @@ All tenant-scoped tables enforce Row-Level Security via `tenant_id`.
    - `POST /api/approvals/:id/decide`
    - Frontend page at `/approve/[token]` (mobile-first)
 4. Report generation:
-   - TS orchestrator calls Python data-service for charts
+   - TS data layer generates charts via plotly.js + kaleido
    - HTML report rendering (port templates from prototype)
    - 3 audience levels, store in Supabase Storage
 5. Next.js frontend:
@@ -419,18 +416,26 @@ All tenant-scoped tables enforce Row-Level Security via `tenant_id`.
 
 ### From Python Prototype (`/Users/klorian/workspace/wordwideAI/finflow/`)
 
-| File | Strategy |
-|---|---|
-| `agents/*.py` (system prompts) | **Copy prompts** to TS agents, rewrite parsing to `tool_use` |
-| `data/market_data.py` | **Port directly** to Python data-service |
-| `data/news_scraper.py` | **Port directly** to Python data-service |
-| `output/generate_charts.py` | **Port directly** to Python data-service |
-| `output/generate_reports.py` | **Adapt templates** to React components |
-| `pipeline.py` (stage flow, rejection loops) | **Adapt logic** to TS orchestrator, DB-backed state |
-| `hitl/telegram_bot.py` | **Port** to TS Telegram adapter (grammy) |
-| `instruments.py` | **Seed data** for `instruments` table |
-| `glossaries/*.json` | **Seed data** for `glossaries` table |
-| `demo_hub.html` (CSS variables, layout) | **Port** to Tailwind theme config |
+| File | Strategy | Status |
+|---|---|---|
+| `agents/translation_agent.py` | Ported to `packages/api/src/agents/translation-agent.ts` | ✅ Done |
+| `agents/scoring_agent.py` | Ported to `packages/api/src/scoring/` (deterministic + llm-judge) | ✅ Done |
+| `agents/quality_arbiter.py` | Ported to `packages/api/src/agents/quality-arbiter.ts` | ✅ Done |
+| `agents/*_specialist.py` (4) | Ported to `packages/api/src/agents/specialists/` | ✅ Done |
+| `engine/translation_engine.py` | Ported to `packages/api/src/pipeline/translation-engine.ts` | ✅ Done |
+| `profiles/models.py` + `store.py` | Ported to `packages/api/src/profiles/` (Zod schemas + repo pattern) | ✅ Done |
+| `agents/ta_agent.py` | **Copy prompts** to TS agent | Pending |
+| `agents/fa_agent.py` | **Copy prompts** to TS agent | Pending |
+| `agents/quality_agent.py` | **Copy prompts** + INVOKE deliberation | Pending |
+| `agents/compliance_agent.py` | **Copy rules + prompts** | Pending |
+| `data/market_data.py` | Port to TS: yahoo-finance2 + technicalindicators | Pending |
+| `data/news_scraper.py` | Port to TS: finnhub adapter | Pending |
+| `output/generate_charts.py` | Port to TS: plotly.js + kaleido | Pending |
+| `output/generate_reports.py` | **Adapt templates** to React components | Pending |
+| `pipeline.py` (full 12-stage) | **Adapt logic** to TS orchestrator | Pending |
+| `hitl/telegram_bot.py` | **Port** to TS Telegram adapter (grammy) | Pending |
+| `instruments.py` | **Seed data** for DB | Pending |
+| `glossaries/*.json` | **Seed data** for DB | Pending |
 
 ### From GoBot (`/Users/klorian/workspace/gobot/`)
 
@@ -448,7 +453,7 @@ All tenant-scoped tables enforce Row-Level Security via `tenant_id`.
 
 ## Verification Plan
 
-1. **Phase 1**: `curl` API endpoints, confirm CRUD works, check RLS isolation, verify Python data-service returns indicators/charts, confirm scanner detects and stores events from Finnhub
+1. **Phase 1**: `curl` API endpoints, confirm CRUD works, verify TS data layer returns indicators/charts, confirm scanner detects and stores events from Finnhub
 2. **Phase 2**: Events trigger suggestions → select suggestion → pipeline runs → SSE streams agent output → deliberation occurs → results persisted to DB
 3. **Phase 3**: Full flow: event detected → suggestion appears in Command Center → client selects → pipeline runs → Telegram notification → approve → report viewable in browser. Test rejection → reprocessing
 4. **Phase 4**: Full demo: configure new tenant → set data sources + instruments → events auto-detected → suggestions appear → approve → view white-labeled report in 3 languages/3 levels → interactive charts
@@ -470,19 +475,38 @@ All tenant-scoped tables enforce Row-Level Security via `tenant_id`.
 
 ## Key Files Reference
 
-| Current File | Lines | Purpose |
+### Active TypeScript Codebase (`packages/api/src/`)
+
+| File | Lines | Purpose |
 |---|---|---|
-| `finflow/pipeline.py` | 583 | Pipeline orchestrator — adapt to TS |
-| `finflow/agents/quality_agent.py` | 326 | Arbitration + deliberation — copy prompts |
+| `pipeline/translation-engine.ts` | ~440 | Translation engine orchestrator (translate → score → arbiter → specialists → re-score) |
+| `scoring/deterministic.ts` | ~250 | 6 code-based quality metrics |
+| `scoring/llm-judge.ts` | ~250 | 7 LLM-as-judge metrics via tool_use |
+| `agents/translation-agent.ts` | ~200 | Profile-aware translation with glossary compliance |
+| `agents/quality-arbiter.ts` | ~220 | Routes failed metrics to specialists (tool_use + deterministic fallback) |
+| `agents/specialists/` | ~400 | 4 specialist agents (terminology, style, structural, linguistic) |
+| `profiles/types.ts` | ~170 | Zod schemas: ClientProfile, ToneProfile, ScoringConfig, metric taxonomy |
+| `lib/anthropic.ts` | ~110 | SDK wrapper: streaming + tool_use structured output |
+| `lib/cross-agent.ts` | ~60 | INVOKE tag parsing (adapted from GoBot) |
+
+### Python Prototype (reference only — `finflow/`)
+
+| File | Lines | Purpose |
+|---|---|---|
+| `finflow/pipeline.py` | 583 | Full 12-stage pipeline — adapt remaining stages to TS |
+| `finflow/agents/quality_agent.py` | 326 | TA/FA deliberation — copy prompts |
 | `finflow/agents/compliance_agent.py` | 302 | Regulatory compliance — copy rules + prompts |
-| `finflow/agents/translation_agent.py` | 273 | Translation — copy prompts + glossary logic |
-| `finflow/output/generate_charts.py` | 686 | Charts — port to Python data-service |
-| `finflow/output/generate_reports.py` | 447 | Reports — adapt templates to React |
-| `finflow/data/market_data.py` | 161 | Market data — port to Python data-service |
-| `finflow/data/news_scraper.py` | 261 | News — port to Python data-service |
-| `finflow/hitl/telegram_bot.py` | 328 | HITL — port to TS with grammy |
-| `finflow/instruments.py` | 228 | Instrument config — seed DB |
-| `docs/architecture-plan.md` | 370 | Full architecture reference |
-| `docs/development-phases.md` | 112 | Original 6-phase roadmap |
-| `docs/business-strategy.md` | 115 | Business context |
-| `mockup/finflow-ui-mockup.html` | ~3200 | Interactive UI mockup (10 screens) |
+| `finflow/data/market_data.py` | 161 | Market data — port to TS (yahoo-finance2) |
+| `finflow/output/generate_charts.py` | 686 | Charts — port to TS (plotly.js + kaleido) |
+| `finflow/hitl/telegram_bot.py` | 328 | HITL — port to TS (grammy) |
+
+### Documentation
+
+| File | Purpose |
+|---|---|
+| `docs/architecture-plan.md` | Full architecture reference |
+| `docs/specs/2026-04-02-translation-engine.md` | Translation engine spec (updated for TS) |
+| `docs/translation-engine-e2e-test.md` | E2E test workflow (updated for TS) |
+| `docs/development-phases.md` | Development phases |
+| `docs/business-strategy.md` | Business context |
+| `mockup/finflow-ui-mockup.html` | Interactive UI mockup (10 screens) |
