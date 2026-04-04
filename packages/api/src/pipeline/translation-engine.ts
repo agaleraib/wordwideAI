@@ -22,6 +22,7 @@ import type { Scorecard } from "../scoring/scorecard.js";
 import { scorecardToDict, scorecardSummary } from "../scoring/scorecard.js";
 import type { FailedMetricData, SpecialistResult } from "../agents/specialists/shared.js";
 import { emitEvent } from "./events.js";
+import { enforceGlossary } from "./glossary-patcher.js";
 
 // --- Types ---
 
@@ -148,7 +149,62 @@ export async function runTranslationEngine(
 
   emitEvent(onEvent, "scoring", "complete", scorecardSummary(scorecard));
 
-  // 4. Gate check
+  // 4. Surgical glossary enforcement (before gate check)
+  const glossaryPatchResult = await enforceGlossary(
+    sourceText,
+    currentText,
+    langProfile.glossary,
+    language,
+    { skipGrammarFix: true }, // specialists will handle grammar
+  );
+
+  if (glossaryPatchResult.replacements.length > 0) {
+    currentText = glossaryPatchResult.correctedText;
+    emitEvent(
+      onEvent,
+      "glossary_patcher",
+      "complete",
+      `Surgical glossary fix: ${glossaryPatchResult.complianceBefore.toFixed(0)}% → ${glossaryPatchResult.complianceAfter.toFixed(0)}%. ` +
+        `${glossaryPatchResult.replacements.length} replacements, ${glossaryPatchResult.hitlTerms.length} HITL.`,
+    );
+
+    audit.push({
+      stage: "glossary_patcher",
+      agent: "GlossaryPatcher (deterministic + Haiku)",
+      timestamp: now(),
+      reasoning: `${glossaryPatchResult.replacements.length} terms fixed: ${glossaryPatchResult.replacements.map((r) => r.termEn).join(", ")}`,
+      tokens: glossaryPatchResult.usage.inputTokens > 0
+        ? { input: glossaryPatchResult.usage.inputTokens, output: glossaryPatchResult.usage.outputTokens }
+        : undefined,
+    });
+
+    // Re-score after patching
+    emitEvent(onEvent, "scoring", "re-scoring", "Re-scoring after glossary enforcement...");
+    const patchScoringStart = Date.now();
+    const patchScoringResult = await scoreTranslationWithUsage(
+      sourceText,
+      currentText,
+      profile as ClientProfile,
+      language,
+    );
+    scorecard = patchScoringResult.scorecard;
+
+    audit.push({
+      stage: "scoring",
+      agent: "ScoringAgent (Opus)",
+      timestamp: now(),
+      durationMs: Date.now() - patchScoringStart,
+      tokens: patchScoringResult.usage
+        ? { input: patchScoringResult.usage.inputTokens, output: patchScoringResult.usage.outputTokens }
+        : undefined,
+      scores: scorecardToDict(scorecard),
+      reasoning: `Post-patcher re-score. Aggregate: ${scorecard.aggregateScore.toFixed(1)}. Failed: ${JSON.stringify(scorecard.failedMetrics)}`,
+    });
+
+    emitEvent(onEvent, "scoring", "complete", scorecardSummary(scorecard));
+  }
+
+  // 5. Gate check
   if (scorecard.passed) {
     emitEvent(
       onEvent,

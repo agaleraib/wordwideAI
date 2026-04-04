@@ -9,7 +9,7 @@
  * ChatGPT 5.4 fluency (92 vs 93), while constrained drops to 78.
  */
 
-import { runAgent, callAgentWithUsage } from "../lib/anthropic.js";
+import { runAgent } from "../lib/anthropic.js";
 import type { AgentConfig, EventHandler } from "../lib/types.js";
 import type { ClientProfile, LanguageProfile } from "../profiles/types.js";
 import { getLanguageProfile } from "../profiles/types.js";
@@ -53,8 +53,13 @@ function buildNaturalPrompt(
   lang: LanguageProfile,
   language: string,
   clientName: string,
+  glossaryRef?: string,
 ): string {
   const tone = lang.tone;
+
+  const glossarySection = glossaryRef
+    ? `\nGLOSSARY REFERENCE (prefer these translations where they fit naturally):\n${glossaryRef}\n\nWhen a glossary term appears in the source, prefer the glossary translation if it reads naturally. Do not force awkward phrasing to match the glossary.\n`
+    : "";
 
   return `You are a senior financial translator specializing in forex, CFD, and commodity market analysis. Translate into natural, fluent ${langName(language)} (${lang.regionalVariant || language} variant).
 
@@ -64,39 +69,16 @@ STYLE GUIDANCE:
 - Formality: ${tone.formalityLevel}/5 — ${tone.description}
 - Person preference: ${tone.personPreference}
 - Hedging frequency: ${tone.hedgingFrequency}
-
+${glossarySection}
 RULES:
 1. Produce natural, idiomatic ${langName(language)}. Fluency is the top priority.
 2. Preserve all numerical values, percentages, and price levels exactly.
 3. Maintain the document structure (paragraphs, headers, bullet points).
 4. Do NOT translate proper nouns, currency pairs (EUR/USD), or technical indicator abbreviations (RSI, MACD) unless you know the standard ${langName(language)} equivalent.
-5. Use the ${lang.regionalVariant || language} regional variant consistently.
+5. Preserve all hedging language (may, could, might, likely) — do not convert possibilities into certainties.
+6. Use the ${lang.regionalVariant || language} regional variant consistently.
 
 Respond with ONLY the translated text. No commentary.`;
-}
-
-// --- Phase 2: Glossary Enforcement ---
-
-function buildGlossaryPrompt(
-  glossaryEntries: string,
-  missedCount: number,
-  language: string,
-): string {
-  return `You are a terminology correction specialist for financial translations into ${langName(language)}.
-
-The translation below has ${missedCount} glossary terms that are WRONG or MISSING. I will give you the ENGLISH SOURCE, the CURRENT TRANSLATION, and the GLOSSARY CORRECTIONS needed.
-
-GLOSSARY CORRECTIONS (English term → required ${langName(language)} translation):
-${glossaryEntries}
-
-YOUR TASK:
-1. Use the English source to locate where each glossary term appears in context.
-2. Find the corresponding passage in the translation.
-3. Replace the incorrect/missing translation with the glossary-mandated term.
-4. If the English term was left untranslated in the ${langName(language)} text, replace it with the glossary term.
-5. Adjust surrounding grammar minimally if needed, but do NOT rewrite or restyle the text.
-
-Output the COMPLETE corrected translation.`;
 }
 
 // --- Main ---
@@ -147,9 +129,15 @@ export async function translateWithProfile(
     timestamp: new Date().toISOString(),
   });
 
+  // Build glossary reference for Phase 1 prompt (soft reference, not constraint)
+  const glossaryRef = Object.entries(relevantGlossary)
+    .sort(([a], [b]) => b.length - a.length)
+    .map(([en, es]) => `  "${en}" → "${es}"`)
+    .join("\n");
+
   const phase1Config: AgentConfig = {
     name: "TranslationAgent",
-    systemPrompt: buildNaturalPrompt(langProfile, targetLanguage, profile.clientName),
+    systemPrompt: buildNaturalPrompt(langProfile, targetLanguage, profile.clientName, glossaryRef),
     model: "opus",
     maxTokens: 8192,
   };
@@ -179,31 +167,9 @@ ${sourceText}
     timestamp: new Date().toISOString(),
   });
 
-  // --- Phase 2: Glossary enforcement (only if there are missed terms) ---
-  if (phase1Compliance.missed.length > 0) {
-    onEvent?.({
-      stage: "translation",
-      status: "phase2_glossary",
-      message: `Phase 2: Applying ${phase1Compliance.missed.length} glossary corrections...`,
-      timestamp: new Date().toISOString(),
-    });
-
-    const glossaryEntries = phase1Compliance.missed
-      .map((m) => `  "${m.en}" → must be translated as "${m.expected}"`)
-      .join("\n");
-
-    const phase2Response = await callAgentWithUsage(
-      "opus",
-      buildGlossaryPrompt(glossaryEntries, phase1Compliance.missed.length, targetLanguage),
-      `ENGLISH SOURCE:\n---\n${sourceText}\n---\n\nCURRENT TRANSLATION:\n---\n${currentText}\n---\n\nApply all ${phase1Compliance.missed.length} glossary corrections listed above. Output the complete corrected translation.`,
-      8192,
-      0,
-    );
-
-    currentText = phase2Response.text;
-    totalInputTokens += phase2Response.usage?.inputTokens ?? 0;
-    totalOutputTokens += phase2Response.usage?.outputTokens ?? 0;
-  }
+  // Phase 2 (Opus full-text glossary rewrite) REMOVED.
+  // Glossary enforcement is now handled by the surgical patcher
+  // in translation-engine.ts after the correction loop completes.
 
   result.translatedText = currentText;
   result.usage = { inputTokens: totalInputTokens, outputTokens: totalOutputTokens };
