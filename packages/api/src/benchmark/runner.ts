@@ -14,12 +14,15 @@ import { ALL_METRICS } from "../profiles/types.js";
 import type { ProfileStore } from "../lib/types.js";
 import { runTranslationEngine, type AuditEntry } from "../pipeline/translation-engine.js";
 import { scoreTranslation } from "../agents/scoring-agent.js";
+import { callAgentWithUsage } from "../lib/anthropic.js";
 import { readDocument } from "./docx-reader.js";
 import { analyzeComparison } from "./comparison-agent.js";
 import type { DocumentPair, ComparisonResult, MetricDelta } from "./types.js";
+import type { Scorecard } from "../scoring/scorecard.js";
 
 export interface RunComparisonOptions {
   skipAiTranslation?: boolean;
+  compareGeneric?: boolean;
   onProgress?: (message: string) => void;
 }
 
@@ -32,7 +35,7 @@ export async function runComparison(
   profileStore: ProfileStore,
   options: RunComparisonOptions = {},
 ): Promise<ComparisonResult> {
-  const { skipAiTranslation, onProgress } = options;
+  const { skipAiTranslation, compareGeneric, onProgress } = options;
 
   // 1. Read documents
   onProgress?.(`  Reading ${pair.reportId}...`);
@@ -84,6 +87,37 @@ export async function runComparison(
   // If we skipped AI, score the human text as "AI" too (for delta = 0 baseline)
   const aiScorecard = aiScorecardResult ?? humanScorecard;
 
+  // 3b. Generic LLM translation (unconstrained Opus, no profile)
+  let genericTranslation: string | undefined;
+  let genericScorecard: Scorecard | undefined;
+  let genericMs = 0;
+
+  if (compareGeneric) {
+    onProgress?.(`  Running generic LLM translation for ${pair.reportId}...`);
+    const genericStart = Date.now();
+    const { text } = await callAgentWithUsage(
+      "opus",
+      "You are a professional financial translator. Translate to Spanish (es-ES).",
+      `Translate the following financial document:\n${sourceText}`,
+      8192,
+      0,
+    );
+    genericTranslation = text;
+
+    onProgress?.(`  Scoring generic translation...`);
+    genericScorecard = await scoreTranslation(
+      sourceText,
+      genericTranslation,
+      profile,
+      pair.language,
+    );
+    genericMs = Date.now() - genericStart;
+    onProgress?.(
+      `  Generic score: ${genericScorecard.aggregateScore.toFixed(1)}/${genericScorecard.aggregateThreshold} ` +
+        `(${genericScorecard.passed ? "PASS" : "FAIL"})`,
+    );
+  }
+
   // 4. Compute deltas
   const metricDeltas: Record<string, MetricDelta> = {};
   for (const metric of ALL_METRICS) {
@@ -116,6 +150,7 @@ export async function runComparison(
       humanScorecard,
       aiScorecard,
       pair.language,
+      compareGeneric ? { translation: genericTranslation!, scorecard: genericScorecard! } : undefined,
     );
     analysisMs = Date.now() - analysisStart;
   } else {
@@ -136,6 +171,8 @@ export async function runComparison(
     aiTranslation,
     humanScorecard,
     aiScorecard,
+    genericTranslation,
+    genericScorecard,
     metricDeltas,
     qualitativeAnalysis,
     aiAuditTrail,
@@ -143,6 +180,7 @@ export async function runComparison(
       aiPipelineMs: aiMs,
       humanScoringMs: humanMs,
       analysisMs,
+      genericMs: compareGeneric ? genericMs : undefined,
     },
   };
 }

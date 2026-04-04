@@ -26,6 +26,7 @@ import { discoverDocumentPairs, readDocument } from "./docx-reader.js";
 import { runComparison } from "./runner.js";
 import { aggregateResults, formatAggregateReport } from "./aggregation.js";
 import { formatDocumentReport } from "./report.js";
+import { exportMetricsCSV, exportSummaryCSV } from "./csv-export.js";
 import type { BenchmarkConfig, ComparisonResult } from "./types.js";
 
 // --- Arg Parsing ---
@@ -70,6 +71,8 @@ function parseArgs(): BenchmarkConfig {
     console.error("  --report-ids      Comma-separated report IDs to filter");
     console.error("  --extract-profile Extract profile from test data");
     console.error("  --skip-ai         Skip AI translation, only score human");
+    console.error("  --export-csv      Export metrics and summary as CSV files");
+    console.error("  --compare-generic Run unconstrained generic LLM translation for comparison");
     process.exit(1);
   }
 
@@ -84,6 +87,8 @@ function parseArgs(): BenchmarkConfig {
     reportIds: config["report-ids"]?.split(","),
     extractProfile: flags.has("extract-profile"),
     skipAiTranslation: flags.has("skip-ai"),
+    exportCsv: flags.has("export-csv"),
+    compareGeneric: flags.has("compare-generic"),
   };
 }
 
@@ -178,6 +183,7 @@ async function main() {
   console.log(`  Language:  ${config.language}`);
   console.log(`  Output:   ${config.outputDir}`);
   console.log(`  Skip AI:  ${config.skipAiTranslation ? "yes" : "no"}`);
+  console.log(`  Generic:  ${config.compareGeneric ? "yes" : "no"}`);
   console.log("");
 
   // Setup
@@ -219,6 +225,7 @@ async function main() {
     try {
       const result = await runComparison(pair, profile, profileStore, {
         skipAiTranslation: config.skipAiTranslation,
+        compareGeneric: config.compareGeneric,
         onProgress: (msg) => console.log(msg),
       });
 
@@ -237,7 +244,7 @@ async function main() {
       );
 
       // Write individual result JSON (metrics + analysis, no full texts)
-      const compactResult = {
+      const compactResult: Record<string, unknown> = {
         reportId: result.reportId,
         language: result.language,
         metricDeltas: result.metricDeltas,
@@ -248,6 +255,10 @@ async function main() {
         humanAggregate: result.humanScorecard.aggregateScore,
         humanPassed: result.humanScorecard.passed,
       };
+      if (result.genericScorecard) {
+        compactResult["genericAggregate"] = result.genericScorecard.aggregateScore;
+        compactResult["genericPassed"] = result.genericScorecard.passed;
+      }
       writeFileSync(
         join(comparisonsDir, `${pair.reportId}-${config.language}.json`),
         JSON.stringify(compactResult, null, 2),
@@ -279,6 +290,12 @@ async function main() {
         join(textsDir, `${pair.reportId}-${config.language}-source.txt`),
         result.sourceText,
       );
+      if (result.genericTranslation) {
+        writeFileSync(
+          join(textsDir, `${pair.reportId}-${config.language}-generic.txt`),
+          result.genericTranslation,
+        );
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`  ERROR: ${msg}`);
@@ -321,6 +338,25 @@ async function main() {
 
   console.log(`  Report:  ${reportPath}`);
   console.log(`  Data:    ${dataPath}`);
+
+  // CSV export
+  if (config.exportCsv) {
+    const metricsCSVPath = join(
+      config.outputDir,
+      `metrics-${config.language}.csv`,
+    );
+    const summaryCSVPath = join(
+      config.outputDir,
+      `summary-${config.language}.csv`,
+    );
+
+    writeFileSync(metricsCSVPath, exportMetricsCSV(results, config.language));
+    writeFileSync(summaryCSVPath, exportSummaryCSV(results, config.language));
+
+    console.log(`  Metrics CSV: ${metricsCSVPath}`);
+    console.log(`  Summary CSV: ${summaryCSVPath}`);
+  }
+
   console.log("");
 
   // Print summary table

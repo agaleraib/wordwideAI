@@ -18,6 +18,8 @@ export interface BenchmarkConfig {
   profileJson?: string;
   brandJson?: string;
   glossaryJson?: string;
+  compareGeneric?: boolean;
+  exportCsv?: boolean;
 }
 
 // --- Document Discovery ---
@@ -57,6 +59,8 @@ export interface ComparisonResult {
   aiTranslation: string;
   humanScorecard: Scorecard;
   aiScorecard: Scorecard;
+  genericTranslation?: string;
+  genericScorecard?: Scorecard;
   metricDeltas: Record<string, MetricDelta>;
   qualitativeAnalysis: QualitativeAnalysis;
   aiAuditTrail: AuditEntry[];
@@ -64,6 +68,7 @@ export interface ComparisonResult {
     aiPipelineMs: number;
     humanScoringMs: number;
     analysisMs: number;
+    genericMs?: number;
   };
 }
 

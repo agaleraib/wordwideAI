@@ -54,7 +54,7 @@ const ANALYSIS_TOOL_SCHEMA = {
 
 // --- System Prompt ---
 
-const SYSTEM_PROMPT = `You are a senior translation quality analyst at WordwideFX. You are comparing an AI-generated translation against a professional human translation of the same financial document.
+const SYSTEM_PROMPT_BASE = `You are a senior translation quality analyst at WordwideFX. You are comparing an AI-generated translation against a professional human translation of the same financial document.
 
 Your role is NOT to judge which translation is "better" overall. Instead:
 1. Identify concrete, specific differences between the two translations
@@ -64,7 +64,23 @@ Your role is NOT to judge which translation is "better" overall. Instead:
 
 Be precise. Quote specific phrases from both translations. Focus on patterns, not one-off word choices.`;
 
+const SYSTEM_PROMPT_GENERIC = `You are a senior translation quality analyst at WordwideFX. You are comparing THREE translations of the same financial document: a FinFlow AI pipeline translation, a professional human translation, and an unconstrained generic LLM translation (no client profile, no quality loop).
+
+Your role is NOT to judge which translation is "better" overall. Instead:
+1. Identify concrete, specific differences between all three translations
+2. Explain WHY the scores differ for each metric (with text examples)
+3. Assess whether the scoring thresholds are well-calibrated based on the human translator's output
+4. If the human translator consistently scores below a threshold, that threshold may be too strict for real-world financial translation
+5. Highlight where the FinFlow pipeline's profile-driven approach adds measurable value over a generic LLM that has no client context
+
+Be precise. Quote specific phrases from all translations. Focus on patterns, not one-off word choices.`;
+
 // --- Main ---
+
+export interface GenericComparisonData {
+  translation: string;
+  scorecard: Scorecard;
+}
 
 export async function analyzeComparison(
   sourceText: string,
@@ -73,10 +89,11 @@ export async function analyzeComparison(
   humanScorecard: Scorecard,
   aiScorecard: Scorecard,
   language: string,
+  generic?: GenericComparisonData,
 ): Promise<QualitativeAnalysis> {
   const config: AgentConfig = {
     name: "ComparisonAgent",
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: generic ? SYSTEM_PROMPT_GENERIC : SYSTEM_PROMPT_BASE,
     model: "sonnet",
     maxTokens: 4096,
   };
@@ -86,6 +103,19 @@ export async function analyzeComparison(
   const truncate = (t: string) =>
     t.length > maxChars ? t.slice(0, maxChars) + "\n[...truncated]" : t;
 
+  const genericSection = generic
+    ? `\n## Generic LLM Translation (${language})
+${truncate(generic.translation)}
+
+## Generic LLM Scorecard
+${JSON.stringify(scorecardToDict(generic.scorecard), null, 2)}
+`
+    : "";
+
+  const analysisScope = generic
+    ? "Analyze the differences between all three translations (FinFlow AI, Human, Generic LLM). Focus on metrics where scores diverge significantly (delta > 10 points) and on metrics where the human fails the threshold. Highlight where the FinFlow pipeline adds value over a generic unconstrained LLM."
+    : "Analyze the differences. Focus on metrics where scores diverge significantly (delta > 10 points) and on metrics where the human fails the threshold.";
+
   const userMessage = `## Source Text (English)
 ${truncate(sourceText)}
 
@@ -94,14 +124,14 @@ ${truncate(humanTranslation)}
 
 ## AI Translation (${language})
 ${truncate(aiTranslation)}
-
+${genericSection}
 ## Human Scorecard
 ${JSON.stringify(scorecardToDict(humanScorecard), null, 2)}
 
 ## AI Scorecard
 ${JSON.stringify(scorecardToDict(aiScorecard), null, 2)}
 
-Analyze the differences. Focus on metrics where scores diverge significantly (delta > 10 points) and on metrics where the human fails the threshold.`;
+${analysisScope}`;
 
   const { result } = await runAgentStructured(
     config,

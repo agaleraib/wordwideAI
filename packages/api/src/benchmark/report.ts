@@ -20,7 +20,10 @@ export function formatDocumentReport(result: ComparisonResult): string {
   sections.push(formatPipelineWorkflow(result.aiAuditTrail));
   sections.push(formatScorecard("AI", result.aiScorecard));
   sections.push(formatScorecard("Human", result.humanScorecard));
-  sections.push(formatMetricComparison(result.metricDeltas));
+  if (result.genericScorecard) {
+    sections.push(formatScorecard("Generic LLM", result.genericScorecard));
+  }
+  sections.push(formatMetricComparison(result.metricDeltas, result.genericScorecard));
   sections.push(formatFailureAnalysis(result.aiScorecard, result.humanScorecard));
   sections.push(formatQualitativeAnalysis(result));
   sections.push(formatTimingSummary(result));
@@ -127,7 +130,7 @@ ${rows.join("\n")}
 ${scorecard.failedMetrics.length > 0 ? `\n**Failed metrics**: ${scorecard.failedMetrics.join(", ")}` : ""}`;
 }
 
-function formatMetricComparison(deltas: Record<string, MetricDelta>): string {
+function formatMetricComparison(deltas: Record<string, MetricDelta>, genericScorecard?: Scorecard): string {
   const entries = Object.values(deltas);
   if (entries.length === 0) {
     return `## Metric Comparison
@@ -135,11 +138,23 @@ function formatMetricComparison(deltas: Record<string, MetricDelta>): string {
 _No metric deltas available._`;
   }
 
+  const hasGeneric = genericScorecard !== undefined;
+
   const rows = entries.map((d) => {
     const deltaStr = d.delta >= 0 ? `+${d.delta.toFixed(1)}` : d.delta.toFixed(1);
     const aiStatus = d.aiPassed ? "PASS" : "FAIL";
     const humanStatus = d.humanPassed ? "PASS" : "FAIL";
-    return `| ${d.metricName} | ${d.aiScore} | ${d.humanScore} | ${deltaStr} | ${d.threshold} | ${aiStatus} | ${humanStatus} |`;
+    let row = `| ${d.metricName} | ${d.aiScore} | ${d.humanScore}`;
+    if (hasGeneric) {
+      const gMetric = genericScorecard.metrics[d.metricName];
+      const gScore = gMetric ? String(gMetric.score) : "—";
+      const gStatus = gMetric ? (gMetric.passed ? "PASS" : "FAIL") : "—";
+      row += ` | ${gScore}`;
+      row += ` | ${deltaStr} | ${d.threshold} | ${aiStatus} | ${humanStatus} | ${gStatus} |`;
+    } else {
+      row += ` | ${deltaStr} | ${d.threshold} | ${aiStatus} | ${humanStatus} |`;
+    }
+    return row;
   });
 
   // Summary stats
@@ -147,13 +162,34 @@ _No metric deltas available._`;
   const aiPassCount = entries.filter((d) => d.aiPassed).length;
   const humanPassCount = entries.filter((d) => d.humanPassed).length;
 
+  let summaryLine = `**Summary**: Avg delta ${avgDelta >= 0 ? "+" : ""}${avgDelta.toFixed(1)} | AI pass ${aiPassCount}/${entries.length} | Human pass ${humanPassCount}/${entries.length}`;
+
+  if (hasGeneric) {
+    const genericPassCount = entries.filter((d) => {
+      const gMetric = genericScorecard.metrics[d.metricName];
+      return gMetric?.passed === true;
+    }).length;
+    summaryLine += ` | Generic pass ${genericPassCount}/${entries.length}`;
+
+    const title = `## Metric Comparison (AI vs Human vs Generic)`;
+    const header = `| Metric | AI Score | Human Score | Generic Score | Delta (AI-Human) | Threshold | AI | Human | Generic |
+|--------|----------|-------------|---------------|------------------|-----------|----|-------|---------|`;
+
+    return `${title}
+
+${header}
+${rows.join("\n")}
+
+${summaryLine}`;
+  }
+
   return `## Metric Comparison (AI vs Human)
 
 | Metric | AI Score | Human Score | Delta | Threshold | AI | Human |
 |--------|----------|-------------|-------|-----------|----|-------|
 ${rows.join("\n")}
 
-**Summary**: Avg delta ${avgDelta >= 0 ? "+" : ""}${avgDelta.toFixed(1)} | AI pass ${aiPassCount}/${entries.length} | Human pass ${humanPassCount}/${entries.length}`;
+${summaryLine}`;
 }
 
 function formatFailureAnalysis(
