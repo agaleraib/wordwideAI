@@ -82,16 +82,21 @@ function buildGlossaryPrompt(
   missedCount: number,
   language: string,
 ): string {
-  return `You are a terminology specialist. The translation below has ${missedCount} glossary terms that need to be corrected.
+  return `You are a terminology correction specialist for financial translations into ${langName(language)}.
 
-YOUR ONLY JOB: Replace incorrect term translations with the glossary-mandated versions listed below. Do NOT change anything else — no rewriting, no restructuring, no "improving" the text. Only swap the specific terms.
+The translation below has ${missedCount} glossary terms that are WRONG or MISSING. I will give you the ENGLISH SOURCE, the CURRENT TRANSLATION, and the GLOSSARY CORRECTIONS needed.
 
-GLOSSARY CORRECTIONS NEEDED:
+GLOSSARY CORRECTIONS (English term → required ${langName(language)} translation):
 ${glossaryEntries}
 
-TARGET LANGUAGE: ${langName(language)}
+YOUR TASK:
+1. Use the English source to locate where each glossary term appears in context.
+2. Find the corresponding passage in the translation.
+3. Replace the incorrect/missing translation with the glossary-mandated term.
+4. If the English term was left untranslated in the ${langName(language)} text, replace it with the glossary term.
+5. Adjust surrounding grammar minimally if needed, but do NOT rewrite or restyle the text.
 
-Output the COMPLETE translation with only the glossary terms corrected. Preserve everything else exactly as-is.`;
+Output the COMPLETE corrected translation.`;
 }
 
 // --- Main ---
@@ -188,9 +193,9 @@ ${sourceText}
       .join("\n");
 
     const phase2Response = await callAgentWithUsage(
-      "sonnet",
+      "opus",
       buildGlossaryPrompt(glossaryEntries, phase1Compliance.missed.length, targetLanguage),
-      `Apply the glossary corrections to this translation. Output the complete corrected text:\n\n---\n${currentText}\n---`,
+      `ENGLISH SOURCE:\n---\n${sourceText}\n---\n\nCURRENT TRANSLATION:\n---\n${currentText}\n---\n\nApply all ${phase1Compliance.missed.length} glossary corrections listed above. Output the complete corrected translation.`,
       8192,
       0,
     );
