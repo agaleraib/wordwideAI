@@ -22,7 +22,7 @@ import type { Scorecard } from "../scoring/scorecard.js";
 import { scorecardToDict, scorecardSummary } from "../scoring/scorecard.js";
 import type { FailedMetricData, SpecialistResult } from "../agents/specialists/shared.js";
 import { emitEvent } from "./events.js";
-import { enforceGlossary } from "./glossary-patcher.js";
+import { enforceGlossary, checkCompliance, applyDeterministicReplacements, applyAlternativesMap } from "./glossary-patcher.js";
 
 // --- Types ---
 
@@ -341,6 +341,34 @@ export async function runTranslationEngine(
       });
 
       currentText = specialistResult.correctedText;
+
+      // Glossary guard: re-apply patcher replacements if specialist undid them
+      if (glossaryPatchResult.replacements.length > 0) {
+        const preGuard = checkCompliance(sourceText, currentText, langProfile.glossary);
+        if (preGuard.missed.length > 0) {
+          // Try deterministic re-application using cached replacements
+          for (const rep of glossaryPatchResult.replacements) {
+            if (!currentText.toLowerCase().includes(rep.replace.toLowerCase())) {
+              // Term was undone — try to re-apply
+              const escaped = rep.find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const regex = new RegExp(escaped, "gi");
+              currentText = currentText.replace(regex, rep.replace);
+            }
+          }
+
+          const postGuard = checkCompliance(sourceText, currentText, langProfile.glossary);
+          const recovered = preGuard.missed.length - postGuard.missed.length;
+          if (recovered > 0) {
+            emitEvent(
+              onEvent,
+              "glossary_guard",
+              "recovered",
+              `Glossary guard: recovered ${recovered} terms after ${specialistName} specialist.`,
+            );
+          }
+        }
+      }
+
       emitEvent(
         onEvent,
         "specialist",

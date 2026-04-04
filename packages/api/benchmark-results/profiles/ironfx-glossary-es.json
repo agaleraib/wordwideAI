@@ -207,7 +207,21 @@
       "regional_variant": 90
     },
     "aggregateThreshold": 88,
-    "metricWeights": {},
+    "metricWeights": {
+      "glossary_compliance": 3.0,
+      "term_consistency": 2.0,
+      "numerical_accuracy": 3.0,
+      "untranslated_terms": 2.0,
+      "meaning_preservation": 2.0,
+      "fluency": 1.0,
+      "formality_level": 1.0,
+      "brand_voice_adherence": 1.5,
+      "regional_variant": 1.0,
+      "formatting_preservation": 1.0,
+      "paragraph_alignment": 1.0,
+      "sentence_length_ratio": 0.5,
+      "passive_voice_ratio": 0.5
+    },
     "maxRevisionAttempts": 2
   }
 }
