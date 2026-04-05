@@ -2,159 +2,195 @@
 
 **Prepared by:** WordwideFX  
 **Date:** April 2026  
-**Status:** Pre-launch, prototype complete, demo-ready UI designed  
+**Status:** Pre-launch, Translation Engine complete (TypeScript), benchmarked  
 **Live mockup:** [agaleraib.github.io/finflow-deck/mockup/finflow-ui-mockup.html](https://agaleraib.github.io/finflow-deck/mockup/finflow-ui-mockup.html)
 
 ---
 
-## 1. Executive Summary
+## 1. The Quality Assurance Bridge
 
-FinFlow is a B2B SaaS platform that transforms how forex brokers, crypto platforms, and financial institutions produce market research content. The platform continuously monitors global markets, generates institutional-grade analysis through specialized AI agents that deliberate like a real research desk, enforces regulatory compliance across jurisdictions, translates into 40+ languages with client-specific terminology, and distributes branded reports across all channels — in under 30 minutes from news event to published content.
+WordwideFX has spent 15 years fixing bad financial translations. We know exactly how they break: a human translator reverses "overbought" and "oversold," transposes a price level from 0.7740 to 0.7440, or softens a directional call into mush. In financial content, these errors move money.
 
-FinFlow is built by WordwideFX, a company with 15+ years of financial translation experience serving 100+ broker clients including OANDA, Goldman Sachs, Alpari, AXIORY, and ThinkMarkets. The platform leverages this decade-plus of accumulated client glossaries, tone profiles, and compliance terminology as its core competitive moat — data that no competitor can replicate.
+That expertise is now codified into 13 measurable quality metrics — a scoring engine that evaluates every piece of content before it reaches a client's audience. Six metrics are deterministic (numerical accuracy, formatting, structural integrity) and produce identical scores every time. Seven are LLM-judged (tone fidelity, terminology consistency, analytical coherence) running at temperature=0, with measured variance of +/-1-3 points across 5 independent runs. Ten of 13 metrics score identically across all runs.
 
-The platform targets the intersection of two massive shifts: the $56–74B BFSI AI market (growing 25–30% CAGR) and the rapid displacement of traditional financial content workflows by AI. FinFlow is positioned to capture the segment of brokers currently spending $5K–$20K/month on content that is slow, English-only, and manually produced.
+This scoring engine is the safety net that makes content generation at scale possible. Without it, AI-generated financial content is a liability. With it, every document is scored, gated, and auditable.
 
----
-
-## 2. The Problem
-
-Forex brokers and financial institutions need a constant stream of market research content — daily analyses, trading ideas, economic event coverage — published in their brand, in their clients' languages, compliant with local regulations. Today, this process is broken:
-
-- **Slow.** A traditional research desk takes 4–8 hours to produce a single analysis. By the time it's published, the market has moved.
-- **English-only.** Most research providers (TradingCentral, Acuity, Bloomberg Intelligence) produce in English. Brokers serving Asian, Latin American, or Middle Eastern markets must separately commission translations — if they bother at all.
-- **Generic.** Off-the-shelf research looks the same for every broker. No branding, no client-specific terminology, no tone matching. Clients notice.
-- **Non-compliant by default.** MiFID II, SEC/FINRA, FCA, ASIC, and MAS each have specific rules about financial communications. Most content is published without proper jurisdiction-aware compliance review.
-- **Expensive.** A small research team (2 analysts + compliance + translations) costs $15K–$30K/month. Most mid-size brokers can't justify the expense, so they publish nothing — or publish low-quality AI-generated content that damages their brand.
-
-The result: brokers either overpay for generic English content, or they publish nothing and lose client engagement.
+**The result for our target customer:** a mid-size forex broker currently publishing 1-2 rebranded white-label pieces per day can publish 10+ original, branded pieces across multiple languages — each one quality-scored and compliance-checked before it goes live.
 
 ---
 
-## 3. The Solution
+## 2. The Problem We Solve
 
-FinFlow is an always-on market intelligence engine. It doesn't wait for a human to press "generate" — it scans data sources 24/7, detects market-moving events, and proactively suggests reports. The client's only decision is which suggestions to approve.
+A small-to-mid forex broker (50-200 employees) has no research team. They cannot afford one ($15-30K/month). Instead, they pay FXStreet or TradingCentral $3-5K/month for white-label content: generic analysis, English-only or machine-translated, published under their brand but indistinguishable from every other broker using the same feed.
 
-**From news event to published, branded, multilingual, compliance-approved report in 30 minutes.**
+This creates three problems:
 
-### How it works (simplified):
+- **No differentiation.** Their "research" is identical to competitors using the same provider. Clients notice.
+- **No multilingual reach.** Brokers serving Latin American, Asian, or Middle Eastern markets get English content. Translation is an afterthought, if it happens at all.
+- **No SEO value.** Rebranded white-label content doesn't rank. Two indexed pages per day won't compete with brokers publishing original research.
+
+The broker wants to look like a bigger operation — original analysis, multiple languages, consistent brand voice, steady content cadence — but the economics don't work with human teams.
+
+---
+
+## 3. The Solution: Quality-Scored Content at Scale
+
+FinFlow is a content multiplication engine with a quality scoring core. It monitors markets 24/7, generates branded financial analysis, translates across languages, and scores every output against 13 quality metrics before publication.
+
+### What changes for the broker
+
+| Metric | Before (white-label) | After (FinFlow) |
+|--------|---------------------|-----------------|
+| **Original content/day** | 1-2 rebranded pieces | 10+ branded originals |
+| **Languages** | English (maybe 1 other) | Multiple, quality-scored |
+| **SEO indexed pages/day** | ~2 | ~50 |
+| **Social posts/day** | 1-2 manual | 10+ across channels |
+| **Brand voice** | Generic | Configured per client |
+| **Quality assurance** | None | 13-metric scoring, audit trail |
+| **Cost** | $3-5K/month (white-label fee) | $999-2,999/month (all-in) |
+
+### How it works
 
 ```
 Market event detected (e.g., ECB rate decision)
-        ↓
-FinFlow auto-suggests: "EUR/USD analysis — bearish bias"
-        ↓
-Client picks suggestion → Pipeline launches
-        ↓
-Technical Analysis Agent ↔ Fundamental Analysis Agent
-    (deliberate like a research desk, up to 3 rounds)
-        ↓
-Quality Arbitration → Compliance Review (per jurisdiction)
-        ↓
-Translation into client's languages (with their glossary & tone)
-        ↓
-Human approval checkpoints (adaptive — 100% → 10% over 12 months)
-        ↓
-Published: Email, Blog, Social, PDF — all branded, all languages
+        |
+FinFlow auto-suggests: "EUR/USD analysis - bearish bias"
+        |
+Client approves --> Pipeline launches
+        |
+Analysis generation (multiple audience levels)
+        |
+Quality scoring: 13 metrics evaluated
+        |
+Translation into client's languages
+        |
+Quality scoring: 13 metrics on translated output
+        |
+Human checkpoint (adaptive: 100% --> 10% over 12 months)
+        |
+Published: Blog, Email, Social, PDF - all branded
 ```
 
-### Three audience levels per report:
-- **Beginner** — plain language for retail clients
-- **Intermediate** — technical detail for active traders
-- **Professional** — institutional-grade with positioning data, Fibonacci levels, COT analysis
-
-Each level is generated simultaneously, translated simultaneously, and distributed to the appropriate audience segments.
-
-### The personalization difference:
-
-Every piece of content FinFlow produces is shaped by the client's unique profile:
-
-| Dimension | What we configure | Example |
-|-----------|------------------|---------|
-| **Tone** | Formal, approachable, institutional, retail-friendly | Goldman Sachs vs. a crypto startup — completely different register |
-| **Terminology** | Client-specific glossary per language | "pips" vs. "points," "lots" vs. "units," "margin" vs. "collateral" |
-| **Aggressiveness** | How directional can analysis be? | Conservative wealth manager: "potential opportunity" vs. aggressive broker: "strong buy signal" |
-| **Allowed content** | Topics, instruments, claim types | Some clients cannot discuss crypto; others cannot make forward-looking statements |
-| **Brand voice** | Actual examples of client's writing style | The AI learns to write as if it were the client's own research desk |
-| **Compliance rules** | Per-jurisdiction + per-client internal policies | What disclaimers, what risk warnings, what content restrictions |
-
-This is not cosmetic customization. It is deep behavioral configuration of every AI agent in the pipeline. A competitor without WordwideFX's 15 years of financial client data would need to build these profiles from scratch — a process that takes months per client.
+Every step is logged. Every output is scored. The client gets an audit trail showing exactly why each piece passed or was flagged.
 
 ---
 
-## 4. Competitive Moat
+## 4. The Quality Scoring Engine (Core Product)
 
-### The core differentiator: Deep Personalization Powered by 15 Years of Expertise
+### 13 metrics, two categories
 
-Any company can connect an LLM to a news feed. What no competitor can replicate is the deep, client-specific personalization that comes from 15 years of serving 100+ financial institutions. FinFlow doesn't produce generic content — it produces content that sounds like **your** company wrote it, in **your** clients' languages, using **your** terminology, in **your** tone.
+**Deterministic (6 metrics) — 100% reproducible:**
+- Numerical accuracy (prices, percentages, dates)
+- Structural completeness (sections, formatting)
+- Glossary adherence (client-specific terms)
+- Formatting consistency
+- Length compliance
+- Reference integrity
 
-### What makes this unreplicable:
+**LLM-judged (7 metrics) — temperature=0, measured variance:**
+- Tone fidelity to client profile
+- Terminology consistency
+- Analytical coherence
+- Risk disclosure completeness
+- Directional language calibration
+- Readability for target audience
+- Cultural/market appropriateness
 
-**1. Client-Specific Voice Profiles — Every Agent Is Personalized.**  
-Every agent in the FinFlow pipeline — not just translation — is configured per client. This means:
+### Benchmark results (measured)
 
-- **Analysis agents** adjust their aggressiveness, directional bias tolerance, and risk framing to match the client's brand positioning. A conservative wealth manager gets different language than an aggressive CFD broker — even when analyzing the same market event.
-- **Compliance agents** load jurisdiction-specific rules AND the client's internal content policies — what topics to avoid, what disclaimers to emphasize, what level of specificity is allowed.
-- **Translation agents** don't just translate words — they translate the client's **voice**. Tone (formal vs. approachable), register (institutional vs. retail), terminology (OANDA says "units," Alpari says "lots"), content aggressiveness (how direct can trade setups be?), and even formatting preferences per market.
+| Test | FinFlow | Generic AI (Claude/GPT) | Human translator |
+|------|---------|------------------------|-----------------|
+| **Numerical accuracy** | 100% | 86% | 92% |
+| **Scoring consistency (5 runs)** | 10/13 exact, max drift 3 pts | N/A | N/A |
+| **Cost per document** | $2.81 | ~$0.50 (no QA) | $50-150 |
 
-This is not a glossary lookup. It's a complete personality profile built from years of real client interactions that shapes every piece of content the system produces.
+**Specific errors caught in benchmarking:**
+- Human translator reversed "overbought" and "oversold" in a technical analysis — FinFlow's deterministic checks catch this automatically
+- Human translator transposed price levels (0.7740 became 0.7440) — FinFlow catches 100% of numerical transpositions
+- Generic AI used valid but non-standard synonyms for regulated financial terms — acceptable linguistically, but inconsistent with client glossaries
 
-**2. 15 Years of Client-Specific Financial Translation Data.**  
-WordwideFX has accumulated glossaries, tone profiles, compliance terminology, style guides, and client feedback for 100+ financial institutions. When FinFlow translates "margin call" for OANDA's Japanese clients, it uses OANDA's exact terminology, their preferred formality level, and their specific risk disclosure style — not a generic dictionary. This data is the single most defensible asset in the business.
-
-**3. The Translation Learning Loop (client lock-in).**  
-Human translators review AI output. Their corrections feed back into the system. Over 12 months, the system learns each client's exact voice:
-
-| Period | Human Review | Automation | Client Perception |
-|--------|-------------|------------|-------------------|
-| Month 1–2 | 100% | 0% | "Building our profile" |
-| Month 3–4 | 70% | 30% | "Getting better" |
-| Month 5–6 | 50% | 50% | "Impressive quality" |
-| Month 7–8 | 20% | 80% | "Almost autonomous" |
-| Month 9–12 | 10% | 90% | "Spot-check only" |
-
-Switching to a competitor means starting from zero — no glossary, no tone profile, no learning. The system literally gets better the longer a client stays, and the cost of switching grows every month.
-
-**4. Agent Deliberation (not single-pass AI).**  
-Unlike competitors that run a single LLM prompt, FinFlow's Technical and Fundamental Analysis agents debate each other — challenging assumptions, resolving contradictions, documenting disagreements. A Quality Arbitration agent mediates. The result reads like a real research desk's output, not a chatbot summary. And each agent's personality is tuned to the client's preferences.
-
-**5. Built-in Compliance Across 7 Jurisdictions.**  
-MiFID II (EU), SEC/FINRA (US), FCA (UK), ASIC (Australia), MAS (Singapore), FSCA (South Africa), BMA (Bermuda). Compliance is a pipeline stage, not an afterthought. Each report is reviewed against the client's specific jurisdictional requirements AND their internal content policies before it can be published.
-
-**6. 40+ Languages, Financial-Specialized, Client-Voiced.**  
-Not Google Translate. Not generic machine translation. FinFlow uses best-in-class API LLMs (Claude, GPT-4, Gemini) selected per language for optimal quality, with deep personalization: client-specific glossaries, tone profiles, brand voice examples, content aggressiveness settings, and formatting rules. Human review feeds corrections back into the system, creating an ever-improving translation engine that speaks each client's language — literally and figuratively.
+The 86% generic AI accuracy is not because the AI is bad — it is because financial content has domain-specific correctness requirements that general-purpose models don't optimize for. A synonym that is fine in normal text can be wrong in a margin disclosure.
 
 ---
 
-## 5. Market Opportunity
+## 5. Competitive Positioning
 
-### Target segment
-500+ forex/crypto brokers globally spending $5K–$20K/month on market research content, translations, and compliance review — or spending nothing and losing client engagement.
+### We replace FXStreet/TradingCentral, not "a person using ChatGPT"
+
+The buyer's current spend is $3-5K/month on white-label research feeds. That is the budget we capture, with a superior product:
+
+| Dimension | FXStreet / TradingCentral | FinFlow |
+|-----------|--------------------------|---------|
+| **Content** | Generic, shared across all subscribers | Original, branded per client |
+| **Languages** | English + limited translation | Multiple, quality-scored per language |
+| **Brand voice** | None (their brand, not yours) | Configured per client |
+| **Quality assurance** | Editorial review (opaque) | 13-metric scoring (auditable) |
+| **Volume** | Fixed feed (X pieces/day) | Scales with plan tier |
+| **SEO value** | Low (duplicate content) | High (original content) |
+| **Price** | $3-5K/month | $999-2,999/month |
+
+### What we are NOT competing against
+
+- **Bloomberg Terminal** — we augment data sources, not replace them
+- **ChatGPT/Claude direct** — no quality scoring, no client profiles, no pipeline orchestration, no audit trail
+- **Generic AI writing tools (Jasper, Copy.ai)** — no financial domain expertise, no compliance, no multilingual quality assurance
+
+---
+
+## 6. The Real Moat
+
+### 1. Client relationships and domain knowledge
+100+ broker clients served over 15 years. We know the workflows, the compliance requirements, the terminology debates, the approval bottlenecks. This is sales leverage and product insight, not a data moat.
+
+### 2. Quality scoring engine
+13 metrics with audit trails. No competitor in the white-label research space offers measurable, reproducible quality scoring. This is the product differentiator that makes enterprise procurement possible — the compliance officer can see exactly why content passed.
+
+### 3. HITL learning loop (switching costs)
+Human translators review AI output. Corrections feed back into client profiles. Over 12 months, the system learns each client's exact voice. Switching to a competitor means starting from zero. The cost of switching grows every month.
+
+| Period | Human review rate | What the system has learned |
+|--------|------------------|-----------------------------|
+| Month 1-2 | 100% | Baseline profile building |
+| Month 3-4 | 70% | Common corrections absorbed |
+| Month 5-6 | 50% | Tone and terminology stabilized |
+| Month 7-12 | 10-20% | Spot-check only |
+
+### 4. Full pipeline orchestration
+Market scanning, analysis generation, quality scoring, translation, compliance review, multi-channel distribution — integrated, not bolted together. The value is in the orchestration, not any single component.
+
+---
+
+## 7. Market Opportunity
+
+### Target customer
+Small-to-mid forex/crypto broker, 50-200 employees, no research team. Currently spending $3-5K/month on white-label content (FXStreet, TradingCentral, Autochartist) or publishing nothing. Wants to compete on content with larger brokers.
+
+500+ brokers globally fit this profile.
 
 ### Market size
-- **BFSI AI market:** $56–74B (2025), growing 25–30% CAGR
-- **Traditional financial research spending:** $15–20B globally
+- **BFSI AI market:** $56-74B (2025), growing 25-30% CAGR
+- **Traditional financial research spending:** $15-20B globally
 - **AI adoption in finance:** 58% of finance functions already using AI (Gartner 2025)
 
 ### Why now
-- LLM capabilities crossed the quality threshold for financial content in 2025–2026
+- LLM quality crossed the threshold for financial content in 2025-2026
 - Regulatory pressure (MiFID II updates, ASIC enforcement) is increasing compliance costs
-- Brokers' existing content providers (TradingCentral, Autochartist) haven't adapted to AI
-- The "ChatGPT effect" — clients expect AI-quality content, but without quality controls it's a liability
+- Incumbent content providers (TradingCentral, Autochartist) have not adapted to AI
+- Brokers are experimenting with ChatGPT for content but have no quality controls — creating compliance risk
 
 ---
 
-## 6. Business Model & Pricing
+## 8. Business Model and Pricing
 
-| Tier | Monthly Price | Instruments | Languages | Data Sources | HITL Model |
-|------|-------------|-------------|-----------|--------------|------------|
-| **Automated** | $999 | 5 | 3 | Essential (free APIs) | AI-only |
-| **Hybrid** | $2,999 | 20 | 9 | Essential + Professional | Adaptive learning curve |
-| **Enterprise** | $7,999+ | Unlimited | 40+ | All tiers incl. Bloomberg | Dedicated translation team |
+| Tier | Monthly Price | Instruments | Languages | Quality Scoring | HITL Model |
+|------|-------------|-------------|-----------|-----------------|------------|
+| **Automated** | $999 | 5 | 3 | Full 13-metric | AI-only (scored, gated) |
+| **Hybrid** | $2,999 | 20 | 9 | Full 13-metric | Adaptive learning curve |
+| **Enterprise** | $7,999+ | Unlimited | All supported | Full 13-metric + custom | Dedicated translation team |
 
 ### Unit economics
-- **Cost per report:** ~$3.00–$4.00 (LLM inference across all agents + translation + infrastructure)
-- **Gross margin:** 90–95%
+- **Cost per document (production pipeline):** $2.81 (measured)
+- **Gross margin:** 90-95%
 - **Break-even:** ~5 Automated clients ($4,995 MRR)
 
 ### Revenue projections (conservative)
@@ -167,92 +203,91 @@ Not Google Translate. Not generic machine translation. FinFlow uses best-in-clas
 | Month 24 | 100 | $250K | $3M |
 
 ### Why margins are sustainable
-- Smart model routing: each task uses the most cost-efficient API model that meets quality requirements (e.g., Haiku for classification, Sonnet for analysis, GPT-4o-mini for draft translations)
-- Translation costs decrease per-client over time as HITL automation increases (fewer human review hours)
-- Infrastructure costs are shared across tenants (multi-tenant architecture)
-- Data source costs are tiered — Essential sources are free, Professional/Institutional are passed through to clients
-- The personalization moat means pricing power — clients pay for **their** voice, not generic AI output
+- Smart model routing: each task uses the most cost-efficient model that meets quality requirements
+- Translation costs decrease per client over time as HITL automation increases
+- Multi-tenant infrastructure — costs shared across clients
+- Quality scoring engine creates pricing power: clients pay for auditable quality, not generic AI output
 
 ---
 
-## 7. Go-to-Market Strategy
+## 9. Go-to-Market Strategy
 
-### Phase 1: Warm leads (Month 1–3)
-WordwideFX has served 100+ financial clients. These are warm conversations, not cold outreach:
-- **Pilot with Tier1FX** (internal company) — full feature validation
-- **Approach 5 existing WordwideFX clients** — OANDA, Alpari, AXIORY, ThinkMarkets, Hantec Markets
-- **Offer 4-week free pilot** — demonstrate the learning curve and quality improvement
+### Phase 1: Warm leads (Month 1-3)
+- Pilot with Tier1FX (internal company) — full feature validation
+- Approach 5 existing WordwideFX clients — OANDA, Alpari, AXIORY, ThinkMarkets, Hantec Markets
+- 4-week free pilot per client — demonstrate the learning curve and quality improvement
 
-### Phase 2: Case studies (Month 3–6)
-- Publish results from pilot clients (time savings, content volume increase, translation quality)
-- Create demo environment for prospect presentations
+### Phase 2: Case studies (Month 3-6)
+- Publish pilot results: content volume increase, quality scores, cost comparison vs. white-label
+- Demo environment for prospect presentations
 - Targeted outreach to 50 mid-size brokers
 
-### Phase 3: Scale (Month 6–12)
+### Phase 3: Scale (Month 6-12)
 - Conference presence: iFX EXPO, Finance Magnates events
 - Partnership with broker technology providers (MetaQuotes ecosystem)
-- Cold outreach armed with case studies and working demos
+- Outreach armed with case studies and benchmark data
 
 ### Phase 4: Expansion (Month 12+)
 - Wealth management firms, prop trading firms, financial media companies
 - White-label partnerships with larger research providers
-- Self-hosted enterprise deployments for institutions with data sovereignty requirements
+- Self-hosted enterprise deployments for data sovereignty requirements
 
 ---
 
-## 8. Current State & Traction
+## 10. Current State and Traction
 
-### What exists today
+| Asset | Status | Detail |
+|-------|--------|--------|
+| **Translation Engine** | Complete | TypeScript (Bun + Hono), 24 files / 2,900 lines, production-ready |
+| **Quality Scoring Engine** | Complete | 13 metrics, benchmarked (see Section 4) |
+| **Python prototype** | Reference | ~6,100 lines — full pipeline proof-of-concept, archived |
+| **Interactive UI mockup** | Complete | 10-screen production-quality mockup ([live demo](https://agaleraib.github.io/finflow-deck/mockup/finflow-ui-mockup.html)) |
+| **Benchmark results** | Documented | Numerical accuracy, scoring consistency, cost per document (see Section 4) |
+| **Architecture plan** | Complete | Technical spec, database schema, project structure, phased implementation |
+| **Business strategy** | Defined | Pricing, go-to-market, competitive positioning |
 
-| Asset | Status | Description |
-|-------|--------|-------------|
-| **Python prototype** | Complete | ~3,500 lines — full pipeline with TA, FA, Quality, Compliance, and Translation agents |
-| **GoBot framework** | Battle-tested | Multi-agent orchestration system (TypeScript/Bun) — agent base, HITL, model routing, scheduling |
-| **Interactive UI mockup** | Complete | 10-screen production-quality mockup — [live demo](https://agaleraib.github.io/finflow-deck/mockup/finflow-ui-mockup.html) |
-| **Architecture plan** | Complete | Detailed technical spec, database schema, project structure, phased implementation |
-| **Sample reports** | Complete | EUR/USD analysis at 3 audience levels + Spanish translation — demonstrating output quality |
-| **Business strategy** | Defined | Pricing, go-to-market, competitive positioning documented |
-| **Product deck** | Complete | 16-slide investor/prospect presentation |
-
-### Technology foundation
-The GoBot multi-agent framework (MIT licensed, built in-house) already solves the hardest technical problems: agent orchestration, cross-agent deliberation, human-in-the-loop workflows, tiered model routing, and scheduled job execution. FinFlow adapts these proven patterns for the financial content vertical.
-
----
-
-## 9. Team & Background
-
-**WordwideFX** was founded in 2010–2011 in Barcelona. The company has provided specialized financial translation services for 15+ years, building deep domain expertise in:
-
-- Financial terminology across 40+ languages
-- Broker-specific communication styles and tone
-- Regulatory compliance language (MiFID II, SEC, FCA, ASIC, MAS)
-- Client relationships with 100+ financial institutions
-
-The FinFlow pivot leverages this entire history — transforming accumulated human expertise into a scalable AI platform that gets better with every client interaction.
+### Technology stack
+- **Runtime:** Bun (TypeScript) + Hono (API framework) + Zod (validation)
+- **AI:** Anthropic Claude API via tool_use for structured output
+- **Quality:** 13-metric scoring engine (6 deterministic + 7 LLM-judged)
+- **Architecture:** Multi-agent pipeline with repository pattern
 
 ---
 
-## 10. High-Level Roadmap
+## 11. Team and Background
 
-| Phase | Timeline | Milestone |
-|-------|----------|-----------|
-| **Foundation** | Weeks 1–3 | Infrastructure, scanning, data services operational |
-| **Agent Pipeline** | Weeks 3–5 | Full agent deliberation, auto-suggestions, pipeline execution |
-| **HITL + Reports + UI** | Weeks 5–7 | Human approval workflow, report generation, interactive frontend |
-| **Demo Polish** | Weeks 7–9 | Multi-language output, white-label branding, onboarding wizard, admin panel |
-| **Production** | Weeks 9–12 | Security hardening, multi-channel distribution, self-hosted deployment option |
+**WordwideFX** was founded in 2010-2011 in Barcelona. 15+ years of specialized financial translation:
 
-**Target: demo-ready product in 9 weeks, paying clients in 12 weeks.**
+- Deep domain expertise in financial terminology and compliance language
+- Client relationships with 100+ financial institutions (OANDA, Goldman Sachs, Alpari, AXIORY, ThinkMarkets)
+- Regulatory compliance experience across MiFID II, SEC, FCA, ASIC, MAS
+- The team that built FinFlow has been living in the gap between financial content quality expectations and delivery reality for over a decade
 
 ---
 
-## 11. What We're NOT Doing
+## 12. Risks and Limitations
+
+**Honest assessment of where we are:**
+
+| Risk | Status | Mitigation |
+|------|--------|------------|
+| **Only 1 language tested (ES)** | Benchmarks are Spanish only. Other language pairs are untested. | Expanding to PT, FR, AR in next phase. Architecture is language-agnostic. |
+| **HITL learning loop is a hypothesis** | The 100%-to-10% automation curve is projected, not measured. We believe it based on 15 years of translator feedback patterns, but we have not run a 12-month client engagement yet. | Pilot with Tier1FX will produce real data within 3-6 months. |
+| **LLM dependency** | Core pipeline depends on Anthropic/OpenAI APIs. Pricing and capability changes are outside our control. | Model-agnostic routing layer. Can switch providers per task. Cost per doc ($2.81) has headroom at current pricing. |
+| **Market timing** | Incumbents (FXStreet, TradingCentral) could build similar capabilities. | They have the content but not the quality scoring engine or client-level personalization infrastructure. Their business model (sell the same content to everyone) conflicts with per-client customization. |
+| **Scoring engine limitations** | 7/13 metrics are LLM-judged. While variance is measured and small (max 3 points), they are not deterministic. | Transparent reporting: clients see which metrics are deterministic and which are LLM-judged. Drift is logged per run. |
+| **Scale is unproven** | Pipeline tested on individual documents, not 50 documents/day sustained throughput. | Architecture supports horizontal scaling. Load testing planned for pilot phase. |
+
+---
+
+## 13. What We're NOT Doing
 
 - Not competing on price with generic AI content (race to the bottom)
-- Not building a general-purpose translation tool (financial-only)
-- Not removing humans entirely (HITL is a feature — clients trust it)
+- Not building a general-purpose translation tool (financial content only)
+- Not removing humans entirely (HITL is a feature, not a bug — clients trust it, and it builds the moat)
 - Not trying to replace Bloomberg (we augment data sources, not replace them)
 - Not building for consumers (B2B only, broker/institutional focus)
+- Not claiming 40+ languages on day one (we have 1 language benchmarked, expanding methodically)
 
 ---
 
