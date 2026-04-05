@@ -20,9 +20,12 @@ import { analyzeComparison } from "./comparison-agent.js";
 import type { DocumentPair, ComparisonResult, MetricDelta } from "./types.js";
 import type { Scorecard } from "../scoring/scorecard.js";
 
+export type GenericTranslator = (sourceText: string, language: string) => Promise<string>;
+
 export interface RunComparisonOptions {
   skipAiTranslation?: boolean;
   compareGeneric?: boolean;
+  genericTranslator?: GenericTranslator;
   onProgress?: (message: string) => void;
 }
 
@@ -35,7 +38,7 @@ export async function runComparison(
   profileStore: ProfileStore,
   options: RunComparisonOptions = {},
 ): Promise<ComparisonResult> {
-  const { skipAiTranslation, compareGeneric, onProgress } = options;
+  const { skipAiTranslation, compareGeneric, genericTranslator, onProgress } = options;
 
   // 1. Read documents
   onProgress?.(`  Reading ${pair.reportId}...`);
@@ -95,14 +98,19 @@ export async function runComparison(
   if (compareGeneric) {
     onProgress?.(`  Running generic LLM translation for ${pair.reportId}...`);
     const genericStart = Date.now();
-    const { text } = await callAgentWithUsage(
-      "opus",
-      "You are a professional financial translator. Translate to Spanish (es-ES).",
-      `Translate the following financial document:\n${sourceText}`,
-      8192,
-      0,
-    );
-    genericTranslation = text;
+
+    if (genericTranslator) {
+      genericTranslation = await genericTranslator(sourceText, pair.language);
+    } else {
+      const { text } = await callAgentWithUsage(
+        "opus",
+        "You are a professional financial translator. Translate to Spanish (es-ES).",
+        `Translate the following financial document:\n${sourceText}`,
+        8192,
+        0,
+      );
+      genericTranslation = text;
+    }
 
     onProgress?.(`  Scoring generic translation...`);
     genericScorecard = await scoreTranslation(

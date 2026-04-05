@@ -19,6 +19,8 @@ export interface BenchmarkConfig {
   brandJson?: string;
   glossaryJson?: string;
   compareGeneric?: boolean;
+  compareGenericRatio?: number;
+  compareGenericProvider?: "opus" | "openai";
   exportCsv?: boolean;
 }
 

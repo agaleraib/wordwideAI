@@ -23,7 +23,7 @@ import { ClientProfileSchema } from "../profiles/types.js";
 import { extractProfile } from "../agents/profile-extraction-agent.js";
 import { mergeProfile } from "./profile-merge.js";
 import { discoverDocumentPairs, readDocument } from "./docx-reader.js";
-import { runComparison } from "./runner.js";
+import { runComparison, type GenericTranslator } from "./runner.js";
 import { aggregateResults, formatAggregateReport } from "./aggregation.js";
 import { formatDocumentReport } from "./report.js";
 import { exportMetricsCSV, exportSummaryCSV } from "./csv-export.js";
@@ -73,6 +73,8 @@ function parseArgs(): BenchmarkConfig {
     console.error("  --skip-ai         Skip AI translation, only score human");
     console.error("  --export-csv      Export metrics and summary as CSV files");
     console.error("  --compare-generic Run unconstrained generic LLM translation for comparison");
+    console.error("  --generic-ratio N Compare generic on 1 out of every N docs (default: 5)");
+    console.error("  --generic-provider opus|openai  Provider for generic translation (default: opus)");
     process.exit(1);
   }
 
@@ -89,6 +91,8 @@ function parseArgs(): BenchmarkConfig {
     skipAiTranslation: flags.has("skip-ai"),
     exportCsv: flags.has("export-csv"),
     compareGeneric: flags.has("compare-generic"),
+    compareGenericRatio: config["generic-ratio"] ? parseInt(config["generic-ratio"], 10) : 5,
+    compareGenericProvider: (config["generic-provider"] as "opus" | "openai") ?? "opus",
   };
 }
 
@@ -183,7 +187,7 @@ async function main() {
   console.log(`  Language:  ${config.language}`);
   console.log(`  Output:   ${config.outputDir}`);
   console.log(`  Skip AI:  ${config.skipAiTranslation ? "yes" : "no"}`);
-  console.log(`  Generic:  ${config.compareGeneric ? "yes" : "no"}`);
+  console.log(`  Generic:  ${config.compareGeneric ? `yes (1 in ${config.compareGenericRatio ?? 5}, ${config.compareGenericProvider ?? "opus"})` : "no"}`);
   console.log("");
 
   // Setup
@@ -213,19 +217,67 @@ async function main() {
     mkdirSync(comparisonsDir, { recursive: true });
   }
 
+  // Build generic translator if needed
+  let genericTranslator: GenericTranslator | undefined;
+  if (config.compareGeneric && config.compareGenericProvider === "openai") {
+    const openaiKey = process.env["OPENAI_API_KEY"];
+    if (!openaiKey) {
+      console.error("Error: --generic-provider openai requires OPENAI_API_KEY in environment");
+      process.exit(1);
+    }
+    genericTranslator = async (sourceText: string, language: string) => {
+      const langNames: Record<string, string> = { es: "Spanish", de: "German", fr: "French", pt: "Portuguese", ar: "Arabic", zh: "Chinese", it: "Italian", ko: "Korean", ja: "Japanese" };
+      const langName = langNames[language] ?? language;
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          temperature: 0,
+          messages: [
+            { role: "system", content: `You are a professional financial translator. Translate to ${langName} (${language}-ES).` },
+            { role: "user", content: `Translate the following financial document:\n${sourceText}` },
+          ],
+        }),
+      });
+      const data = await response.json() as { choices: Array<{ message: { content: string } }> };
+      return data.choices[0]?.message?.content ?? "";
+    };
+    console.log("  Generic provider: OpenAI (gpt-4o)");
+  }
+
+  // Randomly select which docs get generic comparison (1 in N)
+  const genericRatio = config.compareGenericRatio ?? 5;
+  const genericIndices = new Set<number>();
+  if (config.compareGeneric && pairs.length > 0) {
+    // Pick random indices, at least 1
+    const count = Math.max(1, Math.ceil(pairs.length / genericRatio));
+    const shuffled = [...Array(pairs.length).keys()].sort(() => Math.random() - 0.5);
+    for (let j = 0; j < count; j++) {
+      genericIndices.add(shuffled[j]!);
+    }
+    console.log(`  Generic comparison on ${genericIndices.size}/${pairs.length} docs (ratio 1:${genericRatio})`);
+  }
+  console.log("");
+
   // Run comparisons
   const results: ComparisonResult[] = [];
   const startTime = Date.now();
 
   for (const [i, pair] of pairs.entries()) {
+    const runGenericForThis = genericIndices.has(i);
     console.log(
-      `[${i + 1}/${pairs.length}] ${pair.reportId} (${config.language})`,
+      `[${i + 1}/${pairs.length}] ${pair.reportId} (${config.language})${runGenericForThis ? " [+generic]" : ""}`,
     );
 
     try {
       const result = await runComparison(pair, profile, profileStore, {
         skipAiTranslation: config.skipAiTranslation,
-        compareGeneric: config.compareGeneric,
+        compareGeneric: runGenericForThis,
+        genericTranslator,
         onProgress: (msg) => console.log(msg),
       });
 
