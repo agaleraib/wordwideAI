@@ -46,6 +46,10 @@ interface ValidatedTerm {
   backTranslationMatch: boolean;
   domainValid?: boolean;
   flag?: string;
+  /** All alternative translations found across documents (before validation) */
+  rawAlternatives: Array<{ es: string; count: number }>;
+  /** Validated synonyms — alternatives that passed back-translation */
+  validSynonyms: string[];
 }
 
 // --- Per-document extraction (Haiku) ---
@@ -177,10 +181,12 @@ function selectBestTranslations(
     const consistency = bestCount / freq.docsWithTerm;
     if (consistency < minConsistency) continue;
 
-    const alternatives = [...freq.translations.entries()]
+    const rawAlternatives = [...freq.translations.entries()]
       .filter(([es]) => es !== bestEs)
       .sort(([, a], [, b]) => b - a)
-      .map(([es, count]) => `${es} (${count}x)`);
+      .map(([es, count]) => ({ es, count }));
+
+    const altDisplay = rawAlternatives.map((a) => `${a.es} (${a.count}x)`);
 
     results.push({
       en: freq.en,
@@ -189,8 +195,10 @@ function selectBestTranslations(
       totalDocs: freq.docsWithTerm,
       consistency,
       backTranslationMatch: false, // filled later
-      flag: alternatives.length > 0
-        ? `Alternatives: ${alternatives.join(", ")}`
+      rawAlternatives,
+      validSynonyms: [], // filled by validateSynonyms()
+      flag: altDisplay.length > 0
+        ? `Alternatives: ${altDisplay.join(", ")}`
         : undefined,
     });
   }
@@ -237,6 +245,69 @@ async function backTranslateTerms(
       }
     }
   }
+}
+
+// --- Synonym validation ---
+
+async function validateSynonyms(
+  terms: ValidatedTerm[],
+): Promise<void> {
+  // Collect all alternatives that need validation
+  const toValidate: Array<{ termEn: string; altEs: string }> = [];
+  for (const t of terms) {
+    for (const alt of t.rawAlternatives) {
+      if (alt.es !== t.es) {
+        toValidate.push({ termEn: t.en, altEs: alt.es });
+      }
+    }
+  }
+
+  if (toValidate.length === 0) return;
+
+  // Back-translate all alternatives in one batch
+  const altList = toValidate.map((v) => `  "${v.altEs}" (Spanish, for English "${v.termEn}")`).join("\n");
+
+  const result = await callAgentWithUsage(
+    "haiku",
+    `You are a financial terminology translator. For each Spanish term below, translate it back to English. Return one line per term: "spanish term" → "english term"`,
+    `Translate these Spanish financial terms back to English:\n${altList}`,
+    4096,
+    0,
+  );
+
+  const lines = result.text.split("\n").filter((l) => l.includes("→"));
+
+  // Parse results and match to terms
+  for (const line of lines) {
+    const match = line.match(/"([^"]+)"\s*→\s*"([^"]+)"/);
+    if (!match) continue;
+    const [, es, backEn] = match;
+    if (!es || !backEn) continue;
+
+    // Find which term+alternative this belongs to
+    for (const v of toValidate) {
+      if (v.altEs.toLowerCase() === es.toLowerCase()) {
+        // Check if back-translation matches the English term
+        const matches =
+          backEn.toLowerCase().includes(v.termEn.toLowerCase()) ||
+          v.termEn.toLowerCase().includes(backEn.toLowerCase());
+
+        if (matches) {
+          // Valid synonym — add to the term
+          const term = terms.find((t) => t.en.toLowerCase() === v.termEn.toLowerCase());
+          if (term && !term.validSynonyms.includes(v.altEs)) {
+            term.validSynonyms.push(v.altEs);
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  // Log summary
+  let totalSynonyms = 0;
+  for (const t of terms) totalSynonyms += t.validSynonyms.length;
+  console.log(`  Validated ${totalSynonyms} synonyms across ${terms.filter((t) => t.validSynonyms.length > 0).length} terms`);
 }
 
 // --- Domain validation ---
@@ -362,8 +433,13 @@ async function main() {
   console.log(`  Mismatches: ${backMismatches.length}`);
   console.log("");
 
-  // Step 4: Domain validation (on flagged terms)
-  console.log("Step 4: Domain validation (Sonnet)...");
+  // Step 4: Synonym validation
+  console.log("Step 4: Synonym validation (Haiku)...");
+  await validateSynonyms(validated);
+  console.log("");
+
+  // Step 5: Domain validation (on flagged terms)
+  console.log("Step 5: Domain validation (Sonnet)...");
   await domainValidateTerms(validated);
   const domainInvalid = validated.filter((t) => t.domainValid === false);
   console.log(`  Invalid: ${domainInvalid.length}`);
@@ -382,11 +458,24 @@ async function main() {
   console.log(`  Flagged for review: ${flagged.length}`);
   console.log("");
 
-  // Build output glossary
+  // Build output glossary (primary terms only — for compliance checker)
   const glossary: Record<string, string> = {};
   for (const t of verified) {
     glossary[t.en] = t.es;
   }
+
+  // Build synonyms map (for enriched compliance checking)
+  const glossarySynonyms: Record<string, string[]> = {};
+  for (const t of verified) {
+    if (t.validSynonyms.length > 0) {
+      glossarySynonyms[t.en] = t.validSynonyms;
+    }
+  }
+
+  const totalSynonyms = Object.values(glossarySynonyms).reduce((s, arr) => s + arr.length, 0);
+  console.log(`  Terms with synonyms: ${Object.keys(glossarySynonyms).length}`);
+  console.log(`  Total validated synonyms: ${totalSynonyms}`);
+  console.log("");
 
   // Build output file
   const outputData = {
@@ -398,8 +487,11 @@ async function main() {
       uniqueTermsFound: termMap.size,
       verifiedTerms: verified.length,
       flaggedTerms: flagged.length,
+      termsWithSynonyms: Object.keys(glossarySynonyms).length,
+      totalSynonyms,
     },
     glossary,
+    glossarySynonyms,
     flaggedForReview: flagged.map((t) => ({
       en: t.en,
       es: t.es,

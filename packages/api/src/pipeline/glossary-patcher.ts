@@ -54,6 +54,7 @@ export function checkCompliance(
   sourceText: string,
   translation: string,
   glossary: Record<string, string>,
+  synonyms?: Record<string, string[]>,
 ): ComplianceResult {
   const sourceLower = sourceText.toLowerCase();
   const transLower = translation.toLowerCase();
@@ -63,8 +64,13 @@ export function checkCompliance(
   for (const [en, es] of Object.entries(glossary)) {
     if (en.startsWith("_")) continue;
     if (sourceLower.includes(en.toLowerCase())) {
+      // Check primary term
       if (transLower.includes(es.toLowerCase())) {
         matched.push({ en, es });
+      // Check synonyms
+      } else if (synonyms?.[en]?.some((syn) => transLower.includes(syn.toLowerCase()))) {
+        const matchedSyn = synonyms[en]!.find((syn) => transLower.includes(syn.toLowerCase()))!;
+        matched.push({ en, es: matchedSyn });
       } else {
         missed.push({ en, expected: es });
       }
@@ -404,6 +410,7 @@ export async function grammarMicroFix(
 
 export interface PatcherOptions {
   alternativesMap?: Record<string, string[]>;
+  synonyms?: Record<string, string[]>;
   locatorModel?: ModelTier;
   grammarModel?: ModelTier;
   confidenceThreshold?: number;
@@ -419,6 +426,7 @@ export async function enforceGlossary(
 ): Promise<PatcherResult> {
   const {
     alternativesMap,
+    synonyms,
     locatorModel = "haiku",
     grammarModel = "haiku",
     confidenceThreshold = 0.8,
@@ -428,8 +436,8 @@ export async function enforceGlossary(
   let totalIn = 0;
   let totalOut = 0;
 
-  // Compliance before
-  const before = checkCompliance(sourceText, translation, glossary);
+  // Compliance before (with synonyms)
+  const before = checkCompliance(sourceText, translation, glossary, synonyms);
   const allReplacements: PatcherResult["replacements"] = [];
   const hitlTerms: PatcherResult["hitlTerms"] = [];
 
@@ -523,7 +531,7 @@ export async function enforceGlossary(
   }
 
   // Compliance after
-  const after = checkCompliance(sourceText, currentText, glossary);
+  const after = checkCompliance(sourceText, currentText, glossary, synonyms);
 
   return {
     correctedText: currentText,

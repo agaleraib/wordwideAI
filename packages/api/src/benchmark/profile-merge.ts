@@ -22,15 +22,31 @@ interface GlossaryFile {
   language: string;
   regionalVariant: string;
   glossary: Record<string, string>;
+  glossarySynonyms?: Record<string, string[]>;
   scoring: Record<string, unknown>;
   /** Optional per-language tone overrides (e.g. passiveVoiceTargetPct for Spanish) */
   toneOverrides?: Record<string, unknown>;
 }
 
+export interface MergedProfile {
+  profile: ClientProfile;
+  synonyms: Record<string, string[]>;
+}
+
 export async function mergeProfile(
   brandPath: string,
   glossaryPath: string,
-): Promise<ClientProfile> {
+): Promise<ClientProfile>;
+export async function mergeProfile(
+  brandPath: string,
+  glossaryPath: string,
+  opts: { withSynonyms: true },
+): Promise<MergedProfile>;
+export async function mergeProfile(
+  brandPath: string,
+  glossaryPath: string,
+  opts?: { withSynonyms?: boolean },
+): Promise<ClientProfile | MergedProfile> {
   const brand: BrandFile = await Bun.file(brandPath).json();
   const glossary: GlossaryFile = await Bun.file(glossaryPath).json();
 
@@ -59,5 +75,8 @@ export async function mergeProfile(
     },
   });
 
+  if (opts?.withSynonyms) {
+    return { profile, synonyms: glossary.glossarySynonyms ?? {} };
+  }
   return profile;
 }

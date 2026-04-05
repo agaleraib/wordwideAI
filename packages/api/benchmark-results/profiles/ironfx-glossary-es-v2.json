@@ -4,124 +4,190 @@
   "extractionMethod": "v2-frequency-validated",
   "stats": {
     "documentPairs": 30,
-    "uniqueTermsFound": 565,
-    "verifiedTerms": 113,
-    "flaggedTerms": 73
+    "uniqueTermsFound": 541,
+    "verifiedTerms": 109,
+    "flaggedTerms": 71,
+    "termsWithSynonyms": 20,
+    "totalSynonyms": 23
   },
   "glossary": {
+    "deflation": "deflación",
     "labor market": "mercado laboral",
     "resistance": "resistencia",
-    "deflation": "deflación",
     "rsi": "rsi",
     "macd": "macd",
     "ECB": "bce",
-    "CPI": "ipc",
+    "cpi": "ipc",
     "unemployment rate": "tasa de paro",
     "retail sales": "ventas minoristas",
-    "negative divergence": "divergencia negativa",
-    "collateral": "garantías",
-    "bullish implications": "implicaciones alcistas",
+    "industrial production": "producción industrial",
     "PMI": "pmi",
+    "collateral": "garantías",
     "inflation": "inflación",
     "GDP": "pib",
-    "eur/usd": "eur/usd",
-    "Riksbank": "riksbank",
-    "Eurozone": "eurozona",
-    "Bank of England": "banco de inglaterra",
-    "inflation expectations": "expectativas de inflación",
-    "resistance line": "línea de resistencia",
-    "signal line": "línea de señal",
+    "negative divergence": "divergencia negativa",
+    "daily chart": "gráfico diario",
     "Norges Bank": "banco de noruega",
-    "aud": "aud",
-    "reserve bank of australia": "banco de la reserva de australia",
+    "Riksbank": "riksbank",
+    "inflation expectations": "expectativas de inflación",
+    "bullish implications": "implicaciones alcistas",
+    "Eurozone": "eurozona",
     "price action": "acción del precio",
+    "Bank of England": "banco de inglaterra",
+    "reserve bank of australia": "banco de la reserva de australia",
+    "moving average": "media móvil",
+    "signal line": "línea de señal",
     "FOMC": "fomc",
     "ELA": "ela",
-    "momentum": "impulso",
-    "positive divergence": "divergencia positiva",
+    "ECB President": "presidente del bce",
+    "Fed Chair": "presidenta de la fed",
+    "BoE": "boe",
     "trend reversal": "inversión de la tendencia",
     "FOMC minutes": "actas del fomc",
+    "resistance line": "línea de resistencia",
     "selling pressure": "presión vendedora",
-    "daily chart": "gráfico diario",
     "core cpi": "ipc básico",
-    "moving averages": "medias móviles",
-    "overbought": "sobrecomprado",
+    "aud": "aud",
+    "divergence": "divergencia",
     "Fed": "fed",
+    "overbought territory": "territorio de sobrecompra",
     "IMF": "fmi",
     "Reserve Bank of New Zealand": "banco de la reserva de nueva zelanda",
-    "Fed Chair": "presidenta de la fed",
+    "EUR/USD": "eur/usd",
+    "higher low": "mínimo más alto",
     "average weekly earnings": "salario semanal medio",
     "PPI": "ipp",
     "JOLTS": "jolts",
-    "ECB President": "presidente del bce",
-    "Bank of Canada": "banco de canadá",
     "higher high": "máximo más alto",
     "housing starts": "inicios de construcción",
     "building permits": "licencias de construcción",
     "existing home sales": "ventas de casas usadas",
-    "lower low": "mínimo más bajo",
-    "S1": "s1",
-    "R1": "r1",
-    "R2": "r2",
+    "short-term oscillators": "osciladores a corto plazo",
+    "positive divergence": "divergencia positiva",
     "boj": "boj",
-    "gbp/jpy": "gbp/jpy",
-    "nzd/usd": "nzd/usd",
-    "implied volatility": "volatilidad implícita",
-    "private sector": "sector privado",
     "average hourly earnings": "salario medio por hora",
     "long positions": "posiciones largas",
     "short positions": "posiciones cortas",
-    "liquidity": "liquidez",
+    "FX market": "mercado fx",
     "employment report": "informe de empleo",
-    "market consensus": "consenso del mercado",
     "commodity prices": "precios de las materias primas",
     "participation rate": "tasa de participación",
     "support line": "línea de soporte",
+    "Riksbank Governor": "gobernador del riksbank",
     "economic growth": "crecimiento económico",
     "exit polls": "sondeos a pie de urna",
     "growth forecast": "previsión de crecimiento",
     "stimulus measures": "medidas de estímulo",
+    "quarterly inflation report": "informe trimestral de inflación",
     "economic data": "datos económicos",
+    "central bank": "banco central",
     "momentum indicators": "indicadores de impulso",
-    "overbought territory": "territorio de sobrecompra",
     "medium-term outlook": "perspectiva a medio plazo",
     "bearish extensions": "extensiones bajistas",
+    "moving averages": "medias móviles",
     "deflationary pressures": "presión deflacionaria",
-    "short-term uptrend": "tendencia ascendente a corto plazo",
-    "psychological zone": "zona psicológica",
     "Bank of Japan": "banco de japón",
-    "moving average": "media móvil",
+    "FOMC meeting": "reunión del fomc",
+    "Bank of Canada": "banco de canadá",
     "inflation rate": "tasa de inflación",
     "expansionary territory": "territorio expansionista",
-    "BoE": "boe",
-    "Q2": "2t",
-    "inflation target": "objetivo de inflación",
+    "S1": "s1",
+    "R1": "r1",
+    "R2": "r2",
     "long-term uptrend": "tendencia ascendente a largo plazo",
-    "short-term oscillators": "osciladores a corto plazo",
-    "200-day moving average": "media móvil de 200 días",
-    "R3": "r3",
-    "S2": "s2",
-    "S3": "s3",
+    "bulls": "alcistas",
+    "lower low": "mínimo más bajo",
+    "pips": "pips",
     "DAX futures": "futuros del dax",
-    "support": "soporte",
+    "expectations index": "índice de expectativas",
     "oscillators": "osciladores",
     "rate hike": "subida de tipos",
-    "industrial production": "producción industrial",
-    "double bottom": "doble suelo",
+    "support": "soporte",
+    "rate cut": "bajada de tipos",
     "interest rates": "tipos de interés",
-    "trigger line": "línea de activación",
+    "momentum": "impulso",
+    "double bottom": "doble suelo",
     "RBA": "rba",
     "monetary policy": "política monetaria",
-    "rate cut": "bajada de tipos",
+    "trigger line": "línea de activación",
     "ZEW survey": "encuesta zew",
     "corrective move": "movimiento corrector",
-    "bullish": "alcista",
+    "overbought": "sobrecomprado",
     "ADP report": "informe adp",
+    "raise rates": "subir los tipos",
     "wage growth": "subida de salarios",
     "Q1 GDP": "pib del 1t",
     "G10 currencies": "divisas del g10",
     "support barrier": "barrera de soporte",
     "RBNZ": "rbnz"
+  },
+  "glossarySynonyms": {
+    "unemployment rate": [
+      "tasa oficial de paro"
+    ],
+    "rate hike": [
+      "subida de tipos de interés"
+    ],
+    "support": [
+      "barrera de soporte"
+    ],
+    "interest rates": [
+      "tipo de interés"
+    ],
+    "double bottom": [
+      "doble fondo"
+    ],
+    "RBA": [
+      "banco de la reserva de australia"
+    ],
+    "monetary policy": [
+      "políticas monetarias"
+    ],
+    "trigger line": [
+      "línea de disparo",
+      "activador"
+    ],
+    "ZEW survey": [
+      "encuesta alemana zew"
+    ],
+    "corrective move": [
+      "movimiento correctivo"
+    ],
+    "ADP report": [
+      "informe de adp"
+    ],
+    "raise rates": [
+      "subir los tipos de interés",
+      "subir tipos"
+    ],
+    "wage growth": [
+      "crecimiento de los salarios"
+    ],
+    "G10 currencies": [
+      "equivalentes del g10"
+    ],
+    "overbought": [
+      "sobrecompra",
+      "zona de sobrecompra"
+    ],
+    "overbought territory": [
+      "zona de sobrecompra"
+    ],
+    "trend reversal": [
+      "cambio de tendencia",
+      "giro de tendencia"
+    ],
+    "central bank": [
+      "bancos centrales"
+    ],
+    "PPI": [
+      "índice de precios de producción",
+      "precios de producción"
+    ],
+    "FX market": [
+      "mercado de divisas",
+      "mercado cambiario"
+    ]
   },
   "flaggedForReview": [
     {
@@ -130,7 +196,7 @@
       "frequency": "10/9",
       "consistency": "111%",
       "backTranslation": "industrial PMI",
-      "flag": "BACK-TRANSLATION MISMATCH: \"pmi industrial\" → \"industrial PMI\" (expected \"manufacturing PMI\") | DOMAIN: \"manufacturing PMI\" → \"pmi industrial\": ACCEPTABLE — \"PMI manufacturero\" is more standard"
+      "flag": "Alternatives: pmi de producción industrial (1x) | BACK-TRANSLATION MISMATCH: \"pmi industrial\" → \"industrial PMI\" (expected \"manufacturing PMI\") | DOMAIN: \"manufacturing PMI\" → \"pmi industrial\": ACCEPTABLE (more common: \"PMI manufacturero\")"
     },
     {
       "en": "greenback",
@@ -138,7 +204,7 @@
       "frequency": "10/10",
       "consistency": "100%",
       "backTranslation": "dollar",
-      "flag": "BACK-TRANSLATION MISMATCH: \"dólar\" → \"dollar\" (expected \"greenback\")"
+      "flag": "BACK-TRANSLATION MISMATCH: \"dólar\" → \"dollar\" (expected \"greenback\") | DOMAIN: \"greenback\" → \"dólar\": ACCEPTABLE (more common: \"billete verde\")"
     },
     {
       "en": "easing bias",
@@ -149,20 +215,20 @@
       "flag": "BACK-TRANSLATION MISMATCH: \"sesgo expansionista\" → \"expansionary bias\" (expected \"easing bias\")"
     },
     {
+      "en": "service-sector PMI",
+      "es": "pmi de servicios",
+      "frequency": "7/7",
+      "consistency": "100%",
+      "backTranslation": "services PMI",
+      "flag": "BACK-TRANSLATION MISMATCH: \"pmi de servicios\" → \"services PMI\" (expected \"service-sector PMI\")"
+    },
+    {
       "en": "G10 counterparts",
       "es": "equivalentes del g10",
       "frequency": "7/7",
       "consistency": "100%",
       "backTranslation": "G10 equivalents",
-      "flag": "BACK-TRANSLATION MISMATCH: \"equivalentes del g10\" → \"G10 equivalents\" (expected \"G10 counterparts\") | BACK-TRANSLATION MISMATCH: \"equivalentes del g10\" → \"G10 equivalents\" (expected \"G10 counterparts\") | DOMAIN: \"G10 counterparts\" → \"equivalentes del g10\": WRONG: \"homólogos del G10\" or \"pares del G10\" | DOMAIN: \"G10 peers\" → \"equivalentes del g10\": WRONG: \"homólogos del G10\" or \"pares del G10\""
-    },
-    {
-      "en": "service-sector PMI",
-      "es": "pmi de servicios",
-      "frequency": "6/6",
-      "consistency": "100%",
-      "backTranslation": "services PMI",
-      "flag": "BACK-TRANSLATION MISMATCH: \"pmi de servicios\" → \"services PMI\" (expected \"service-sector PMI\")"
+      "flag": "BACK-TRANSLATION MISMATCH: \"equivalentes del g10\" → \"G10 equivalents\" (expected \"G10 counterparts\") | BACK-TRANSLATION MISMATCH: \"equivalentes del g10\" → \"G10 equivalents\" (expected \"G10 counterparts\") | DOMAIN: \"G10 counterparts\" → \"equivalentes del g10\": WRONG: \"homólogos del G10\" | DOMAIN: \"G10 peers\" → \"equivalentes del g10\": WRONG: \"homólogos del G10\""
     },
     {
       "en": "nonfarm payrolls",
@@ -170,15 +236,31 @@
       "frequency": "5/5",
       "consistency": "100%",
       "backTranslation": "NFP",
-      "flag": "BACK-TRANSLATION MISMATCH: \"nfp\" → \"NFP\" (expected \"nonfarm payrolls\") | BACK-TRANSLATION MISMATCH: \"nfp\" → \"NFP\" (expected \"nonfarm payrolls\") | DOMAIN: \"nonfarm payrolls\" → \"nfp\": WRONG: \"nóminas no agrícolas\""
+      "flag": "BACK-TRANSLATION MISMATCH: \"nfp\" → \"NFP\" (expected \"nonfarm payrolls\") | BACK-TRANSLATION MISMATCH: \"nfp\" → \"NFP\" (expected \"nonfarm payrolls\") | DOMAIN: \"nonfarm payrolls\" → \"nfp\": ACCEPTABLE (more common: \"nóminas no agrícolas\")"
     },
     {
-      "en": "initial jobless claims",
-      "es": "solicitudes de subsidio de desempleo",
-      "frequency": "4/4",
+      "en": "pullback",
+      "es": "retroceso",
+      "frequency": "5/5",
       "consistency": "100%",
-      "backTranslation": "unemployment benefit claims",
-      "flag": "BACK-TRANSLATION MISMATCH: \"solicitudes de subsidio de desempleo\" → \"unemployment benefit claims\" (expected \"initial jobless claims\") | BACK-TRANSLATION MISMATCH: \"solicitudes de subsidio de desempleo\" → \"unemployment benefit claims\" (expected \"initial jobless claims\") | DOMAIN: \"initial jobless claims\" → \"solicitudes de subsidio de desempleo\": ACCEPTABLE — \"solicitudes iniciales de subsidio por desempleo\" is more precise"
+      "backTranslation": "drawdown",
+      "flag": "BACK-TRANSLATION MISMATCH: \"retroceso\" → \"retracement\" (expected \"pullback\") | BACK-TRANSLATION MISMATCH: \"retroceso\" → \"drawdown\" (expected \"pullback\") | DOMAIN: \"retracement level\" → \"retroceso\": ACCEPTABLE (more precise: \"nivel de retroceso\")"
+    },
+    {
+      "en": "yoy",
+      "es": "interanual",
+      "frequency": "5/5",
+      "consistency": "100%",
+      "backTranslation": "year-over-year",
+      "flag": "BACK-TRANSLATION MISMATCH: \"interanual\" → \"year-over-year\" (expected \"yoy\")"
+    },
+    {
+      "en": "4-hour chart",
+      "es": "gráfico de cuatro horas",
+      "frequency": "5/5",
+      "consistency": "100%",
+      "backTranslation": "four-hour chart",
+      "flag": "BACK-TRANSLATION MISMATCH: \"gráfico de cuatro horas\" → \"four-hour chart\" (expected \"4-hour chart\")"
     },
     {
       "en": "basis points",
@@ -189,28 +271,36 @@
       "flag": "BACK-TRANSLATION MISMATCH: \"pb\" → \"P/B\" (expected \"basis points\") | BACK-TRANSLATION MISMATCH: \"pb\" → \"P/B\" (expected \"basis points\")"
     },
     {
-      "en": "pullback",
-      "es": "retroceso",
+      "en": "short-term picture",
+      "es": "perspectiva a corto plazo",
       "frequency": "4/4",
       "consistency": "100%",
-      "backTranslation": "retracement",
-      "flag": "BACK-TRANSLATION MISMATCH: \"retroceso\" → \"retracement\" (expected \"pullback\") | DOMAIN: \"retracement level\" → \"retroceso\": ACCEPTABLE — \"nivel de retroceso\" is more precise"
+      "backTranslation": "short-term perspective",
+      "flag": "BACK-TRANSLATION MISMATCH: \"perspectiva a corto plazo\" → \"short-term outlook\" (expected \"short-term picture\") | BACK-TRANSLATION MISMATCH: \"perspectiva a corto plazo\" → \"short-term perspective\" (expected \"short-term picture\")"
+    },
+    {
+      "en": "MPC",
+      "es": "cpm",
+      "frequency": "4/4",
+      "consistency": "100%",
+      "backTranslation": "CPM",
+      "flag": "BACK-TRANSLATION MISMATCH: \"cpm\" → \"CPM\" (expected \"MPC\") | DOMAIN: \"MPC\" → \"cpm\": WRONG: \"MPC\" (Monetary Policy Committee — acronym kept in English in Spanish financial press)"
     },
     {
       "en": "qoq",
       "es": "intertrimestral",
       "frequency": "4/4",
       "consistency": "100%",
-      "backTranslation": "quarter-on-quarter",
-      "flag": "BACK-TRANSLATION MISMATCH: \"intertrimestral\" → \"quarter-on-quarter\" (expected \"qoq\")"
+      "backTranslation": "quarter-over-quarter",
+      "flag": "BACK-TRANSLATION MISMATCH: \"intertrimestral\" → \"quarter-over-quarter\" (expected \"qoq\")"
     },
     {
-      "en": "yoy",
-      "es": "interanual",
-      "frequency": "4/4",
+      "en": "initial jobless claims",
+      "es": "solicitudes de subsidio de desempleo",
+      "frequency": "3/3",
       "consistency": "100%",
-      "backTranslation": "year-on-year",
-      "flag": "BACK-TRANSLATION MISMATCH: \"interanual\" → \"year-on-year\" (expected \"yoy\")"
+      "backTranslation": "unemployment claims",
+      "flag": "BACK-TRANSLATION MISMATCH: \"solicitudes de subsidio de desempleo\" → \"unemployment claims\" (expected \"initial jobless claims\") | BACK-TRANSLATION MISMATCH: \"solicitudes de subsidio de desempleo\" → \"unemployment claims\" (expected \"initial jobless claims\")"
     },
     {
       "en": "employment cost index",
@@ -221,18 +311,20 @@
       "flag": "BACK-TRANSLATION MISMATCH: \"índice de costes laborales\" → \"labor cost index\" (expected \"employment cost index\")"
     },
     {
-      "en": "bps",
-      "es": "pb",
-      "frequency": "3/3",
-      "consistency": "100%"
-    },
-    {
-      "en": "short-term picture",
-      "es": "perspectiva a corto plazo",
+      "en": "break above",
+      "es": "irrupción por encima",
       "frequency": "3/3",
       "consistency": "100%",
-      "backTranslation": "short-term outlook",
-      "flag": "BACK-TRANSLATION MISMATCH: \"perspectiva a corto plazo\" → \"short-term outlook\" (expected \"short-term picture\") | BACK-TRANSLATION MISMATCH: \"perspectiva a corto plazo\" → \"short-term outlook\" (expected \"short-term picture\")"
+      "backTranslation": "breakout above",
+      "flag": "BACK-TRANSLATION MISMATCH: \"irrupción por encima\" → \"breakout above\" (expected \"break above\") | DOMAIN: \"break above\" → \"irrupción por encima\": ACCEPTABLE (more common: \"ruptura al alza\")"
+    },
+    {
+      "en": "Fed President",
+      "es": "presidente de la fed",
+      "frequency": "3/3",
+      "consistency": "100%",
+      "backTranslation": "Fed Chair",
+      "flag": "BACK-TRANSLATION MISMATCH: \"presidente de la fed\" → \"Fed Chair\" (expected \"Fed President\")"
     },
     {
       "en": "housing market",
@@ -241,22 +333,6 @@
       "consistency": "100%",
       "backTranslation": "real estate market",
       "flag": "BACK-TRANSLATION MISMATCH: \"mercado inmobiliario\" → \"real estate market\" (expected \"housing market\")"
-    },
-    {
-      "en": "MPC",
-      "es": "cpm",
-      "frequency": "3/3",
-      "consistency": "100%",
-      "backTranslation": "CPM",
-      "flag": "BACK-TRANSLATION MISMATCH: \"cpm\" → \"CPM\" (expected \"MPC\") | DOMAIN: \"MPC\" → \"cpm\": WRONG: \"CPM\" is rarely used; standard is \"MPC\" or \"Comité de Política Monetaria\""
-    },
-    {
-      "en": "4-hour chart",
-      "es": "gráfico de cuatro horas",
-      "frequency": "3/3",
-      "consistency": "100%",
-      "backTranslation": "four-hour chart",
-      "flag": "BACK-TRANSLATION MISMATCH: \"gráfico de cuatro horas\" → \"four-hour chart\" (expected \"4-hour chart\")"
     },
     {
       "en": "retracement level",
@@ -282,31 +358,13 @@
       "frequency": "2/2",
       "consistency": "100%",
       "backTranslation": "cost of money",
-      "flag": "BACK-TRANSLATION MISMATCH: \"precio del dinero\" → \"cost of money\" (expected \"cash rate\") | DOMAIN: \"cash rate\" → \"precio del dinero\": ACCEPTABLE — \"tipo de interés de referencia\" is more standard"
+      "flag": "BACK-TRANSLATION MISMATCH: \"precio del dinero\" → \"cost of money\" (expected \"cash rate\") | DOMAIN: \"cash rate\" → \"precio del dinero\": ACCEPTABLE (more common: \"tipo de interés oficial\")"
     },
     {
-      "en": "factory orders",
-      "es": "pedidos industriales",
+      "en": "bps",
+      "es": "pb",
       "frequency": "2/2",
-      "consistency": "100%",
-      "backTranslation": "industrial orders",
-      "flag": "BACK-TRANSLATION MISMATCH: \"pedidos industriales\" → \"industrial orders\" (expected \"factory orders\")"
-    },
-    {
-      "en": "USD-bullish",
-      "es": "alcista para el dólar",
-      "frequency": "2/2",
-      "consistency": "100%",
-      "backTranslation": "dollar bullish",
-      "flag": "BACK-TRANSLATION MISMATCH: \"alcista para el dólar\" → \"dollar bullish\" (expected \"USD-bullish\")"
-    },
-    {
-      "en": "Brent crude oil",
-      "es": "barril de brent",
-      "frequency": "2/2",
-      "consistency": "100%",
-      "backTranslation": "barrel of Brent",
-      "flag": "BACK-TRANSLATION MISMATCH: \"barril de brent\" → \"barrel of Brent\" (expected \"Brent crude oil\") | DOMAIN: \"Brent crude oil\" → \"barril de brent\": ACCEPTABLE — \"crudo Brent\" is more standard"
+      "consistency": "100%"
     },
     {
       "en": "rally",
@@ -314,15 +372,13 @@
       "frequency": "2/2",
       "consistency": "100%",
       "backTranslation": "escalation",
-      "flag": "BACK-TRANSLATION MISMATCH: \"escalada\" → \"escalation\" (expected \"rally\") | DOMAIN: \"rally\" → \"escalada\": ACCEPTABLE — \"rally\" or \"repunte\" are more commonly used"
+      "flag": "BACK-TRANSLATION MISMATCH: \"escalada\" → \"escalation\" (expected \"rally\") | DOMAIN: \"rally\" → \"escalada\": ACCEPTABLE (more common: \"rally\" or \"repunte\")"
     },
     {
-      "en": "neutral stance",
-      "es": "posición neutra",
+      "en": "retracement",
+      "es": "retroceso",
       "frequency": "2/2",
-      "consistency": "100%",
-      "backTranslation": "neutral position",
-      "flag": "BACK-TRANSLATION MISMATCH: \"posición neutra\" → \"neutral position\" (expected \"neutral stance\")"
+      "consistency": "100%"
     },
     {
       "en": "inventories",
@@ -330,7 +386,7 @@
       "frequency": "2/2",
       "consistency": "100%",
       "backTranslation": "stocks",
-      "flag": "BACK-TRANSLATION MISMATCH: \"stocks\" → \"stocks\" (expected \"inventories\") | DOMAIN: \"inventories\" → \"stocks\": ACCEPTABLE — \"inventarios\" or \"existencias\" are more standard"
+      "flag": "BACK-TRANSLATION MISMATCH: \"stocks\" → \"stocks\" (expected \"inventories\") | DOMAIN: \"inventories\" → \"stocks\": ACCEPTABLE (more common: \"inventarios\" or \"existencias\")"
     },
     {
       "en": "short-term outlook",
@@ -339,20 +395,20 @@
       "consistency": "100%"
     },
     {
-      "en": "bulls",
-      "es": "alcistas",
-      "frequency": "2/2",
-      "consistency": "100%",
-      "backTranslation": "bullish",
-      "flag": "BACK-TRANSLATION MISMATCH: \"alcistas\" → \"bullish\" (expected \"bulls\")"
-    },
-    {
       "en": "headline CPI rate",
       "es": "ipc de referencia",
       "frequency": "2/2",
       "consistency": "100%",
       "backTranslation": "core CPI",
-      "flag": "BACK-TRANSLATION MISMATCH: \"ipc de referencia\" → \"core CPI\" (expected \"headline CPI rate\") | DOMAIN: \"headline CPI rate\" → \"ipc de referencia\": WRONG: \"IPC general\" or \"tasa de IPC general\""
+      "flag": "BACK-TRANSLATION MISMATCH: \"ipc de referencia\" → \"core CPI\" (expected \"headline CPI rate\") | DOMAIN: \"headline CPI rate\" → \"ipc de referencia\": WRONG: \"IPC general\" or \"IPC headline\""
+    },
+    {
+      "en": "short-term momentum studies",
+      "es": "análisis de impulso a corto plazo",
+      "frequency": "2/2",
+      "consistency": "100%",
+      "backTranslation": "short-term momentum analysis",
+      "flag": "BACK-TRANSLATION MISMATCH: \"análisis de impulso a corto plazo\" → \"short-term momentum analysis\" (expected \"short-term momentum studies\")"
     },
     {
       "en": "bears",
@@ -363,12 +419,20 @@
       "flag": "BACK-TRANSLATION MISMATCH: \"bajistas\" → \"bearish\" (expected \"bears\")"
     },
     {
+      "en": "failure swing bottom pattern",
+      "es": "suelo por fallo de oscilación",
+      "frequency": "2/2",
+      "consistency": "100%",
+      "backTranslation": "swing failure low",
+      "flag": "BACK-TRANSLATION MISMATCH: \"suelo por fallo de oscilación\" → \"swing failure low\" (expected \"failure swing bottom pattern\")"
+    },
+    {
       "en": "momentum studies",
       "es": "análisis de impulso",
-      "frequency": "5/6",
-      "consistency": "83%",
+      "frequency": "4/5",
+      "consistency": "80%",
       "backTranslation": "momentum analysis",
-      "flag": "Alternatives: estudios de impulso (1x) | BACK-TRANSLATION MISMATCH: \"análisis de impulso\" → \"momentum analysis\" (expected \"momentum studies\") | DOMAIN: \"momentum studies\" → \"análisis de impulso\": ACCEPTABLE — \"indicadores de momento\" is more standard"
+      "flag": "Alternatives: estudios de impulso (1x) | BACK-TRANSLATION MISMATCH: \"análisis de impulso\" → \"momentum analysis\" (expected \"momentum studies\")"
     },
     {
       "en": "policy meeting",
@@ -379,40 +443,17 @@
       "flag": "Alternatives: reunión de dos días (1x) | DOMAIN: \"policy meeting\" → \"reunión de políticas\": WRONG: \"reunión de política monetaria\""
     },
     {
-      "en": "200-period moving average",
-      "es": "media móvil de 200 días",
-      "frequency": "2/3",
-      "consistency": "67%",
-      "flag": "Alternatives: media móvil de 200 períodos (1x) | DOMAIN: \"200-period moving average\" → \"media móvil de 200 días\": WRONG: \"media móvil de 200 períodos\" (periods ≠ days)"
-    },
-    {
-      "en": "break above",
-      "es": "irrupción por encima",
-      "frequency": "2/3",
-      "consistency": "67%",
-      "backTranslation": "breakout above",
-      "flag": "Alternatives: ruptura por encima (1x) | BACK-TRANSLATION MISMATCH: \"irrupción por encima\" → \"breakout above\" (expected \"break above\") | DOMAIN: \"break above\" → \"irrupción por encima\": ACCEPTABLE — \"ruptura al alza\" is more standard"
-    },
-    {
-      "en": "Fed President",
-      "es": "presidente de la fed",
-      "frequency": "2/3",
-      "consistency": "67%",
-      "backTranslation": "Fed Chair",
-      "flag": "Alternatives: presidenta de la fed (1x) | BACK-TRANSLATION MISMATCH: \"presidente de la fed\" → \"Fed Chair\" (expected \"Fed President\")"
-    },
-    {
       "en": "jobless claims",
       "es": "solicitudes de subsidio de desempleo",
-      "frequency": "2/3",
-      "consistency": "67%",
+      "frequency": "3/4",
+      "consistency": "75%",
       "flag": "Alternatives: peticiones de subsidio de desempleo (1x)"
     },
     {
       "en": "default",
       "es": "quiebra",
-      "frequency": "2/3",
-      "consistency": "67%",
+      "frequency": "3/4",
+      "consistency": "75%",
       "backTranslation": "bankruptcy",
       "flag": "Alternatives: no pudiera hacer frente a su pago (1x) | BACK-TRANSLATION MISMATCH: \"quiebra\" → \"bankruptcy\" (expected \"default\") | DOMAIN: \"default\" → \"quiebra\": WRONG: \"impago\" or \"incumplimiento de pago\""
     },
@@ -425,20 +466,34 @@
       "flag": "Alternatives: repuntará (1x) | BACK-TRANSLATION MISMATCH: \"repunte\" → \"bounce\" (expected \"rebound\")"
     },
     {
-      "en": "failure swing bottom pattern",
-      "es": "suelo por fallo de oscilación",
-      "frequency": "2/3",
-      "consistency": "67%",
-      "backTranslation": "swing failure low",
-      "flag": "Alternatives: patrón de fallo de oscilación de fondo (1x) | BACK-TRANSLATION MISMATCH: \"suelo por fallo de oscilación\" → \"swing failure low\" (expected \"failure swing bottom pattern\")"
-    },
-    {
       "en": "QE program",
       "es": "programa de expansión",
-      "frequency": "4/7",
-      "consistency": "57%",
+      "frequency": "5/8",
+      "consistency": "63%",
       "backTranslation": "expansion program",
       "flag": "Alternatives: programa de expansión monetaria (2x), plan de expansión (1x) | BACK-TRANSLATION MISMATCH: \"programa de expansión\" → \"expansion program\" (expected \"QE program\") | DOMAIN: \"QE program\" → \"programa de expansión\": WRONG: \"programa de expansión cuantitativa\" or \"programa de QE\""
+    },
+    {
+      "en": "inflation report",
+      "es": "informe trimestral de inflación",
+      "frequency": "3/5",
+      "consistency": "60%",
+      "flag": "Alternatives: informe de inflación (1x), informe sobre inflación (1x) | DOMAIN: \"inflation report\" → \"informe trimestral de inflación\": WRONG: \"informe de inflación\" (adding \"trimestral\" is an unwarranted assumption)"
+    },
+    {
+      "en": "bullish",
+      "es": "alcistas",
+      "frequency": "5/9",
+      "consistency": "56%",
+      "flag": "Alternatives: alcista (4x) | DOMAIN: \"bullish\" → \"alcistas\": ACCEPTABLE (as adjective: \"alcista\")"
+    },
+    {
+      "en": "haircut",
+      "es": "devaluación",
+      "frequency": "4/8",
+      "consistency": "50%",
+      "backTranslation": "devaluation",
+      "flag": "Alternatives: devaluación de las garantías (2x), devaluación de garantías (1x), recorte (1x) | BACK-TRANSLATION MISMATCH: \"devaluación\" → \"devaluation\" (expected \"haircut\") | DOMAIN: \"haircut\" → \"devaluación\": WRONG: \"quita\" (standard Spanish financial term for debt haircut)"
     },
     {
       "en": "Fed funds rate",
@@ -449,14 +504,6 @@
       "flag": "Alternatives: tipos de los bonos de la fed (1x), interés de los fondos federales (1x), fondos federales (1x) | BACK-TRANSLATION MISMATCH: \"tipos de los fondos federales\" → \"federal funds rate\" (expected \"Fed funds rate\")"
     },
     {
-      "en": "oil prices",
-      "es": "precios del crudo",
-      "frequency": "2/4",
-      "consistency": "50%",
-      "backTranslation": "crude prices",
-      "flag": "Alternatives: precios del petróleo (2x) | BACK-TRANSLATION MISMATCH: \"precios del crudo\" → \"crude prices\" (expected \"oil prices\")"
-    },
-    {
       "en": "Emergency Liquidity Assistance",
       "es": "fondos de rescate",
       "frequency": "2/4",
@@ -465,36 +512,35 @@
       "flag": "Alternatives: fondos de rescate (ela) (2x) | BACK-TRANSLATION MISMATCH: \"fondos de rescate\" → \"bailout funds\" (expected \"Emergency Liquidity Assistance\") | DOMAIN: \"Emergency Liquidity Assistance\" → \"fondos de rescate\": WRONG: \"asistencia de liquidez de emergencia\" or \"ELA\""
     },
     {
-      "en": "raise rates",
-      "es": "subir los tipos",
+      "en": "oil prices",
+      "es": "precios del petróleo",
       "frequency": "2/4",
       "consistency": "50%",
-      "backTranslation": "raise rates",
-      "flag": "Alternatives: subir los tipos de interés (2x)"
+      "backTranslation": "oil prices",
+      "flag": "Alternatives: precios del crudo (1x), precio del petróleo (1x)"
     },
     {
-      "en": "inflation report",
-      "es": "informe de inflación",
+      "en": "support level",
+      "es": "soporte",
       "frequency": "2/4",
       "consistency": "50%",
-      "backTranslation": "inflation report",
-      "flag": "Alternatives: informe trimestral de inflación (2x)"
+      "flag": "Alternatives: nivel de soporte (1x), línea de soporte (1x)"
+    },
+    {
+      "en": "double bottom formation",
+      "es": "formación de doble suelo",
+      "frequency": "2/4",
+      "consistency": "50%",
+      "backTranslation": "double bottom formation",
+      "flag": "Alternatives: doble suelo (2x)"
     },
     {
       "en": "ism manufacturing index",
       "es": "índice industrial ism",
       "frequency": "1/2",
       "consistency": "50%",
-      "backTranslation": "ISM industrial index",
-      "flag": "Alternatives: índice industrial de ism (1x) | BACK-TRANSLATION MISMATCH: \"índice industrial ism\" → \"ISM industrial index\" (expected \"ism manufacturing index\") | DOMAIN: \"ism manufacturing index\" → \"índice industrial ism\": ACCEPTABLE — \"índice manufacturero ISM\" is more standard"
-    },
-    {
-      "en": "overbought zone",
-      "es": "territorio de sobreventa",
-      "frequency": "1/2",
-      "consistency": "50%",
-      "backTranslation": "oversold territory",
-      "flag": "Alternatives: zona de sobrecompra (1x) | BACK-TRANSLATION MISMATCH: \"territorio de sobreventa\" → \"oversold territory\" (expected \"overbought zone\") | DOMAIN: \"overbought zone\" → \"territorio de sobreventa\": WRONG: \"territorio de sobrecompra\""
+      "backTranslation": "ISM manufacturing index",
+      "flag": "Alternatives: índice industrial de ism (1x) | DOMAIN: \"ism manufacturing index\" → \"índice industrial ism\": ACCEPTABLE (more common: \"índice manufacturero ISM\")"
     },
     {
       "en": "nonfarm payroll",
@@ -513,6 +559,22 @@
       "flag": "Alternatives: política de tipos (1x) | BACK-TRANSLATION MISMATCH: \"tipo oficial\" → \"official rate\" (expected \"policy rate\")"
     },
     {
+      "en": "liquidity",
+      "es": "liquidez",
+      "frequency": "1/2",
+      "consistency": "50%",
+      "backTranslation": "liquidity",
+      "flag": "Alternatives: fondos (1x)"
+    },
+    {
+      "en": "cut rates",
+      "es": "baja los tipos",
+      "frequency": "1/2",
+      "consistency": "50%",
+      "backTranslation": "lower rates",
+      "flag": "Alternatives: baje los tipos (1x) | BACK-TRANSLATION MISMATCH: \"baja los tipos\" → \"lower rates\" (expected \"cut rates\") | DOMAIN: \"cut rates\" → \"baja los tipos\": ACCEPTABLE (more standard: \"recortar los tipos\")"
+    },
+    {
       "en": "yield curves",
       "es": "curvas de beneficios",
       "frequency": "1/2",
@@ -521,28 +583,28 @@
       "flag": "Alternatives: curvas de rentabilidad (1x) | DOMAIN: \"yield curves\" → \"curvas de beneficios\": WRONG: \"curvas de rendimiento\" or \"curvas de tipos\""
     },
     {
-      "en": "break below",
-      "es": "cierre claro por debajo",
-      "frequency": "1/2",
-      "consistency": "50%",
-      "backTranslation": "clear close below",
-      "flag": "Alternatives: irrupción por debajo (1x) | BACK-TRANSLATION MISMATCH: \"cierre claro por debajo\" → \"clear close below\" (expected \"break below\") | DOMAIN: \"break below\" → \"cierre claro por debajo\": ACCEPTABLE — \"ruptura a la baja\" is more standard"
-    },
-    {
       "en": "iron ore prices",
       "es": "precios de la mena de hierro",
       "frequency": "1/2",
       "consistency": "50%",
       "backTranslation": "iron ore prices",
-      "flag": "Alternatives: precio de la mena de hierro (1x)"
+      "flag": "Alternatives: precio de la mena de hierro (1x) | DOMAIN: \"iron ore prices\" → \"precios de la mena de hierro\": ACCEPTABLE (more common: \"precios del mineral de hierro\")"
     },
     {
-      "en": "USD",
-      "es": "usd",
+      "en": "Brent crude oil",
+      "es": "barril de brent",
       "frequency": "1/2",
       "consistency": "50%",
-      "backTranslation": "USD",
-      "flag": "Alternatives: dólar (1x)"
+      "backTranslation": "barrel of Brent",
+      "flag": "Alternatives: precio del barril de brent (1x) | BACK-TRANSLATION MISMATCH: \"barril de brent\" → \"barrel of Brent\" (expected \"Brent crude oil\") | DOMAIN: \"Brent crude oil\" → \"barril de brent\": WRONG: \"petróleo crudo Brent\" (adding \"barril\" is unwarranted)"
+    },
+    {
+      "en": "bond market",
+      "es": "mercado de obligaciones",
+      "frequency": "1/2",
+      "consistency": "50%",
+      "backTranslation": "bond market",
+      "flag": "Alternatives: mercado de bonos (1x) | DOMAIN: \"bond market\" → \"mercado de obligaciones\": ACCEPTABLE (more common: \"mercado de bonos\")"
     },
     {
       "en": "capital controls",
@@ -551,14 +613,6 @@
       "consistency": "50%",
       "backTranslation": "capital controls",
       "flag": "Alternatives: controles al capital (1x) | DOMAIN: \"capital controls\" → \"controles para el capital\": WRONG: \"controles de capital\""
-    },
-    {
-      "en": "MPC member",
-      "es": "miembro del comité de política monetaria",
-      "frequency": "1/2",
-      "consistency": "50%",
-      "backTranslation": "monetary policy committee member",
-      "flag": "Alternatives: miembro del cpm (1x) | BACK-TRANSLATION MISMATCH: \"miembro del comité de política monetaria\" → \"monetary policy committee member\" (expected \"MPC member\")"
     },
     {
       "en": "real wages",
@@ -577,14 +631,6 @@
       "flag": "Alternatives: medida de la inflación (1x) | BACK-TRANSLATION MISMATCH: \"indicador de inflación\" → \"inflation indicator\" (expected \"inflation measure\")"
     },
     {
-      "en": "import prices",
-      "es": "precios de importación",
-      "frequency": "1/2",
-      "consistency": "50%",
-      "backTranslation": "import prices",
-      "flag": "Alternatives: precios de las importaciones (1x)"
-    },
-    {
       "en": "job openings",
       "es": "ofertas de trabajo",
       "frequency": "1/2",
@@ -598,7 +644,7 @@
       "frequency": "1/2",
       "consistency": "50%",
       "backTranslation": "silent rate",
-      "flag": "Alternatives: tasa de abandono (1x) | BACK-TRANSLATION MISMATCH: \"tasa silenciosa\" → \"silent rate\" (expected \"quit rate\") | DOMAIN: \"quit rate\" → \"tasa silenciosa\": WRONG: \"tasa de abandono voluntario\" or \"tasa de dimisiones\""
+      "flag": "Alternatives: tasa de abandono (1x) | BACK-TRANSLATION MISMATCH: \"tasa silenciosa\" → \"silent rate\" (expected \"quit rate\") | DOMAIN: \"quit rate\" → \"tasa silenciosa\": WRONG: \"tasa de renuncias\" or \"tasa de abandono voluntario\""
     },
     {
       "en": "exponential moving average",
@@ -606,7 +652,7 @@
       "frequency": "1/2",
       "consistency": "50%",
       "backTranslation": "exponential moving average",
-      "flag": "Alternatives: media móvil exponencial (1x) | DOMAIN: \"exponential moving average\" → \"media exponencial\": ACCEPTABLE — \"media móvil exponencial\" is more standard"
+      "flag": "Alternatives: media móvil exponencial (1x) | DOMAIN: \"exponential moving average\" → \"media exponencial\": ACCEPTABLE (more complete: \"media móvil exponencial\")"
     },
     {
       "en": "bond yields",
@@ -617,14 +663,6 @@
       "flag": "Alternatives: rentabilidad del bono (1x)"
     },
     {
-      "en": "hawkish",
-      "es": "agresivo",
-      "frequency": "1/2",
-      "consistency": "50%",
-      "backTranslation": "aggressive",
-      "flag": "Alternatives: alcistas (1x) | BACK-TRANSLATION MISMATCH: \"agresivo\" → \"aggressive\" (expected \"hawkish\") | DOMAIN: \"hawkish\" → \"agresivo\": ACCEPTABLE — \"hawkish\" or \"restrictivo\" are more standard in financial context"
-    },
-    {
       "en": "EM currencies",
       "es": "divisas",
       "frequency": "1/2",
@@ -633,20 +671,12 @@
       "flag": "Alternatives: divisas de los mercados emergentes (1x) | DOMAIN: \"EM currencies\" → \"divisas\": WRONG: \"divisas de mercados emergentes\""
     },
     {
-      "en": "downtrend line",
-      "es": "línea de tendencia a la baja",
-      "frequency": "1/2",
-      "consistency": "50%",
-      "backTranslation": "downtrend line",
-      "flag": "Alternatives: línea de tendencia descendente (1x)"
-    },
-    {
       "en": "Treasuries",
       "es": "tesorerías",
       "frequency": "1/2",
       "consistency": "50%",
       "backTranslation": "treasuries",
-      "flag": "Alternatives: bonos del tesoro (1x) | DOMAIN: \"Treasuries\" → \"tesorerías\": WRONG: \"bonos del Tesoro (de EE.UU.)\" or \"Treasuries\""
+      "flag": "Alternatives: bonos del tesoro (1x) | DOMAIN: \"Treasuries\" → \"tesorerías\": WRONG: \"bonos del Tesoro estadounidense\" or \"Treasuries\""
     },
     {
       "en": "inflation expectation",
@@ -660,16 +690,16 @@
       "es": "miembro del consejo ejecutivo del bce",
       "frequency": "1/2",
       "consistency": "50%",
-      "backTranslation": "ECB executive board member",
+      "backTranslation": "ECB Executive Board member",
       "flag": "Alternatives: miembro del comité ejecutivo del bce (1x)"
     },
     {
-      "en": "psychological area",
-      "es": "área psicológica",
+      "en": "rate move",
+      "es": "movimiento de tipos",
       "frequency": "1/2",
       "consistency": "50%",
-      "backTranslation": "psychological area",
-      "flag": "Alternatives: zona psicológica (1x)"
+      "backTranslation": "rate move",
+      "flag": "Alternatives: movimiento de los tipos de interés (1x)"
     },
     {
       "en": "Bund yields",
@@ -693,7 +723,23 @@
       "frequency": "1/2",
       "consistency": "50%",
       "backTranslation": "will anticipate",
-      "flag": "Alternatives: anticipo (1x) | BACK-TRANSLATION MISMATCH: \"anticipará\" → \"will anticipate\" (expected \"frontload\") | DOMAIN: \"frontload\" → \"anticipará\": ACCEPTABLE — \"adelantará\" is more standard"
+      "flag": "Alternatives: anticipo (1x) | BACK-TRANSLATION MISMATCH: \"anticipará\" → \"will anticipate\" (expected \"frontload\") | DOMAIN: \"frontload\" → \"anticipará\": ACCEPTABLE (more standard: \"adelantará\")"
+    },
+    {
+      "en": "Conference Board leading index",
+      "es": "principal índice del conference board",
+      "frequency": "1/2",
+      "consistency": "50%",
+      "backTranslation": "Conference Board Leading Index",
+      "flag": "Alternatives: índice de principales indicadores de conference board (1x) | DOMAIN: \"Conference Board leading index\" → \"principal índice del conference board\": WRONG: \"índice adelantado del Conference Board\""
+    },
+    {
+      "en": "long-term uptrend line",
+      "es": "línea de tendencia ascendente a largo plazo",
+      "frequency": "1/2",
+      "consistency": "50%",
+      "backTranslation": "long-term uptrend line",
+      "flag": "Alternatives: línea de tendencia ascendente a más largo plazo (1x)"
     }
   ],
   "toneOverrides": {
