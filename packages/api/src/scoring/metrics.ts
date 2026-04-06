@@ -18,7 +18,6 @@ export const DETERMINISTIC_METRICS: MetricName[] = [
 export const LLM_JUDGE_METRICS: MetricName[] = [
   "formality_level",
   "sentence_length_ratio",
-  "passive_voice_ratio",
   "brand_voice_adherence",
   "fluency",
   "meaning_preservation",

@@ -500,9 +500,7 @@ async function main() {
       backTranslation: t.backTranslation,
       flag: t.flag,
     })),
-    toneOverrides: {
-      passiveVoiceTargetPct: 25,
-    },
+    toneOverrides: {},
     scoring: {
       metricThresholds: { ...DEFAULT_METRIC_THRESHOLDS },
       aggregateThreshold: DEFAULT_AGGREGATE_THRESHOLD,
@@ -519,7 +517,6 @@ async function main() {
         formatting_preservation: 1.0,
         paragraph_alignment: 1.0,
         sentence_length_ratio: 0.5,
-        passive_voice_ratio: 0.5,
       },
       maxRevisionAttempts: DEFAULT_MAX_REVISION_ATTEMPTS,
     },

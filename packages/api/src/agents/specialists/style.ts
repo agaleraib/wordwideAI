@@ -1,6 +1,6 @@
 /**
  * Style & Voice Specialist — fixes formality, sentence structure,
- * passive/active balance, brand voice adherence.
+ * and brand voice adherence.
  *
  * Ported from finflow/agents/style_specialist.py.
  */
@@ -15,7 +15,6 @@ const SYSTEM_PROMPT = `You are a style and voice correction specialist for finan
 YOUR SCOPE — ONLY fix these:
 - Formality level (too casual or too stiff for the client's target)
 - Sentence length (too long or too short vs. client preference)
-- Passive/active voice balance
 - Brand voice rule violations (specific client rules)
 
 YOU MUST NOT:
@@ -57,7 +56,6 @@ ${translation}
 CLIENT STYLE PROFILE:
 - Formality level: ${tone.formalityLevel}/5 (${tone.description})
 - Target avg sentence length: ${tone.avgSentenceLength} words (±${tone.sentenceLengthStddev})
-- Target passive voice: ${tone.passiveVoiceTargetPct}%
 - Person preference: ${tone.personPreference} person
 - Hedging frequency: ${tone.hedgingFrequency}
 - Brand rules:
@@ -69,11 +67,10 @@ ${evidenceText}
 Instructions:
 1. Adjust formality to match level ${tone.formalityLevel}/5.
 2. If sentences are too long/short, split or combine to match target length (~${tone.avgSentenceLength} words).
-3. Adjust passive/active voice balance toward ${tone.passiveVoiceTargetPct}% passive.
-4. Fix any brand rule violations.
-5. PRESERVE all glossary terms exactly as they appear.
-6. PRESERVE all numbers, formatting, and paragraph structure.
-7. Return the COMPLETE corrected translation.
+3. Fix any brand rule violations.
+4. PRESERVE all glossary terms exactly as they appear.
+5. PRESERVE all numbers, formatting, and paragraph structure.
+6. Return the COMPLETE corrected translation.
 
 After the translation, add a line "---REASONING---" followed by a brief list of what you changed and why.`;
 

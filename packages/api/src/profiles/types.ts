@@ -17,7 +17,6 @@ export const ALL_METRICS = [
   // Style & Voice
   "formality_level",
   "sentence_length_ratio",
-  "passive_voice_ratio",
   "brand_voice_adherence",
   // Structural Fidelity
   "formatting_preservation",
@@ -40,7 +39,6 @@ export const METRIC_CATEGORIES = {
   style: [
     "formality_level",
     "sentence_length_ratio",
-    "passive_voice_ratio",
     "brand_voice_adherence",
   ],
   structural: [
@@ -73,7 +71,6 @@ export const DEFAULT_METRIC_THRESHOLDS: Record<MetricName, number> = {
   untranslated_terms: 95,
   formality_level: 85,
   sentence_length_ratio: 80,
-  passive_voice_ratio: 80,
   brand_voice_adherence: 95,
   formatting_preservation: 90,
   numerical_accuracy: 100,
@@ -91,7 +88,6 @@ export const DEFAULT_MAX_REVISION_ATTEMPTS = 2;
 export const ToneProfileSchema = z.object({
   formalityLevel: z.number().int().min(1).max(5).default(4),
   description: z.string().default("professional, formal"),
-  passiveVoiceTargetPct: z.number().default(25.0),
   avgSentenceLength: z.number().default(22.0),
   sentenceLengthStddev: z.number().default(6.0),
   personPreference: z.enum(["first", "second", "third"]).default("third"),

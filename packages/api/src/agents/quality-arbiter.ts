@@ -167,7 +167,7 @@ ${improvementText}
 
 SPECIALIST AGENTS AVAILABLE:
 - "terminology": Fixes glossary_compliance, term_consistency, untranslated_terms
-- "style": Fixes formality_level, sentence_length_ratio, passive_voice_ratio, brand_voice_adherence
+- "style": Fixes formality_level, sentence_length_ratio, brand_voice_adherence
 - "structural": Fixes formatting_preservation, numerical_accuracy, paragraph_alignment
 - "linguistic": Fixes fluency, meaning_preservation, regional_variant
 

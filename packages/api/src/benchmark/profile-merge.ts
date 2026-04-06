@@ -24,7 +24,7 @@ interface GlossaryFile {
   glossary: Record<string, string>;
   glossarySynonyms?: Record<string, string[]>;
   scoring: Record<string, unknown>;
-  /** Optional per-language tone overrides (e.g. passiveVoiceTargetPct for Spanish) */
+  /** Optional per-language tone overrides */
   toneOverrides?: Record<string, unknown>;
 }
 

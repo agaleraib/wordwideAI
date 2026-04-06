@@ -81,7 +81,6 @@ export interface LanguageProfileData {
 export interface ToneProfileData {
   formalityLevel: number;
   description: string;
-  passiveVoiceTargetPct: number;
   avgSentenceLength: number;
   sentenceLengthStddev: number;
   personPreference: string;

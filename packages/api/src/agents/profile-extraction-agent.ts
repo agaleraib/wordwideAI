@@ -102,7 +102,6 @@ Analyze ALL source documents and extract:
 1. TONE PROFILE (from the client's own writing style):
    - formalityLevel (1-5): Assess from their word choice, sentence structure, register
    - description: Short description of the tone
-   - passiveVoiceTargetPct: Count actual % of passive constructions in their text
    - avgSentenceLength: Count words per sentence across samples, compute mean
    - sentenceLengthStddev: Compute standard deviation
    - personPreference: "first" / "second" / "third" — which do they actually use?
@@ -134,10 +133,6 @@ const PHASE1_TOOL_SCHEMA = {
           type: "string" as const,
           description: "Short tone description based on observed style",
         },
-        passiveVoiceTargetPct: {
-          type: "number" as const,
-          description: "Actual observed passive voice percentage",
-        },
         avgSentenceLength: {
           type: "number" as const,
           description: "Observed average words per sentence",
@@ -160,7 +155,6 @@ const PHASE1_TOOL_SCHEMA = {
       required: [
         "formalityLevel",
         "description",
-        "passiveVoiceTargetPct",
         "avgSentenceLength",
         "sentenceLengthStddev",
         "personPreference",

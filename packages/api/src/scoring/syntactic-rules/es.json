@@ -1,0 +1,162 @@
+{
+  "language": "es",
+  "languageName": "Spanish",
+  "version": 1,
+  "generatedBy": "manual",
+  "rules": [
+    {
+      "id": "es-prodrop",
+      "name": "Pro-drop usage",
+      "description": "Spanish is a pro-drop language. Subject pronouns (yo, tú, él, ella, nosotros, ellos) should be omitted unless needed for emphasis, contrast, or disambiguation. Repeated explicit pronouns signal English syntactic transfer.",
+      "category": "morphosyntax",
+      "severity": "high",
+      "examples": {
+        "translationese": "Él señaló que él espera que los inversores...",
+        "natural": "Señaló que espera que los inversores..."
+      }
+    },
+    {
+      "id": "es-se-impersonal",
+      "name": "Impersonal 'se' constructions",
+      "description": "Spanish uses impersonal and passive 'se' constructions where English uses passive voice or dummy subjects ('it is expected', 'there is'). Translating these literally produces unnatural Spanish.",
+      "category": "clause_structure",
+      "severity": "high",
+      "examples": {
+        "translationese": "Es esperado que la inflación aumente.",
+        "natural": "Se espera que la inflación aumente."
+      }
+    },
+    {
+      "id": "es-flexible-word-order",
+      "name": "Flexible word order (VS / VOS)",
+      "description": "Spanish allows verb-subject and verb-object-subject order for emphasis and natural flow. Rigidly following English SVO order produces stilted prose. Particularly in financial reporting, fronting the verb or complement is common.",
+      "category": "word_order",
+      "severity": "high",
+      "examples": {
+        "translationese": "El dólar cayó un 0,5% frente al euro.",
+        "natural": "Cayó el dólar un 0,5% frente al euro."
+      }
+    },
+    {
+      "id": "es-relative-clause-reduction",
+      "name": "Relative clause simplification",
+      "description": "English uses relative clauses heavily ('the report that was published', 'levels which are expected'). Spanish prefers participle constructions or simpler structures when the relative clause is non-restrictive.",
+      "category": "clause_structure",
+      "severity": "medium",
+      "examples": {
+        "translationese": "El informe que fue publicado ayer muestra...",
+        "natural": "El informe publicado ayer muestra..."
+      }
+    },
+    {
+      "id": "es-gerund-misuse",
+      "name": "Gerund restriction",
+      "description": "Spanish gerunds (-ando, -iendo) cannot function as adjectives or nouns the way English gerunds (-ing) do. Using them adjectivally is a direct calque from English and is grammatically incorrect in Spanish.",
+      "category": "morphosyntax",
+      "severity": "high",
+      "examples": {
+        "translationese": "Un documento conteniendo los resultados...",
+        "natural": "Un documento que contiene los resultados..."
+      }
+    },
+    {
+      "id": "es-possessive-overuse",
+      "name": "Possessive adjective overuse",
+      "description": "English requires possessive adjectives ('his report', 'their analysis'). Spanish prefers definite articles when possession is clear from context. Overusing possessives (su, sus, mi, tu) is a strong marker of translationese.",
+      "category": "lexical_syntax",
+      "severity": "medium",
+      "examples": {
+        "translationese": "El analista revisó su informe y envió sus conclusiones a su equipo.",
+        "natural": "El analista revisó el informe y envió las conclusiones al equipo."
+      }
+    },
+    {
+      "id": "es-existential-construction",
+      "name": "Existential construction variety",
+      "description": "English uses 'there is/are' almost exclusively. Spanish has multiple options: 'hay', 'existe(n)', 'se encuentra(n)', 'se observa(n)'. Using only 'hay' throughout signals source-language influence. Financial text should vary these constructions.",
+      "category": "lexical_syntax",
+      "severity": "low",
+      "examples": {
+        "translationese": "Hay un riesgo de recesión. Hay factores que indican...",
+        "natural": "Existe un riesgo de recesión. Se observan factores que indican..."
+      }
+    },
+    {
+      "id": "es-subordination-depth",
+      "name": "Subordinate clause nesting",
+      "description": "Spanish favors longer, more complex sentences with deeper subordination than English. Breaking text into short, simple sentences (English journalistic style) sounds choppy in Spanish financial prose. Appropriate use of conjunctions (sin embargo, no obstante, puesto que, dado que) is expected.",
+      "category": "discourse",
+      "severity": "medium",
+      "examples": {
+        "translationese": "El mercado cayó. Esto fue causado por la inflación. Los analistas esperan una recuperación.",
+        "natural": "El mercado cayó debido a la inflación, si bien los analistas esperan una recuperación."
+      }
+    },
+    {
+      "id": "es-clitic-placement",
+      "name": "Clitic pronoun placement",
+      "description": "Spanish uses clitic pronouns (lo, la, le, se, nos) that attach to or precede verbs. English translationese often restructures sentences to avoid clitics or places them incorrectly. Financial text should use proper enclisis and proclisis.",
+      "category": "morphosyntax",
+      "severity": "medium",
+      "examples": {
+        "translationese": "El banco decidió a aumentar las tasas.",
+        "natural": "El banco decidió aumentarlas."
+      }
+    },
+    {
+      "id": "es-nominal-vs-verbal",
+      "name": "Verbal preference over nominalization",
+      "description": "English financial text heavily nominalizes ('the implementation of', 'the reduction in'). Spanish often prefers verbal constructions. Excessive nominalization in Spanish signals English influence.",
+      "category": "lexical_syntax",
+      "severity": "medium",
+      "examples": {
+        "translationese": "La implementación de la reducción de tasas tuvo un impacto en...",
+        "natural": "Reducir las tasas impactó en..."
+      }
+    },
+    {
+      "id": "es-preposition-calque",
+      "name": "Preposition calque avoidance",
+      "description": "English preposition usage does not map 1:1 to Spanish. Common calques include 'en base a' (from 'based on', correct: 'con base en' or 'sobre la base de'), 'bajo este punto de vista' (from 'under this viewpoint', correct: 'desde este punto de vista').",
+      "category": "lexical_syntax",
+      "severity": "medium",
+      "examples": {
+        "translationese": "En base a los datos, el mercado reaccionó bajo presión.",
+        "natural": "Con base en los datos, el mercado reaccionó ante la presión."
+      }
+    },
+    {
+      "id": "es-topicalization",
+      "name": "Topic fronting",
+      "description": "Spanish discourse commonly fronts the topic or theme of a sentence for coherence. English tends to keep neutral SVO. In financial analysis, fronting key concepts ('En cuanto al oro,...', 'Respecto a las divisas,...') creates natural flow between sections.",
+      "category": "discourse",
+      "severity": "low",
+      "examples": {
+        "translationese": "El oro subió un 2%. Las divisas se mantuvieron estables.",
+        "natural": "En cuanto al oro, subió un 2%. Respecto a las divisas, se mantuvieron estables."
+      }
+    },
+    {
+      "id": "es-conditional-structure",
+      "name": "Conditional and subjunctive usage",
+      "description": "English uses 'if + past simple' or 'if + were to' for hypotheticals. Spanish requires subjunctive mood in the subordinate clause (si + imperfecto de subjuntivo). Financial scenario analysis must use proper mood agreement.",
+      "category": "clause_structure",
+      "severity": "high",
+      "examples": {
+        "translationese": "Si la Fed aumenta las tasas, el dólar sube.",
+        "natural": "Si la Fed aumentara las tasas, el dólar subiría."
+      }
+    },
+    {
+      "id": "es-adverb-placement",
+      "name": "Adverb placement flexibility",
+      "description": "English typically places adverbs before the verb or at sentence end. Spanish allows adverbs between auxiliary and main verb, at sentence start, or after the verb. Rigid English-style placement sounds unnatural.",
+      "category": "word_order",
+      "severity": "low",
+      "examples": {
+        "translationese": "El mercado significativamente cayó ayer.",
+        "natural": "El mercado cayó significativamente ayer."
+      }
+    }
+  ]
+}

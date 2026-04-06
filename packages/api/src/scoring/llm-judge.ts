@@ -1,7 +1,7 @@
 /**
  * LLM-as-judge metric scorers — ported from finflow/agents/scoring_agent.py.
  *
- * 7 subjective metrics evaluated by Claude via tool_use structured output.
+ * 6 subjective metrics evaluated by Claude via tool_use structured output.
  * This replaces the Python prototype's fragile find("{") JSON extraction.
  */
 
@@ -18,11 +18,10 @@ interface MetricJudgment {
   evidence: string[];
 }
 
-/** All 7 LLM-judged metrics returned in one call. */
+/** All 6 LLM-judged metrics returned in one call. */
 interface JudgeOutput {
   formality_level: MetricJudgment;
   sentence_length_ratio: MetricJudgment;
-  passive_voice_ratio: MetricJudgment;
   brand_voice_adherence: MetricJudgment;
   fluency: MetricJudgment;
   meaning_preservation: MetricJudgment;
@@ -45,18 +44,6 @@ const JUDGE_TOOL_SCHEMA = {
       required: ["score", "reasoning", "evidence"],
     },
     sentence_length_ratio: {
-      type: "object" as const,
-      properties: {
-        score: { type: "number" as const },
-        reasoning: { type: "string" as const },
-        evidence: {
-          type: "array" as const,
-          items: { type: "string" as const },
-        },
-      },
-      required: ["score", "reasoning", "evidence"],
-    },
-    passive_voice_ratio: {
       type: "object" as const,
       properties: {
         score: { type: "number" as const },
@@ -120,7 +107,6 @@ const JUDGE_TOOL_SCHEMA = {
   required: [
     "formality_level",
     "sentence_length_ratio",
-    "passive_voice_ratio",
     "brand_voice_adherence",
     "fluency",
     "meaning_preservation",
@@ -154,7 +140,6 @@ ${translation}
 CLIENT PROFILE:
 - Formality target: level ${lang.tone.formalityLevel}/5 (${lang.tone.description})
 - Target avg sentence length: ${lang.tone.avgSentenceLength} words (stddev: ${lang.tone.sentenceLengthStddev})
-- Target passive voice: ${lang.tone.passiveVoiceTargetPct}%
 - Regional variant: ${lang.regionalVariant || "not specified"}
 - Brand rules:
 ${brandRulesText}
@@ -165,15 +150,13 @@ METRICS TO EVALUATE:
 
 2. **sentence_length_ratio** (0-100): Are sentence lengths consistent with the target average (${lang.tone.avgSentenceLength} words, stddev ${lang.tone.sentenceLengthStddev})? Score 100 if within 1 stddev.
 
-3. **passive_voice_ratio** (0-100): Is the passive/active voice balance close to target (${lang.tone.passiveVoiceTargetPct}% passive)? Score 100 if within 5%.
+3. **brand_voice_adherence** (0-100): Are ALL brand rules followed? Score 100 if all satisfied, deduct 20 per violation.
 
-4. **brand_voice_adherence** (0-100): Are ALL brand rules followed? Score 100 if all satisfied, deduct 20 per violation.
+4. **fluency** (0-100): Does the translation read naturally in ${language}? No awkward phrasings, no calques from English.
 
-5. **fluency** (0-100): Does the translation read naturally in ${language}? No awkward phrasings, no calques from English.
+5. **meaning_preservation** (0-100): Is the semantic meaning of every sentence preserved? No additions, omissions, or distortions.
 
-6. **meaning_preservation** (0-100): Is the semantic meaning of every sentence preserved? No additions, omissions, or distortions.
-
-7. **regional_variant** (0-100): Is the correct regional variant used consistently? Check vocabulary, grammar, spelling for ${lang.regionalVariant || language}.
+6. **regional_variant** (0-100): Is the correct regional variant used consistently? Check vocabulary, grammar, spelling for ${lang.regionalVariant || language}.
 
 Use the submit_scores tool to provide your evaluation.`;
 }
@@ -184,7 +167,7 @@ export interface LlmJudgeResult {
 }
 
 /**
- * Score all 7 LLM-judged metrics in a single call using tool_use.
+ * Score all 6 LLM-judged metrics in a single call using tool_use.
  */
 export async function scoreLlmMetrics(
   source: string,
@@ -213,7 +196,7 @@ export async function scoreLlmMetrics(
       config,
       prompt,
       "submit_scores",
-      "Submit structured quality scores for all 7 metrics",
+      "Submit structured quality scores for all 6 metrics",
       JUDGE_TOOL_SCHEMA,
       (input) => input as unknown as JudgeOutput,
     );
@@ -236,10 +219,6 @@ export async function scoreLlmMetrics(
     sentence_length_ratio: {
       category: "style",
       detailContext: `Target avg: ${lang.tone.avgSentenceLength} words`,
-    },
-    passive_voice_ratio: {
-      category: "style",
-      detailContext: `Target: ${lang.tone.passiveVoiceTargetPct}%`,
     },
     brand_voice_adherence: {
       category: "style",
@@ -291,7 +270,6 @@ function defaultScores(): JudgeOutput {
   return {
     formality_level: { ...defaultJudgment },
     sentence_length_ratio: { ...defaultJudgment },
-    passive_voice_ratio: { ...defaultJudgment },
     brand_voice_adherence: { ...defaultJudgment },
     fluency: { ...defaultJudgment },
     meaning_preservation: { ...defaultJudgment },
