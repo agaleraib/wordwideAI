@@ -1,3 +1,42 @@
+# Secrets
 .env
+.env.local
+
+# Python (legacy finflow/ reference dir)
 __pycache__/
 *.pyc
+
+# OS
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Node / Bun
+node_modules/
+dist/
+build/
+*.log
+.vite/
+
+# Benchmark + experiment outputs (not version-controlled)
+# Note: packages/api/benchmark-results/profiles/ IS tracked (curated profile data)
+packages/api/benchmark-results-v*/
+packages/api/benchmark-results/calibration-*
+packages/api/benchmark-results/comparisons/
+packages/api/benchmark-results/reports/
+packages/api/benchmark-results/translations/
+packages/api/ab-results*/
+packages/api/approach3-*/
+packages/api/benchmark-validation/
+packages/api/cost-estimation/
+
+# Local databases / caches
+finflow/data/translation_engine.db
+finflow/data/cache/*.csv
+*.sqlite
+*.sqlite3
+
+# Editor
+.vscode/
+.idea/
+*.swp

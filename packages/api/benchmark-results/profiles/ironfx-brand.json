@@ -1,0 +1,41 @@
+{
+  "clientId": "ironfx",
+  "clientName": "IronFX",
+  "sourceLanguage": "en",
+  "tone": {
+    "formalityLevel": 3,
+    "description": "Authoritative yet accessible financial commentary. Conversational register with analytical depth — uses first person freely, employs colloquial expressions alongside technical jargon. Explanatory and educational in approach.",
+    "passiveVoiceTargetPct": 12,
+    "_passiveVoiceNote": "12% is the English source baseline. Target languages may need higher values (e.g. Spanish ~18-20% due to reflexive passive 'se'). Override in per-language glossary scoring if needed.",
+    "avgSentenceLength": 22.5,
+    "sentenceLengthStddev": 11.8,
+    "personPreference": "first",
+    "hedgingFrequency": "high"
+  },
+  "brandRules": [
+    "Support/Resistance levels labeled (S1), (S2), (S3) and (R1), (R2), (R3) — maintain these labels in all languages",
+    "Support and Resistance levels in ascending numerical order within their category",
+    "Currency pairs in standard ISO format without spaces (EUR/USD, GBP/JPY)",
+    "Section headers ('The Big Picture', 'Today's highlights') should be translated using glossary terms if available",
+    "Abbreviations that STAY in English: Fed, FOMC, BoJ, RBA, RBNZ, BoE, PBoC, NFP, ADP, QQE, JOLTS, RSI, MACD, ECI, ISM, COT, G10. For abbreviations with standard target-language equivalents (CPI, GDP, PPI, bps, qoq, yoy, mom, QE, SAAR) — use the glossary translation.",
+    "Hedging language must be preserved in translation — translate 'in my view', 'I believe', 'is likely to', 'could', 'may' with equivalent hedging expressions in the target language",
+    "Date format: translate to target language conventions (e.g. '01 de mayo de 2015' in Spanish)",
+    "Forex pairs to 4 decimal places, gold to whole numbers, WTI to 2 decimals — preserve numerical precision",
+    "Percentage uses % symbol (not spelled out)",
+    "Commodity names: translate using glossary if mapping exists, otherwise keep in English (WTI, Brent stay in English)",
+    "Idiomatic expressions ('pull the trigger', 'pave the way') should be translated using glossary equivalents if available, or natural target-language idioms"
+  ],
+  "forbiddenTerms": [
+    "guarantee (used only in the disclaimer phrase 'past performance is no guarantee of future performance' — never used to promise outcomes)",
+    "sure/certain/definitely (absolute certainty language avoided in forecasts; hedging language always used instead)",
+    "buy/sell recommendations (never uses direct trading instructions; always frames as analytical observations)",
+    "we recommend / our recommendation (never provides explicit recommendations)"
+  ],
+  "compliancePatterns": [
+    "'past performance is no guarantee of future performance' used when referencing historical patterns — observed in 100% of applicable contexts",
+    "Forward-looking statements hedged with modal verbs: 'could', 'is likely to', 'may', 'would' — never stated as certainties — observed in 100% of documents",
+    "Technical analysis opinions attributed to analyst personally: 'in my view', 'I believe', 'I would prefer' — observed in 100% of technical sections",
+    "Rate expectations attributed to market pricing: 'Fed funds futures show', 'the market gives a 60% probability' — observed in 100% of applicable instances",
+    "Economic forecasts attributed to sources: 'the market consensus', 'economists polled by Bloomberg' — observed in 95%+ of forecast references"
+  ]
+}

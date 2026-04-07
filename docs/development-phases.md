@@ -10,8 +10,8 @@
 
 **Delivers:** Single-instrument report generation for one client, English only.
 
-- [ ] Fork GoBot's agent system into `src/finflow/agents/` with TA, FA, and Quality agents
-- [ ] Implement `src/finflow/pipeline/report-generator.ts` following `src/lib/board/orchestrator.ts` pattern
+- [ ] Fork GoBot's agent system into `packages/api/src/agents/` with TA, FA, and Quality agents
+- [ ] Implement `packages/api/src/pipeline/report-generator.ts` following GoBot's `src/lib/board/orchestrator.ts` pattern
 - [ ] Build news aggregation with 2-3 free/cheap APIs (Alpha Vantage, NewsAPI, Forex Factory)
 - [ ] OANDA integration for market data
 - [ ] Basic chart generation (TradingView Lightweight, server-side)
