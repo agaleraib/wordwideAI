@@ -36,6 +36,9 @@ See `docs/architecture.md` for the full architecture description.
 - `GET /health`
 
 ## Translation Engine
+
+**Conceptually a *client-conformance engine* that optionally translates.** Of the 13 metrics it enforces, 12 apply to any content regardless of language (glossary, brand voice, formality, regional variant, fluency, meaning preservation, etc.). When `sourceLanguage === targetLanguage`, the `TranslationAgent` step is a pass-through and the rest of the pipeline still runs to enforce the client's editorial standard. The function name and file path stay as-is for now to minimize churn — the reframe is conceptual. See `docs/specs/2026-04-07-content-pipeline.md` §5.9 and `docs/architecture.md` theme #9.
+
 Multi-agent quality pipeline (`packages/api/src/pipeline/translation-engine.ts`):
 ```
 load profile → translate (Opus) → score (13 metrics)

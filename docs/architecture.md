@@ -5,6 +5,8 @@
 
 This document describes the actual current architecture of the codebase. It is not aspirational. For the forward roadmap see Second Brain (project: WordwideAI) and `docs/specs/`.
 
+**Forward decisions (not yet implemented):** the production stack, deployment model (SaaS + per-client appliance), and LLM provider abstraction (Vercel AI SDK over Anthropic/OpenAI/Google) are locked in [`docs/specs/2026-04-07-deployment-stack.md`](specs/2026-04-07-deployment-stack.md). Anything in this document about the *current* state — Anthropic SDK directly, in-memory stores, no DB — is correct *today* and will change per that spec.
+
 ---
 
 ## Top-level layout
@@ -233,6 +235,10 @@ The pipeline page consumes the SSE event stream emitted by `pipeline/events.ts`,
 7. **Profile-driven personalization.** `ClientProfile` (with per-language overrides) drives translation tone, glossary, thresholds, and specialist behavior. Extractable from sample documents via `ProfileExtractionAgent`.
 
 8. **All structured output via `tool_use`.** No JSON-in-text parsing anywhere in the codebase. If an agent returns structured data, it does so via Anthropic's `tool_use` schema.
+
+9. **The "translation engine" is conceptually a *client-conformance engine* that optionally translates.** *(Forward — see `docs/specs/2026-04-07-content-pipeline.md` §5.9.)* Of the 13 metrics it enforces, 12 apply to any content regardless of language — glossary, brand voice, formality, regional variant, fluency, meaning preservation, and so on. Translation is the first step *only when source language ≠ target language*; for same-language content the `TranslationAgent` is a pass-through and the rest of the pipeline (scoring → glossary patcher → gate → specialists) handles conformance to the client's editorial standard. This means **all content — English-native for English clients, English-source-translated-to-Spanish, etc. — goes through the same enforcement loop.** The function name (`runTranslationEngine`) and file path stay as-is for now to minimize churn; the reframe is conceptual.
+
+10. **Domain reasoning is separated from content composition (workstream C).** *(Forward — see `docs/specs/2026-04-07-content-pipeline.md` §5.7a/b.)* The content pipeline has a **core analytical layer** (`FundamentalAnalystAgent`, `TechnicalAnalystAgent`, `IntegratedAnalystAgent`) that is the only place markets are reasoned about. Its output is cached per `(event_id, topic_id, analytical_method)` with a 24h TTL and **shared across tenants** for canonical topics — one expensive Opus call serves N pipelines. A separate **identity adaptation layer** (`BeginnerBlogger`, `InHouseJournalist`, `TradingDesk`, `NewsletterEditor`, `Educator`, `Strategist`, plus `raw-fa`/`raw-ta`/`raw-fa+ta` pass-through identities) consumes the cached analysis and produces the final product per pipeline, in the identity's native format and voice. Pre-allocated angles are fed to the identity layer, not the core layer, so the cache stays valid across all angles. Principle, generalized from the existing translation engine: **reason naturally first, adapt deterministically after.**
 
 ---
 
