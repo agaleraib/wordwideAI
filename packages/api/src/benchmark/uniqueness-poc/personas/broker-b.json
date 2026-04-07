@@ -25,5 +25,7 @@
   ],
   "regionalVariant": "en-US",
   "brandPositioning": "Trade fast, trade smart. The broker built for traders who don't have time for fluff. Fast execution, tight spreads, real-time alerts.",
-  "jurisdictions": ["US", "Canada", "Australia"]
+  "jurisdictions": ["US", "Canada", "Australia"],
+  "preferredAngles": ["trade-idea", "momentum-driven", "signal-extract"],
+  "personalityTags": ["aggressive", "prescriptive", "high-conviction", "urgent", "energetic"]
 }

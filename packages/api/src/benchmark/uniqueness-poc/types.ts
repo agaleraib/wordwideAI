@@ -24,6 +24,8 @@ export interface NewsEvent {
   topicContext: string;
 }
 
+import type { AngleTag, PersonalityTag } from "./tags.js";
+
 export interface ContentPersona {
   id: string;
   name: string;
@@ -35,6 +37,20 @@ export interface ContentPersona {
   regionalVariant: string;
   brandPositioning: string;
   jurisdictions: string[];
+
+  /**
+   * Onboarding-time analytical-angle preferences, ranked.
+   * The first tag is the primary lens; later tags are fallbacks if the
+   * first does not fit a specific event. See tags.ts for the full taxonomy.
+   */
+  preferredAngles: AngleTag[];
+
+  /**
+   * Onboarding-time personality / temperament tags, ranked.
+   * These tell the writer HOW to write — editorial stance, tone, density,
+   * confidence posture. Orthogonal to angles. See tags.ts for the taxonomy.
+   */
+  personalityTags: PersonalityTag[];
 }
 
 export interface IdentityDefinition {
@@ -108,6 +124,124 @@ export interface PersonaDifferentiationResult {
   differentiated: boolean;
 }
 
+/**
+ * Structured narrative state extracted from a previously-published piece.
+ * Used as "writer memory" for the same persona's future coverage of the same topic.
+ */
+export interface NarrativeStateEntry {
+  pieceId: string;
+  publishedAt: string;
+  oneSentenceSummary: string;
+  directionalView: "bullish" | "bearish" | "neutral" | "mixed";
+  directionalViewConfidence: "low" | "moderate" | "high";
+  keyThesisStatements: string[];
+  keyLevelsMentioned: string[];
+  callsToActionUsed: string[];
+  /** Token usage for the extraction call. */
+  extractionInputTokens: number;
+  extractionOutputTokens: number;
+  extractionCostUsd: number;
+}
+
+/**
+ * The accumulated narrative state for one (tenant, topic) pair. In production
+ * this would persist across runs and grow over time. In the PoC we build a
+ * fresh one from a single prior piece.
+ */
+export interface TenantTopicNarrativeState {
+  tenantId: string;
+  topicId: string;
+  recentEntries: NarrativeStateEntry[];
+  currentHouseView: "bullish" | "bearish" | "neutral" | "mixed";
+  currentHouseViewConfidence: "low" | "moderate" | "high";
+  lastUpdatedAt: string;
+}
+
+/**
+ * Stage 7 — the temporal narrative continuity test.
+ *
+ * Tests whether per-client narrative memory produces additional cross-tenant
+ * differentiation on top of the static persona+tag layers. Mechanism:
+ *
+ *   1. Take Stage 6's outputs (one journalist piece per persona on event A).
+ *   2. Extract structured NarrativeStateEntry from each via a Haiku call.
+ *   3. Run a SECOND core analysis on event B (a continuation of event A).
+ *   4. For each persona, generate a journalist piece on event B TWICE:
+ *        - CONTROL:   no narrative state injected
+ *        - TREATMENT: persona's narrative state from event A injected
+ *   5. Build pairwise cross-tenant matrices for both groups.
+ *   6. Compare the cosine distributions: does the narrative-state group
+ *      show meaningfully lower cross-tenant similarity than the control?
+ *
+ * If yes → temporal continuity is a real differentiation layer that compounds
+ * over time as each client's narrative thread accumulates.
+ */
+export interface NarrativeStateTestResult {
+  identityId: string;
+  identityName: string;
+  /** The second event used for the test. */
+  secondEvent: NewsEvent;
+  /** The second core analysis run on the second event. */
+  secondCoreAnalysis: CoreAnalysis;
+  /** Per-persona narrative state extracted from Stage 6 outputs. */
+  narrativeStates: Array<{
+    personaId: string;
+    personaName: string;
+    state: TenantTopicNarrativeState;
+  }>;
+  /** Control group: 4 outputs without narrative state, on the second event. */
+  controlOutputs: IdentityOutput[];
+  controlSimilarities: SimilarityResult[];
+  controlMeanCosine: number;
+  controlMeanRougeL: number;
+  /** Treatment group: 4 outputs WITH narrative state, on the second event. */
+  treatmentOutputs: IdentityOutput[];
+  treatmentSimilarities: SimilarityResult[];
+  treatmentMeanCosine: number;
+  treatmentMeanRougeL: number;
+  /** The differential — what narrative state buys us. */
+  cosineImprovement: number;     // control - treatment (positive = treatment is more unique)
+  rougeLImprovement: number;
+  /** Verdict against cross-tenant thresholds for the treatment group. */
+  treatmentVerdict: "PASS" | "BORDERLINE" | "FAIL";
+  treatmentVerdictReasoning: string;
+}
+
+/**
+ * Stage 6 — the **load-bearing cross-tenant test**.
+ *
+ * Pick ONE identity. Run it with N personas (different brokers) on the SAME
+ * core analysis. Build the pairwise matrix. Apply STRICT cross-tenant
+ * thresholds (cosine 0.85, ROUGE-L 0.40 — the SEO + product-perception bar).
+ *
+ * This is the test that directly validates the architecture's load-bearing
+ * claim: that the persona overlay layer produces meaningful differentiation
+ * between two brokers picking the same identity on the same event.
+ *
+ * Stage 5 (PersonaDifferentiationResult) tests this with N=2 (one pair).
+ * Stage 6 expands it to N≥3 personas (≥3 pairs) so we can characterize the
+ * actual *distribution* of cross-tenant similarity, not just one anecdotal
+ * pair.
+ */
+export interface CrossTenantMatrixResult {
+  identityId: string;
+  identityName: string;
+  personas: ContentPersona[];
+  outputs: IdentityOutput[];
+  similarities: SimilarityResult[];
+  /** Distribution stats over the pairwise cosine values. */
+  meanCosine: number;
+  minCosine: number;
+  maxCosine: number;
+  /** Distribution stats over the pairwise ROUGE-L values. */
+  meanRougeL: number;
+  minRougeL: number;
+  maxRougeL: number;
+  /** Cross-tenant verdict (PASS/BORDERLINE/FAIL) for this matrix. */
+  verdict: "PASS" | "BORDERLINE" | "FAIL";
+  verdictReasoning: string;
+}
+
 export interface RunResult {
   runId: string;
   startedAt: string;
@@ -118,9 +252,13 @@ export interface RunResult {
   similarities: SimilarityResult[];
   reproducibility?: ReproducibilityResult;
   personaDifferentiation?: PersonaDifferentiationResult;
+  /** Stage 6 — the load-bearing cross-tenant matrix test. */
+  crossTenantMatrix?: CrossTenantMatrixResult;
+  /** Stage 7 — temporal narrative continuity test. */
+  narrativeStateTest?: NarrativeStateTestResult;
   totalCostUsd: number;
   totalDurationMs: number;
-  /** Aggregate verdict against the uniqueness spec's thresholds. */
+  /** Intra-tenant cross-identity verdict (the original matrix). */
   verdict: "PASS" | "BORDERLINE" | "FAIL";
   verdictReasoning: string;
 }

@@ -21,9 +21,13 @@ import type {
   SimilarityResult,
   ReproducibilityResult,
   PersonaDifferentiationResult,
+  CrossTenantMatrixResult,
+  NarrativeStateTestResult,
+  TenantTopicNarrativeState,
   RunResult,
   SimilarityStatus,
 } from "./types.js";
+import { buildNarrativeStateFromPriorOutput } from "./narrative-state.js";
 import { UNIQUENESS_THRESHOLDS } from "./types.js";
 import { FA_AGENT_SYSTEM_PROMPT, buildFAAgentUserMessage } from "./prompts/fa-agent.js";
 import { IDENTITY_REGISTRY, getIdentityById } from "./prompts/identities/index.js";
@@ -84,6 +88,10 @@ async function runIdentity(
   identityId: string,
   coreAnalysisBody: string,
   persona?: ContentPersona,
+  options?: {
+    narrativeState?: TenantTopicNarrativeState;
+    topicName?: string;
+  },
 ): Promise<IdentityOutput> {
   const registered = getIdentityById(identityId);
   if (!registered) {
@@ -94,6 +102,14 @@ async function runIdentity(
   const model = modelForTier(registered.definition.modelTier);
   const start = Date.now();
 
+  // The journalist builder accepts optional narrativeState/topicName via options.
+  // Other identity builders ignore the third arg silently — call with options anyway.
+  const userMessageBuilder = registered.buildUserMessage as (
+    coreAnalysis: string,
+    persona?: ContentPersona,
+    options?: { narrativeState?: TenantTopicNarrativeState; topicName?: string },
+  ) => string;
+
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
@@ -101,7 +117,7 @@ async function runIdentity(
     messages: [
       {
         role: "user",
-        content: registered.buildUserMessage(coreAnalysisBody, persona),
+        content: userMessageBuilder(coreAnalysisBody, persona, options),
       },
     ],
   });
@@ -290,6 +306,338 @@ async function runPersonaDifferentiation(
 }
 
 // ───────────────────────────────────────────────────────────────────
+// Stage 6 — cross-tenant matrix (the load-bearing test)
+// ───────────────────────────────────────────────────────────────────
+
+/**
+ * Apply STRICT cross-tenant thresholds (cosine 0.85, ROUGE-L 0.40) to a pair.
+ * This is the bar from content-uniqueness §6.1 for the cross-tenant case.
+ */
+function classifyCrossTenantStatus(cosineSim: number, rougeL: number): SimilarityStatus {
+  const { cosine, cosineBorderlineMargin, rougeL: rougeThreshold } =
+    UNIQUENESS_THRESHOLDS.crossTenant;
+
+  if (cosineSim >= cosine || rougeL >= rougeThreshold) {
+    return "fail-cross-tenant";
+  }
+
+  const inBorderlineCosine = cosineSim >= cosine - cosineBorderlineMargin;
+  const inBorderlineRouge = rougeL >= rougeThreshold - 0.05;
+
+  if (inBorderlineCosine || inBorderlineRouge) {
+    return "borderline-cross-tenant";
+  }
+
+  return "pass";
+}
+
+async function runCrossTenantMatrix(
+  identityId: string,
+  coreAnalysisBody: string,
+  personas: ContentPersona[],
+): Promise<CrossTenantMatrixResult> {
+  if (personas.length < 3) {
+    throw new Error(
+      `runCrossTenantMatrix requires at least 3 personas to form a meaningful matrix; got ${personas.length}`,
+    );
+  }
+
+  const registered = getIdentityById(identityId);
+  if (!registered) {
+    throw new Error(`Unknown identity: ${identityId}`);
+  }
+
+  // Run the same identity once per persona, in parallel
+  const outputs = await Promise.all(
+    personas.map((persona) => runIdentity(identityId, coreAnalysisBody, persona)),
+  );
+
+  // Embed all outputs
+  const embedded = await embedOutputs(outputs);
+
+  // Build pairwise matrix using STRICT cross-tenant thresholds
+  const similarities: SimilarityResult[] = [];
+  for (let i = 0; i < embedded.length; i++) {
+    for (let j = i + 1; j < embedded.length; j++) {
+      const a = embedded[i]!;
+      const b = embedded[j]!;
+      const score = scorePair(a.embedding, b.embedding, a.output.body, b.output.body);
+      similarities.push({
+        pairId: `${personas[i]!.id}__${personas[j]!.id}`,
+        identityA: personas[i]!.name,
+        identityB: personas[j]!.name,
+        cosineSimilarity: score.cosineSimilarity,
+        rougeL: score.rougeL,
+        status: classifyCrossTenantStatus(score.cosineSimilarity, score.rougeL),
+      });
+    }
+  }
+
+  // LLM judge on borderline + fail pairs
+  const borderline = similarities.filter(
+    (s) => s.status === "borderline-cross-tenant" || s.status === "fail-cross-tenant",
+  );
+
+  for (const sim of borderline) {
+    const indexA = personas.findIndex((p) => p.name === sim.identityA);
+    const indexB = personas.findIndex((p) => p.name === sim.identityB);
+    const outA = outputs[indexA]!;
+    const outB = outputs[indexB]!;
+
+    const verdict = await judgePairUniqueness({
+      identityA: `${registered.definition.name} for ${sim.identityA}`,
+      identityB: `${registered.definition.name} for ${sim.identityB}`,
+      contentA: outA.body,
+      contentB: outB.body,
+      cosineSimilarity: sim.cosineSimilarity,
+      rougeL: sim.rougeL,
+    });
+
+    sim.judgeVerdict = verdict.verdict;
+    sim.judgeReasoning = verdict.reasoning;
+    sim.judgeCostUsd = verdict.costUsd;
+  }
+
+  // Distribution stats
+  const cosines = similarities.map((s) => s.cosineSimilarity);
+  const rouges = similarities.map((s) => s.rougeL);
+  const meanCosine = cosines.reduce((a, b) => a + b, 0) / cosines.length;
+  const meanRougeL = rouges.reduce((a, b) => a + b, 0) / rouges.length;
+
+  // Cross-tenant verdict — judge-aware
+  const judgeFails = similarities.filter((s) => s.judgeVerdict === "duplicate");
+  const rawFails = similarities.filter((s) => s.status === "fail-cross-tenant");
+  const rawBorderline = similarities.filter((s) => s.status === "borderline-cross-tenant");
+
+  let verdict: CrossTenantMatrixResult["verdict"];
+  let verdictReasoning: string;
+
+  if (judgeFails.length > 0) {
+    verdict = "FAIL";
+    verdictReasoning = `${judgeFails.length} of ${similarities.length} cross-tenant pair(s) flagged as duplicate by the LLM judge: ${judgeFails.map((s) => s.pairId).join(", ")}.`;
+  } else if (rawFails.length > 0 || rawBorderline.length > 0) {
+    const judged = rawBorderline.filter((s) => s.judgeVerdict === "unique").length;
+    verdict = "BORDERLINE";
+    verdictReasoning = `${rawFails.length + rawBorderline.length} of ${similarities.length} cross-tenant pair(s) crossed the strict threshold band by raw similarity, but ${judged} were cleared by the LLM judge as meaningfully different.`;
+  } else {
+    verdict = "PASS";
+    verdictReasoning = `All ${similarities.length} cross-tenant pairs cleared the strict cross-tenant thresholds (cosine < ${UNIQUENESS_THRESHOLDS.crossTenant.cosine}, ROUGE-L < ${UNIQUENESS_THRESHOLDS.crossTenant.rougeL}).`;
+  }
+
+  return {
+    identityId,
+    identityName: registered.definition.name,
+    personas,
+    outputs,
+    similarities,
+    meanCosine,
+    minCosine: Math.min(...cosines),
+    maxCosine: Math.max(...cosines),
+    meanRougeL,
+    minRougeL: Math.min(...rouges),
+    maxRougeL: Math.max(...rouges),
+    verdict,
+    verdictReasoning,
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────
+// Stage 7 — Temporal narrative continuity test
+// ───────────────────────────────────────────────────────────────────
+
+/**
+ * Build a cross-tenant matrix from a set of outputs (one per persona),
+ * applying the strict cross-tenant thresholds. Used for both the control
+ * and treatment groups in Stage 7.
+ */
+async function buildCrossTenantMatrixFromOutputs(
+  identityName: string,
+  personas: ContentPersona[],
+  outputs: IdentityOutput[],
+): Promise<{
+  similarities: SimilarityResult[];
+  meanCosine: number;
+  meanRougeL: number;
+}> {
+  const embedded = await embedOutputs(outputs);
+
+  const similarities: SimilarityResult[] = [];
+  for (let i = 0; i < embedded.length; i++) {
+    for (let j = i + 1; j < embedded.length; j++) {
+      const a = embedded[i]!;
+      const b = embedded[j]!;
+      const score = scorePair(a.embedding, b.embedding, a.output.body, b.output.body);
+      similarities.push({
+        pairId: `${personas[i]!.id}__${personas[j]!.id}`,
+        identityA: personas[i]!.name,
+        identityB: personas[j]!.name,
+        cosineSimilarity: score.cosineSimilarity,
+        rougeL: score.rougeL,
+        status: classifyCrossTenantStatus(score.cosineSimilarity, score.rougeL),
+      });
+    }
+  }
+
+  // LLM judge on borderline + fail pairs (treatment only — to keep cost down,
+  // we'll judge both groups so we can compare verdicts apples-to-apples)
+  const borderline = similarities.filter(
+    (s) => s.status === "borderline-cross-tenant" || s.status === "fail-cross-tenant",
+  );
+
+  for (const sim of borderline) {
+    const indexA = personas.findIndex((p) => p.name === sim.identityA);
+    const indexB = personas.findIndex((p) => p.name === sim.identityB);
+    const outA = outputs[indexA]!;
+    const outB = outputs[indexB]!;
+
+    const verdict = await judgePairUniqueness({
+      identityA: `${identityName} for ${sim.identityA}`,
+      identityB: `${identityName} for ${sim.identityB}`,
+      contentA: outA.body,
+      contentB: outB.body,
+      cosineSimilarity: sim.cosineSimilarity,
+      rougeL: sim.rougeL,
+    });
+    sim.judgeVerdict = verdict.verdict;
+    sim.judgeReasoning = verdict.reasoning;
+    sim.judgeCostUsd = verdict.costUsd;
+  }
+
+  const cosines = similarities.map((s) => s.cosineSimilarity);
+  const rouges = similarities.map((s) => s.rougeL);
+  return {
+    similarities,
+    meanCosine: cosines.reduce((a, b) => a + b, 0) / cosines.length,
+    meanRougeL: rouges.reduce((a, b) => a + b, 0) / rouges.length,
+  };
+}
+
+async function runNarrativeStateTest(args: {
+  identityId: string;
+  personas: ContentPersona[];
+  /** Stage 6 outputs to use as the "prior coverage" for each persona. */
+  priorOutputs: IdentityOutput[];
+  /** Date string for when the prior pieces were "published". */
+  priorPublishedAt: string;
+  /** The second event to write about — the continuation. */
+  secondEvent: NewsEvent;
+}): Promise<NarrativeStateTestResult> {
+  const registered = getIdentityById(args.identityId);
+  if (!registered) {
+    throw new Error(`Unknown identity: ${args.identityId}`);
+  }
+
+  if (args.priorOutputs.length !== args.personas.length) {
+    throw new Error(
+      `Mismatched arrays: ${args.priorOutputs.length} prior outputs vs ${args.personas.length} personas`,
+    );
+  }
+
+  // STEP 1 — Run a fresh core analysis on the second event
+  console.log(`[runner]   Stage 7.1 — running core analysis on second event (${args.secondEvent.id})...`);
+  const secondCoreAnalysis = await runCoreAnalysis(args.secondEvent);
+  console.log(`[runner]     ✓ ${secondCoreAnalysis.outputTokens} output tokens, $${secondCoreAnalysis.costUsd.toFixed(4)}`);
+
+  // STEP 2 — Extract narrative state from each prior output
+  console.log(`[runner]   Stage 7.2 — extracting narrative state from ${args.priorOutputs.length} prior pieces (Haiku)...`);
+  const narrativeStates = await Promise.all(
+    args.personas.map(async (persona, i) => {
+      const state = await buildNarrativeStateFromPriorOutput(
+        persona,
+        args.secondEvent.topicId,
+        args.priorOutputs[i]!,
+        args.priorPublishedAt,
+      );
+      return { personaId: persona.id, personaName: persona.name, state };
+    }),
+  );
+  for (const { personaName, state } of narrativeStates) {
+    const e = state.recentEntries[0]!;
+    console.log(`[runner]     ✓ ${personaName}: ${e.directionalView} (${e.directionalViewConfidence}), thesis="${e.keyThesisStatements[0]?.slice(0, 60)}..."`);
+  }
+
+  // STEP 3 — Generate CONTROL group (no narrative state) on second event
+  console.log(`[runner]   Stage 7.3 — control group: 4 journalist runs on second event WITHOUT narrative state (parallel)...`);
+  const controlOutputs = await Promise.all(
+    args.personas.map((persona) =>
+      runIdentity(args.identityId, secondCoreAnalysis.body, persona),
+    ),
+  );
+  for (const out of controlOutputs) {
+    console.log(`[runner]     ✓ control[${out.identityId}]: ${out.wordCount} words, $${out.costUsd.toFixed(4)}`);
+  }
+
+  // STEP 4 — Generate TREATMENT group (WITH narrative state) on second event
+  console.log(`[runner]   Stage 7.4 — treatment group: 4 journalist runs on second event WITH narrative state (parallel)...`);
+  const treatmentOutputs = await Promise.all(
+    args.personas.map((persona, i) =>
+      runIdentity(args.identityId, secondCoreAnalysis.body, persona, {
+        narrativeState: narrativeStates[i]!.state,
+        topicName: args.secondEvent.topicName,
+      }),
+    ),
+  );
+  for (const out of treatmentOutputs) {
+    console.log(`[runner]     ✓ treatment[${out.identityId}]: ${out.wordCount} words, $${out.costUsd.toFixed(4)}`);
+  }
+
+  // STEP 5 — Build cross-tenant matrices for both groups
+  console.log(`[runner]   Stage 7.5 — building cross-tenant matrices for control and treatment...`);
+  const controlMatrix = await buildCrossTenantMatrixFromOutputs(
+    registered.definition.name,
+    args.personas,
+    controlOutputs,
+  );
+  const treatmentMatrix = await buildCrossTenantMatrixFromOutputs(
+    registered.definition.name,
+    args.personas,
+    treatmentOutputs,
+  );
+
+  console.log(`[runner]     ✓ CONTROL  : cosine mean=${controlMatrix.meanCosine.toFixed(4)}, rougeL mean=${controlMatrix.meanRougeL.toFixed(4)}`);
+  console.log(`[runner]     ✓ TREATMENT: cosine mean=${treatmentMatrix.meanCosine.toFixed(4)}, rougeL mean=${treatmentMatrix.meanRougeL.toFixed(4)}`);
+  console.log(`[runner]     ✓ DIFFERENTIAL: cosine ${(controlMatrix.meanCosine - treatmentMatrix.meanCosine).toFixed(4)} (positive = treatment more unique)`);
+
+  // STEP 6 — Aggregate verdict for the treatment group
+  const treatmentJudgeFails = treatmentMatrix.similarities.filter((s) => s.judgeVerdict === "duplicate");
+  const treatmentRawFails = treatmentMatrix.similarities.filter((s) => s.status === "fail-cross-tenant");
+  const treatmentRawBorderline = treatmentMatrix.similarities.filter((s) => s.status === "borderline-cross-tenant");
+
+  let treatmentVerdict: NarrativeStateTestResult["treatmentVerdict"];
+  let treatmentVerdictReasoning: string;
+  if (treatmentJudgeFails.length > 0) {
+    treatmentVerdict = "FAIL";
+    treatmentVerdictReasoning = `${treatmentJudgeFails.length} of ${treatmentMatrix.similarities.length} treatment pair(s) flagged as duplicate by the LLM judge.`;
+  } else if (treatmentRawFails.length > 0 || treatmentRawBorderline.length > 0) {
+    treatmentVerdict = "BORDERLINE";
+    treatmentVerdictReasoning = `${treatmentRawFails.length + treatmentRawBorderline.length} of ${treatmentMatrix.similarities.length} treatment pair(s) crossed the strict threshold band but were cleared by the LLM judge.`;
+  } else {
+    treatmentVerdict = "PASS";
+    treatmentVerdictReasoning = `All ${treatmentMatrix.similarities.length} treatment pairs cleared the strict cross-tenant thresholds.`;
+  }
+
+  return {
+    identityId: args.identityId,
+    identityName: registered.definition.name,
+    secondEvent: args.secondEvent,
+    secondCoreAnalysis,
+    narrativeStates,
+    controlOutputs,
+    controlSimilarities: controlMatrix.similarities,
+    controlMeanCosine: controlMatrix.meanCosine,
+    controlMeanRougeL: controlMatrix.meanRougeL,
+    treatmentOutputs,
+    treatmentSimilarities: treatmentMatrix.similarities,
+    treatmentMeanCosine: treatmentMatrix.meanCosine,
+    treatmentMeanRougeL: treatmentMatrix.meanRougeL,
+    cosineImprovement: controlMatrix.meanCosine - treatmentMatrix.meanCosine,
+    rougeLImprovement: controlMatrix.meanRougeL - treatmentMatrix.meanRougeL,
+    treatmentVerdict,
+    treatmentVerdictReasoning,
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────
 // Verdict — aggregate the run against the spec's thresholds
 // ───────────────────────────────────────────────────────────────────
 
@@ -336,6 +684,28 @@ export interface RunOptions {
     identityId: string;
     personaA: ContentPersona;
     personaB: ContentPersona;
+  };
+  /**
+   * Run the cross-tenant matrix test (Stage 6)?
+   * Pick one identity, run it with N personas, build pairwise matrix.
+   * This is the load-bearing cross-tenant uniqueness test.
+   * Requires at least 3 personas for a meaningful matrix. ~$0.20-0.40.
+   */
+  withCrossTenantMatrix?: {
+    identityId: string;
+    personas: ContentPersona[];
+  };
+  /**
+   * Run the temporal narrative continuity test (Stage 7)?
+   * Uses Stage 6's outputs as "prior coverage", runs a SECOND event with
+   * narrative state injected (treatment) and without (control), compares.
+   * Requires withCrossTenantMatrix to also be set so we can reuse its outputs.
+   * ~$0.50-0.80.
+   */
+  withNarrativeStateTest?: {
+    secondEvent: NewsEvent;
+    /** Date string to attribute to the prior pieces (the "publishedAt" field). */
+    priorPublishedAt: string;
   };
 }
 
@@ -408,7 +778,38 @@ export async function runUniquenessPoc(opts: RunOptions): Promise<RunResult> {
     console.log(`[runner]   ✓ cosine=${personaDifferentiation.cosineSimilarity.toFixed(4)}, rouge-L=${personaDifferentiation.rougeL.toFixed(4)}, differentiated=${personaDifferentiation.differentiated}`);
   }
 
-  // Aggregate verdict
+  // Stage 6 + Stage 7 are tightly coupled — Stage 7 reuses Stage 6's outputs
+  let crossTenantMatrix: CrossTenantMatrixResult | undefined;
+  let narrativeStateTest: NarrativeStateTestResult | undefined;
+  if (opts.withCrossTenantMatrix) {
+    console.log(`[runner] Stage 6 — CROSS-TENANT MATRIX (the load-bearing test): ${opts.withCrossTenantMatrix.identityId} × ${opts.withCrossTenantMatrix.personas.length} personas...`);
+    crossTenantMatrix = await runCrossTenantMatrix(
+      opts.withCrossTenantMatrix.identityId,
+      coreAnalysis.body,
+      opts.withCrossTenantMatrix.personas,
+    );
+    console.log(`[runner]   ✓ ${crossTenantMatrix.similarities.length} pairs`);
+    console.log(`[runner]   ✓ cosine: mean=${crossTenantMatrix.meanCosine.toFixed(4)}, min=${crossTenantMatrix.minCosine.toFixed(4)}, max=${crossTenantMatrix.maxCosine.toFixed(4)}`);
+    console.log(`[runner]   ✓ rougeL: mean=${crossTenantMatrix.meanRougeL.toFixed(4)}, min=${crossTenantMatrix.minRougeL.toFixed(4)}, max=${crossTenantMatrix.maxRougeL.toFixed(4)}`);
+    console.log(`[runner]   ✓ CROSS-TENANT VERDICT: ${crossTenantMatrix.verdict}`);
+    console.log(`[runner]     ${crossTenantMatrix.verdictReasoning}`);
+
+    // Stage 7 — narrative state test (uses Stage 6 outputs as priors)
+    if (opts.withNarrativeStateTest) {
+      console.log(`[runner] Stage 7 — TEMPORAL NARRATIVE CONTINUITY TEST...`);
+      narrativeStateTest = await runNarrativeStateTest({
+        identityId: opts.withCrossTenantMatrix.identityId,
+        personas: opts.withCrossTenantMatrix.personas,
+        priorOutputs: crossTenantMatrix.outputs,
+        priorPublishedAt: opts.withNarrativeStateTest.priorPublishedAt,
+        secondEvent: opts.withNarrativeStateTest.secondEvent,
+      });
+      console.log(`[runner]   ✓ TREATMENT VERDICT: ${narrativeStateTest.treatmentVerdict}`);
+      console.log(`[runner]     ${narrativeStateTest.treatmentVerdictReasoning}`);
+    }
+  }
+
+  // Aggregate verdict (intra-tenant cross-identity matrix; cross-tenant has its own verdict in the matrix result)
   const { verdict, reasoning } = aggregateVerdict(similarities);
   console.log(`[runner] Verdict: ${verdict}`);
   console.log(`[runner]   ${reasoning}`);
@@ -418,6 +819,21 @@ export async function runUniquenessPoc(opts: RunOptions): Promise<RunResult> {
   const reproCost = reproducibility
     ? reproducibility.runs.reduce((sum) => sum + 0, 0)
     : 0;
+  const crossTenantCost = crossTenantMatrix
+    ? crossTenantMatrix.outputs.reduce((sum, o) => sum + o.costUsd, 0) +
+      crossTenantMatrix.similarities.reduce((sum, s) => sum + (s.judgeCostUsd ?? 0), 0)
+    : 0;
+  const narrativeStateCost = narrativeStateTest
+    ? narrativeStateTest.secondCoreAnalysis.costUsd +
+      narrativeStateTest.narrativeStates.reduce(
+        (sum, ns) => sum + (ns.state.recentEntries[0]?.extractionCostUsd ?? 0),
+        0,
+      ) +
+      narrativeStateTest.controlOutputs.reduce((sum, o) => sum + o.costUsd, 0) +
+      narrativeStateTest.treatmentOutputs.reduce((sum, o) => sum + o.costUsd, 0) +
+      narrativeStateTest.controlSimilarities.reduce((sum, s) => sum + (s.judgeCostUsd ?? 0), 0) +
+      narrativeStateTest.treatmentSimilarities.reduce((sum, s) => sum + (s.judgeCostUsd ?? 0), 0)
+    : 0;
   // Note: reproducibility identity outputs aren't tracked in the result type for cost
   // (kept simple — the figures we report are the headline calls)
   const totalCostUsd =
@@ -426,6 +842,8 @@ export async function runUniquenessPoc(opts: RunOptions): Promise<RunResult> {
     totalEmbeddingCost +
     judgeCost +
     reproCost +
+    crossTenantCost +
+    narrativeStateCost +
     (personaDifferentiation
       ? personaDifferentiation.outputA.costUsd + personaDifferentiation.outputB.costUsd
       : 0);
@@ -443,6 +861,8 @@ export async function runUniquenessPoc(opts: RunOptions): Promise<RunResult> {
     similarities,
     reproducibility,
     personaDifferentiation,
+    crossTenantMatrix,
+    narrativeStateTest,
     totalCostUsd,
     totalDurationMs,
     verdict,

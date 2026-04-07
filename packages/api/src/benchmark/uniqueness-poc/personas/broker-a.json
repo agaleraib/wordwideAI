@@ -25,5 +25,7 @@
   ],
   "regionalVariant": "en-GB",
   "brandPositioning": "The broker serious investors choose when they outgrow retail platforms. We provide institutional-grade research, conservative risk frameworks, and a thoughtful long-view on markets.",
-  "jurisdictions": ["UK", "EU", "Switzerland"]
+  "jurisdictions": ["UK", "EU", "Switzerland"],
+  "preferredAngles": ["positioning", "macro-narrative", "risk-warning"],
+  "personalityTags": ["calibrated", "comprehensive", "formal", "observer", "measured"]
 }

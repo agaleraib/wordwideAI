@@ -23,15 +23,54 @@ function statusBadge(status: SimilarityStatus): string {
   }
 }
 
-function verdictBanner(result: RunResult): string {
-  switch (result.verdict) {
+function verdictBadge(verdict: "PASS" | "BORDERLINE" | "FAIL"): string {
+  switch (verdict) {
     case "PASS":
-      return `## ✅ VERDICT: PASS\n\n${result.verdictReasoning}\n`;
+      return "✅ PASS";
     case "BORDERLINE":
-      return `## ⚠️ VERDICT: BORDERLINE\n\n${result.verdictReasoning}\n`;
+      return "⚠️ BORDERLINE";
     case "FAIL":
-      return `## ❌ VERDICT: FAIL\n\n${result.verdictReasoning}\n`;
+      return "❌ FAIL";
   }
+}
+
+function verdictBanner(result: RunResult): string {
+  const lines: string[] = [];
+
+  // The CROSS-TENANT verdict is the load-bearing test — show it first if present
+  if (result.crossTenantMatrix) {
+    lines.push(`## ${verdictBadge(result.crossTenantMatrix.verdict)} CROSS-TENANT VERDICT (the load-bearing test)`);
+    lines.push("");
+    lines.push(result.crossTenantMatrix.verdictReasoning);
+    lines.push("");
+    lines.push(
+      `*Tested by running **${result.crossTenantMatrix.identityName}** on the same core analysis with **${result.crossTenantMatrix.personas.length} different broker personas** (${result.crossTenantMatrix.personas.map((p) => p.name).join(", ")}). This produces ${result.crossTenantMatrix.similarities.length} cross-tenant pairs against the strict 0.85 cosine / 0.40 ROUGE-L thresholds. This is the test that directly validates the architecture's load-bearing claim that two brokers picking the same identity get differentiated content.*`,
+    );
+    lines.push("");
+    lines.push("### Cross-tenant similarity distribution");
+    lines.push("");
+    lines.push(
+      `- **Cosine similarity**: mean ${result.crossTenantMatrix.meanCosine.toFixed(4)}, range ${result.crossTenantMatrix.minCosine.toFixed(4)} – ${result.crossTenantMatrix.maxCosine.toFixed(4)} (threshold: < 0.85)`,
+    );
+    lines.push(
+      `- **ROUGE-L F1**:       mean ${result.crossTenantMatrix.meanRougeL.toFixed(4)}, range ${result.crossTenantMatrix.minRougeL.toFixed(4)} – ${result.crossTenantMatrix.maxRougeL.toFixed(4)} (threshold: < 0.40)`,
+    );
+    lines.push("");
+    lines.push("---");
+    lines.push("");
+  }
+
+  // Then the intra-tenant verdict (cross-identity matrix) — secondary
+  lines.push(`## ${verdictBadge(result.verdict)} Intra-tenant cross-identity verdict (secondary)`);
+  lines.push("");
+  lines.push(result.verdictReasoning);
+  lines.push("");
+  lines.push(
+    "*This is the matrix of pairwise comparisons between the 6 different identities below, all consuming the same core analysis. It tests a different question: \"if a single broker runs multiple identity pipelines on the same event, are the resulting products differentiated?\" Note: this matrix uses the strict cross-tenant thresholds (0.85 cosine), which is over-strict for an intra-tenant comparison — the spec actually allows 0.92 cosine for intra-tenant cross-pipeline. Read this verdict with that caveat.*",
+  );
+  lines.push("");
+
+  return lines.join("\n");
 }
 
 function similarityMatrixTable(
@@ -215,6 +254,182 @@ export function renderReport(result: RunResult): string {
     lines.push("");
   }
 
+  // ───────── Stage 6: cross-tenant matrix (the load-bearing test) ─────────
+  if (result.crossTenantMatrix) {
+    const ct = result.crossTenantMatrix;
+    lines.push("---");
+    lines.push("");
+    lines.push(`## 6. Cross-tenant matrix — ${ct.identityName} × ${ct.personas.length} brokers`);
+    lines.push("");
+    lines.push(
+      `**This is the load-bearing test of the architecture.** Same identity (\`${ct.identityName}\`), same core analysis from §1, but applied with ${ct.personas.length} different broker personas. This isolates the question: *do two brokers picking the same writer get genuinely different content?*`,
+    );
+    lines.push("");
+    lines.push(
+      `Each pair below is a cross-tenant comparison evaluated against the **strict cross-tenant thresholds** from the uniqueness spec: cosine < 0.85, ROUGE-L F1 < 0.40. This is the bar Google's duplicate-content detection cares about and the bar a discerning reader cares about.`,
+    );
+    lines.push("");
+
+    // The 4 outputs in full
+    lines.push(`### The ${ct.outputs.length} outputs`);
+    lines.push("");
+    for (let i = 0; i < ct.outputs.length; i++) {
+      const output = ct.outputs[i]!;
+      const persona = ct.personas[i]!;
+      lines.push(`#### ${persona.name} — ${persona.regionalVariant}`);
+      lines.push("");
+      lines.push(
+        `*${output.wordCount} words · ${output.model} · ${(output.durationMs / 1000).toFixed(1)}s · ${formatUsd(output.costUsd)}*`,
+      );
+      lines.push("");
+      lines.push(`**Brand voice:** ${persona.brandVoice}`);
+      lines.push("");
+      lines.push(output.body);
+      lines.push("");
+      lines.push("---");
+      lines.push("");
+    }
+
+    // Pairwise matrix
+    lines.push(`### Cross-tenant pairwise similarity matrix`);
+    lines.push("");
+    lines.push(
+      `${ct.personas.length} personas → ${ct.similarities.length} cross-tenant pairs. Each scored against the strict cross-tenant thresholds.`,
+    );
+    lines.push("");
+    lines.push("| Pair | Cosine | ROUGE-L | Status | LLM Judge |");
+    lines.push("|---|---:|---:|---|---|");
+    for (const sim of ct.similarities) {
+      const judge = sim.judgeVerdict
+        ? `**${sim.judgeVerdict}** — ${sim.judgeReasoning ?? ""}`
+        : "—";
+      lines.push(
+        `| ${sim.identityA} ↔ ${sim.identityB} | ${sim.cosineSimilarity.toFixed(4)} | ${sim.rougeL.toFixed(4)} | ${statusBadge(sim.status)} | ${judge} |`,
+      );
+    }
+    lines.push("");
+
+    // Distribution stats
+    lines.push("### Distribution statistics");
+    lines.push("");
+    lines.push("| Metric | Mean | Min | Max | Threshold |");
+    lines.push("|---|---:|---:|---:|---:|");
+    lines.push(
+      `| Cosine | ${ct.meanCosine.toFixed(4)} | ${ct.minCosine.toFixed(4)} | ${ct.maxCosine.toFixed(4)} | < 0.85 |`,
+    );
+    lines.push(
+      `| ROUGE-L F1 | ${ct.meanRougeL.toFixed(4)} | ${ct.minRougeL.toFixed(4)} | ${ct.maxRougeL.toFixed(4)} | < 0.40 |`,
+    );
+    lines.push("");
+    lines.push(`### Cross-tenant verdict: ${verdictBadge(ct.verdict)}`);
+    lines.push("");
+    lines.push(ct.verdictReasoning);
+    lines.push("");
+  }
+
+  // ───────── Stage 7: temporal narrative continuity ─────────
+  if (result.narrativeStateTest) {
+    const ns = result.narrativeStateTest;
+    lines.push("---");
+    lines.push("");
+    lines.push(`## 7. Temporal narrative continuity test (Stage 7)`);
+    lines.push("");
+    lines.push(
+      `**Hypothesis:** per-client narrative memory adds another differentiation layer on top of the static persona+tag layers. Mechanism: each persona's prior coverage of ${ns.secondEvent.topicName} (from Stage 6) is extracted into structured narrative state and injected as context when the same persona writes about a *continuation* event a few days later. The control group writes the second event with no narrative state; the treatment group writes the same second event with their respective narrative states injected.`,
+    );
+    lines.push("");
+    lines.push(`**Second event used:** *${ns.secondEvent.title}* (${ns.secondEvent.source}, ${ns.secondEvent.publishedAt})`);
+    lines.push("");
+
+    // Headline numbers
+    lines.push("### Headline differential");
+    lines.push("");
+    lines.push("| Metric | Control (no state) | Treatment (with state) | Improvement |");
+    lines.push("|---|---:|---:|---:|");
+    lines.push(
+      `| **Cosine mean** | ${ns.controlMeanCosine.toFixed(4)} | ${ns.treatmentMeanCosine.toFixed(4)} | ${ns.cosineImprovement >= 0 ? "−" : "+"}${Math.abs(ns.cosineImprovement).toFixed(4)} ${ns.cosineImprovement > 0 ? "✅" : "❌"} |`,
+    );
+    lines.push(
+      `| **ROUGE-L mean** | ${ns.controlMeanRougeL.toFixed(4)} | ${ns.treatmentMeanRougeL.toFixed(4)} | ${ns.rougeLImprovement >= 0 ? "−" : "+"}${Math.abs(ns.rougeLImprovement).toFixed(4)} ${ns.rougeLImprovement > 0 ? "✅" : "❌"} |`,
+    );
+    lines.push("");
+    lines.push(`**Treatment verdict:** ${verdictBadge(ns.treatmentVerdict)} — ${ns.treatmentVerdictReasoning}`);
+    lines.push("");
+    lines.push(
+      `*A positive cosine improvement means the narrative-state injection produced more cross-tenant differentiation than the control. A meaningful improvement (~0.03 or more) would validate temporal continuity as a real layer of the architecture that compounds with usage.*`,
+    );
+    lines.push("");
+
+    // Extracted narrative states
+    lines.push("### Extracted narrative state per persona (from Stage 6 outputs)");
+    lines.push("");
+    for (const ns_entry of ns.narrativeStates) {
+      const e = ns_entry.state.recentEntries[0]!;
+      lines.push(`#### ${ns_entry.personaName}`);
+      lines.push("");
+      lines.push(`- **Summary**: ${e.oneSentenceSummary}`);
+      lines.push(`- **Directional view**: ${e.directionalView} (${e.directionalViewConfidence} confidence)`);
+      if (e.keyThesisStatements.length > 0) {
+        lines.push(`- **Key thesis statements**:`);
+        for (const t of e.keyThesisStatements) {
+          lines.push(`  - ${t}`);
+        }
+      }
+      if (e.keyLevelsMentioned.length > 0) {
+        lines.push(`- **Levels mentioned**: ${e.keyLevelsMentioned.join("; ")}`);
+      }
+      if (e.callsToActionUsed.length > 0) {
+        lines.push(`- **CTAs used**: ${e.callsToActionUsed.join("; ")}`);
+      }
+      lines.push("");
+    }
+
+    // Pairwise matrices side by side
+    lines.push("### Control matrix (no narrative state)");
+    lines.push("");
+    lines.push("| Pair | Cosine | ROUGE-L | Status |");
+    lines.push("|---|---:|---:|---|");
+    for (const sim of ns.controlSimilarities) {
+      lines.push(
+        `| ${sim.identityA} ↔ ${sim.identityB} | ${sim.cosineSimilarity.toFixed(4)} | ${sim.rougeL.toFixed(4)} | ${statusBadge(sim.status)} |`,
+      );
+    }
+    lines.push("");
+
+    lines.push("### Treatment matrix (with narrative state)");
+    lines.push("");
+    lines.push("| Pair | Cosine | ROUGE-L | Status |");
+    lines.push("|---|---:|---:|---|");
+    for (const sim of ns.treatmentSimilarities) {
+      lines.push(
+        `| ${sim.identityA} ↔ ${sim.identityB} | ${sim.cosineSimilarity.toFixed(4)} | ${sim.rougeL.toFixed(4)} | ${statusBadge(sim.status)} |`,
+      );
+    }
+    lines.push("");
+
+    // The treatment outputs in full so the reader can see them
+    lines.push(`### Treatment outputs in full (with narrative state injected)`);
+    lines.push("");
+    lines.push(
+      `*These are the second-event pieces written by each persona's journalist with their prior coverage as memory. The reader should be able to feel the narrative continuity — references to prior takes, consistent positioning, building on the established framing.*`,
+    );
+    lines.push("");
+    for (let i = 0; i < ns.treatmentOutputs.length; i++) {
+      const out = ns.treatmentOutputs[i]!;
+      const persona = ns.narrativeStates[i]!;
+      lines.push(`#### ${persona.personaName}`);
+      lines.push("");
+      lines.push(
+        `*${out.wordCount} words · ${out.model} · ${(out.durationMs / 1000).toFixed(1)}s · ${formatUsd(out.costUsd)}*`,
+      );
+      lines.push("");
+      lines.push(out.body);
+      lines.push("");
+      lines.push("---");
+      lines.push("");
+    }
+  }
+
   // ───────── Cost summary ─────────
   lines.push("---");
   lines.push("");
@@ -235,6 +450,34 @@ export function renderReport(result: RunResult): string {
       result.personaDifferentiation.outputA.costUsd +
       result.personaDifferentiation.outputB.costUsd;
     lines.push(`| Persona differentiation test (Sonnet × 2) | 2 | ${formatUsd(pdCost)} |`);
+  }
+  if (result.crossTenantMatrix) {
+    const ctCost =
+      result.crossTenantMatrix.outputs.reduce((s, o) => s + o.costUsd, 0) +
+      result.crossTenantMatrix.similarities.reduce((s, sim) => s + (sim.judgeCostUsd ?? 0), 0);
+    const ctJudgeCount = result.crossTenantMatrix.similarities.filter((s) => s.judgeVerdict).length;
+    lines.push(
+      `| **Cross-tenant matrix** (Sonnet × ${result.crossTenantMatrix.outputs.length} + Haiku judge × ${ctJudgeCount}) | ${result.crossTenantMatrix.outputs.length + ctJudgeCount} | ${formatUsd(ctCost)} |`,
+    );
+  }
+  if (result.narrativeStateTest) {
+    const ns = result.narrativeStateTest;
+    const nsCost =
+      ns.secondCoreAnalysis.costUsd +
+      ns.narrativeStates.reduce(
+        (s, e) => s + (e.state.recentEntries[0]?.extractionCostUsd ?? 0),
+        0,
+      ) +
+      ns.controlOutputs.reduce((s, o) => s + o.costUsd, 0) +
+      ns.treatmentOutputs.reduce((s, o) => s + o.costUsd, 0) +
+      ns.controlSimilarities.reduce((s, sim) => s + (sim.judgeCostUsd ?? 0), 0) +
+      ns.treatmentSimilarities.reduce((s, sim) => s + (sim.judgeCostUsd ?? 0), 0);
+    const nsJudgeCount =
+      ns.controlSimilarities.filter((s) => s.judgeVerdict).length +
+      ns.treatmentSimilarities.filter((s) => s.judgeVerdict).length;
+    lines.push(
+      `| **Stage 7 narrative test** (1 Opus + 4 Haiku extractors + 8 Sonnet + ${nsJudgeCount} Haiku judges) | ${1 + 4 + 8 + nsJudgeCount} | ${formatUsd(nsCost)} |`,
+    );
   }
   if (result.reproducibility) {
     lines.push(`| Reproducibility test (× ${result.reproducibility.runs.length}) | ${result.reproducibility.runs.length} | (not totaled) |`);

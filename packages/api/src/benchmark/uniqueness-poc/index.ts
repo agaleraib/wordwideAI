@@ -22,7 +22,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { NewsEvent, ContentPersona, RunResult } from "./types.js";
@@ -33,6 +33,49 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, "fixtures");
 const PERSONAS_DIR = join(__dirname, "personas");
 const RUNS_OUTPUT_ROOT = join(__dirname, "..", "..", "..", "..", "..", "uniqueness-poc-runs");
+
+/**
+ * Walk up from this file looking for a `.env` file and load any keys from it
+ * into process.env (without overwriting existing values). This makes the
+ * harness work regardless of which directory it's run from — by default Bun
+ * only auto-loads `.env` from the current working directory.
+ *
+ * Lazy clients in similarity.ts and llm-judge.ts read process.env *inside*
+ * function calls (not at module load), so this top-level call runs in time.
+ */
+function loadDotEnvFromRepoRoot(): string | null {
+  let dir = __dirname;
+  for (let i = 0; i < 8; i++) {
+    const candidate = resolve(dir, ".env");
+    if (existsSync(candidate)) {
+      const content = readFileSync(candidate, "utf-8");
+      for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eq = trimmed.indexOf("=");
+        if (eq === -1) continue;
+        const key = trimmed.slice(0, eq).trim();
+        let value = trimmed.slice(eq + 1).trim();
+        if (
+          (value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))
+        ) {
+          value = value.slice(1, -1);
+        }
+        if (!(key in process.env) || !process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+      return candidate;
+    }
+    const parent = resolve(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+const loadedFrom = loadDotEnvFromRepoRoot();
 
 function loadFixture(id: string): NewsEvent {
   const path = join(FIXTURES_DIR, `${id}.json`);
@@ -96,15 +139,41 @@ function persistRun(result: RunResult): string {
 async function runOne(fixtureId: string, full: boolean): Promise<RunResult> {
   const event = loadFixture(fixtureId);
 
+  // In --full mode, load ALL FOUR personas for the cross-tenant matrix
+  const allPersonas = full
+    ? [
+        loadPersona("broker-a"),
+        loadPersona("broker-b"),
+        loadPersona("broker-c"),
+        loadPersona("broker-d"),
+      ]
+    : [];
+
+  // Stage 7 — narrative state test only fires for the iran-strike fixture
+  // (it has a paired continuation fixture, iran-retaliation, that makes a
+  // realistic narrative thread)
+  const narrativeContinuation =
+    full && fixtureId === "iran-strike" ? loadFixture("iran-retaliation") : null;
+
   const opts = {
     event,
     ...(full && {
       withReproducibility: { identityId: "in-house-journalist", runs: 3 },
       withPersonaDifferentiation: {
         identityId: "in-house-journalist",
-        personaA: loadPersona("broker-a"),
-        personaB: loadPersona("broker-b"),
+        personaA: allPersonas[0]!,
+        personaB: allPersonas[1]!,
       },
+      withCrossTenantMatrix: {
+        identityId: "in-house-journalist",
+        personas: allPersonas,
+      },
+      ...(narrativeContinuation && {
+        withNarrativeStateTest: {
+          secondEvent: narrativeContinuation,
+          priorPublishedAt: event.publishedAt,
+        },
+      }),
     }),
   };
 
@@ -112,11 +181,22 @@ async function runOne(fixtureId: string, full: boolean): Promise<RunResult> {
   const dir = persistRun(result);
 
   console.log(`\n[index] Run complete.`);
-  console.log(`[index] Report:    ${join(dir, "report.md")}`);
-  console.log(`[index] Run dir:   ${dir}`);
-  console.log(`[index] Verdict:   ${result.verdict}`);
-  console.log(`[index] Cost:      $${result.totalCostUsd.toFixed(4)}`);
-  console.log(`[index] Duration:  ${(result.totalDurationMs / 1000).toFixed(1)}s`);
+  console.log(`[index] Report:        ${join(dir, "report.md")}`);
+  console.log(`[index] Run dir:       ${dir}`);
+  console.log(`[index] Intra-tenant verdict: ${result.verdict}`);
+  if (result.crossTenantMatrix) {
+    console.log(`[index] STAGE 6 cross-tenant: ${result.crossTenantMatrix.verdict} (cosine mean ${result.crossTenantMatrix.meanCosine.toFixed(4)})`);
+  }
+  if (result.narrativeStateTest) {
+    const ns = result.narrativeStateTest;
+    console.log(`[index] STAGE 7 narrative continuity:`);
+    console.log(`[index]   control   cosine mean: ${ns.controlMeanCosine.toFixed(4)}`);
+    console.log(`[index]   treatment cosine mean: ${ns.treatmentMeanCosine.toFixed(4)}`);
+    console.log(`[index]   IMPROVEMENT (control - treatment): ${ns.cosineImprovement.toFixed(4)} ${ns.cosineImprovement > 0 ? "(treatment more unique ✓)" : "(no improvement ✗)"}`);
+    console.log(`[index]   treatment verdict: ${ns.treatmentVerdict}`);
+  }
+  console.log(`[index] Cost:          $${result.totalCostUsd.toFixed(4)}`);
+  console.log(`[index] Duration:      ${(result.totalDurationMs / 1000).toFixed(1)}s`);
 
   return result;
 }
@@ -126,6 +206,12 @@ async function main() {
   const full = args.includes("--full");
   const all = args.includes("--all");
   const positional = args.filter((a) => !a.startsWith("--"));
+
+  if (loadedFrom) {
+    console.log(`[index] Loaded env from ${loadedFrom}`);
+  } else {
+    console.log("[index] No .env file found by walking up from the script location.");
+  }
 
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error("ERROR: ANTHROPIC_API_KEY is not set. Add it to .env at the repo root.");

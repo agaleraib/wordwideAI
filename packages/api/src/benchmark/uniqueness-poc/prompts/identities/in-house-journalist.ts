@@ -1,4 +1,10 @@
-import type { IdentityDefinition, ContentPersona } from "../../types.js";
+import type {
+  IdentityDefinition,
+  ContentPersona,
+  TenantTopicNarrativeState,
+} from "../../types.js";
+import { renderAngleTagDirectives, renderPersonalityTagDirectives } from "../../tags.js";
+import { renderNarrativeStateDirective } from "../../narrative-state.js";
 
 export const IN_HOUSE_JOURNALIST: IdentityDefinition = {
   id: "in-house-journalist",
@@ -44,9 +50,43 @@ Your job is to take a fundamental analysis (provided by a senior analyst) and ad
 The piece should feel like a working journalist with markets expertise wrote it on a deadline for a real publication. If your output reads like an AI summary or a textbook, you have failed.`,
 };
 
-export function buildInHouseJournalistUserMessage(coreAnalysis: string, persona?: ContentPersona): string {
-  const personaSection = persona
-    ? `\n# Brand context\n\nYou are writing for ${persona.name}'s in-house news section.\n- Brand voice: ${persona.brandVoice}\n- Target audience: ${persona.audienceProfile}\n- Brand positioning: ${persona.brandPositioning}\n- Regional variant: ${persona.regionalVariant}\n- Forbidden phrases: ${persona.forbiddenClaims.join(", ")}\n- CTA policy: ${persona.ctaPolicy}\n${persona.ctaPolicy !== "never" ? `- Available CTAs: ${persona.ctaLibrary.map((c) => `"${c.text}"`).join("; ")}` : ""}\n\nApply the brand context as a natural overlay on top of the journalism style. The column should feel like it was written for ${persona.name}'s news section, not a generic broker site.\n`
+export function buildInHouseJournalistUserMessage(
+  coreAnalysis: string,
+  persona?: ContentPersona,
+  options?: {
+    narrativeState?: TenantTopicNarrativeState;
+    topicName?: string;
+  },
+): string {
+  // ─── Narrative-state context (Stage 7) — temporal continuity ───
+  const narrativeDirective = options?.narrativeState
+    ? renderNarrativeStateDirective(options.narrativeState, options?.topicName ?? "this topic")
+    : "";
+
+  // ─── Hard-constraint directives from the persona's tag picks ───
+  const angleDirectives = persona?.preferredAngles?.length
+    ? renderAngleTagDirectives(persona.preferredAngles)
+    : "";
+  const personalityDirectives = persona?.personalityTags?.length
+    ? renderPersonalityTagDirectives(persona.personalityTags)
+    : "";
+
+  // ─── Brand-overlay context (still useful for voice/CTA/jurisdiction) ───
+  const brandSection = persona
+    ? `# Brand context
+
+You are writing for ${persona.name}'s in-house news section.
+- Brand voice: ${persona.brandVoice}
+- Target audience: ${persona.audienceProfile}
+- Brand positioning: ${persona.brandPositioning}
+- Regional variant: ${persona.regionalVariant}
+- Forbidden phrases: ${persona.forbiddenClaims.join(", ")}
+- CTA policy: ${persona.ctaPolicy}
+${persona.ctaPolicy !== "never" ? `- Available CTAs: ${persona.ctaLibrary.map((c) => `"${c.text}"`).join("; ")}` : ""}
+
+Apply the brand context as a natural overlay on top of the journalism style and on top of the angle/personality directives above. The column should feel like it was written for ${persona.name}'s news section, not a generic broker site.
+
+`
     : "";
 
   return `# Source analysis (background material — do not republish)
@@ -56,8 +96,15 @@ The following is a fundamental analysis written by a senior in-house analyst. Tr
 \`\`\`
 ${coreAnalysis}
 \`\`\`
-${personaSection}
-# Your task
 
-Write a complete journalism-style market column following your system instructions. Output ONLY the finished column — no preamble, no meta-commentary. Start with the headline.`;
+${narrativeDirective}${angleDirectives}${personalityDirectives}${brandSection}# Your task
+
+Write a complete journalism-style market column following your system instructions, applying ALL directives above as hard constraints (not suggestions):
+${narrativeDirective ? "- The PRIOR COVERAGE directive: build on your prior takes, reference them naturally, maintain continuity\n" : ""}- The ANALYTICAL ANGLE directive: write from the assigned angle
+- The PERSONALITY directives: embody the assigned tags in tone, density, posture
+- The BRAND CONTEXT: apply as natural overlay
+
+Output ONLY the finished column — no preamble, no meta-commentary, no notes about the directives. Start with the headline.
+
+CRITICAL: ${narrativeDirective ? "The prior coverage is your most important context — the reader EXPECTS continuity. " : ""}The angle directive determines WHAT you emphasize from the analysis. The personality directives determine HOW you write it. ${narrativeDirective ? "The narrative continuity directive determines the relationship between this piece and your earlier ones. " : ""}All must be visible in the final piece.`;
 }

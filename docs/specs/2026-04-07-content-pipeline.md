@@ -679,7 +679,45 @@ Mandatory for launch (Mode A and Mode B). The web UI surfaces this pipeline thro
 - Deferred briefs and why they were deferred.
 - Estimated bill for the period.
 
-These views are read-mostly. The mutations are: pipeline CRUD, source CRUD (tenant-private only), HITL approval, mode toggling (HITL ↔ autopilot), threshold tuning, ceiling adjustments.
+### 8.7 Running thesis view (FUTURE — depends on narrative-state layer being shipped)
+
+A first-class view that surfaces each tenant's accumulated **narrative state per (topic × pipeline)** as a coherent "house view" the client can read, audit, and edit. Conceptually:
+
+> *"Here is your firm's running thesis on EUR/USD. You've been bearish since April 7 (the U.S.-Iran strike event). Your last 5 pieces argued: [summary]. Your current thesis is: [thesis]. The next time an EUR/USD event triggers, your content will pick up from this thread."*
+
+This view exists because once the narrative-state layer is in production (see content-uniqueness spec and PoC findings in `docs/poc-uniqueness-session-2026-04-07.md`), each tenant accumulates a **persistent per-topic narrative state** that conditions their future content. The state is invisible-by-default (it lives behind the scenes and gets injected into prompts) — but it's also **the most valuable artifact the client owns inside FinFlow**, because it's the literal track record of what their writer has said over time. Surfacing it as a UI view turns a hidden internal data structure into a sellable product feature.
+
+**What the view shows per (topic × pipeline):**
+
+- **Current house view** — bullish / bearish / neutral / mixed, with confidence (low / moderate / high)
+- **Active since** — date the current view was first established
+- **Recent thesis statements** — the last 3-5 explicit thesis claims the writer has made on this topic
+- **Recent levels mentioned** — the price levels the writer has been tracking (e.g., "1.0820 support, 1.0780 next downside target")
+- **Recent calls to action** — the last few CTAs the writer has used (or "no CTAs — wealth-management framing")
+- **Last 5 pieces in chronological order** — title, date, one-sentence summary, link to the full piece in the generated content library
+- **Continuity timeline** — a visual showing when the thesis was reinforced, when it shifted, when it was tested by contrary evidence
+- **Next-event preview** — *"When the next EUR/USD-impacting event triggers your pipeline, your content will pick up from this thread. Want to override the current view? Edit the thesis manually below."*
+
+**Mutations the client can perform on this view:**
+
+- **Edit the current thesis text** — overrides what the narrative state injects on the next piece
+- **Flip the directional view** — manual override (useful when the firm changes its mind ahead of an event)
+- **Mark a prior piece as "no longer reflects our view"** — demotes that piece from the active narrative state without deleting the published content
+- **Pause narrative continuity for this topic** — the next piece on this topic is generated without prior context (useful for major regime shifts)
+- **Reset the thread** — clears the narrative state and starts fresh (the next piece is treated as a fresh take with no prior context)
+
+**Why this is a first-class view, not just a debug panel:**
+
+- **It's the brand asset.** A broker's "running thesis" on EUR/USD over time IS the brand. Clients reading consistent, evolving coverage trust the source. Surfacing the thesis explicitly lets the broker SEE that brand asset accumulating in real time.
+- **It's the lock-in.** A client who's been running on FinFlow for 6 months has a rich narrative state per topic. Switching brokers means losing that history. The longer the history, the higher the switching cost.
+- **It's the editorial control surface.** Real editorial teams have a "house view" meeting where they decide what the firm thinks about a market this week. This view IS that meeting, surfaced as software. The broker's editor can sit in front of FinFlow and see/adjust the running view across all topics in one place.
+- **It's the transparency proof.** "AI-generated content" feels untrustworthy to many buyers. Showing them the writer's accumulated reasoning trail makes the system feel like a real editor with a track record, not a black box.
+
+**Implementation note:** this view is gated on shipping the narrative-state layer first (which the PoC empirically tested but did not validate as a *cross-tenant* differentiation mechanism — see `docs/poc-uniqueness-session-2026-04-07.md`). The narrative state layer remains in scope as a temporal-continuity product feature regardless of whether it contributes to cross-tenant uniqueness, so this view is on the "ship in v1.5" list, not the "wait for v2" list.
+
+---
+
+These views are read-mostly. The mutations are: pipeline CRUD, source CRUD (tenant-private only), HITL approval, mode toggling (HITL ↔ autopilot), threshold tuning, ceiling adjustments, **and the narrative-state edits in §8.7**.
 
 ---
 
