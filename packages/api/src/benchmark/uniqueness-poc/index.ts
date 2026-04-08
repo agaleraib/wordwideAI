@@ -107,18 +107,79 @@ function persistRun(result: RunResult): string {
   // The headline artifact
   writeFileSync(join(runDir, "report.md"), renderReport(result), "utf-8");
 
-  // Convenience: each piece as its own file
+  // Convenience: each piece as its own file, organized by stage.
+  //
+  // Stage 2 — intra-tenant cross-identity: 6 different identities on the
+  //           same core analysis, same notional broker. Filename uses the
+  //           identity id (unique within this stage).
+  // Stage 6 — cross-tenant: ONE identity (`in-house-journalist`) rendered
+  //           under N different tenant personas. All 4 outputs have the
+  //           same `identityId`, so filenames must include `personaId` to
+  //           avoid clobbering each other.
+  // Stage 7 — narrative-state A/B: same identity, 4 personas, TWO passes
+  //           (control without state, treatment with state) on the second
+  //           event. Filenames include stage + group + persona.
   writeFileSync(
     join(runDir, "core-analysis.md"),
     `# Core Analysis (FA Agent)\n\n${result.coreAnalysis.body}`,
     "utf-8",
   );
+
+  // Stage 2 — intra-tenant cross-identity
   for (const output of result.identityOutputs) {
     writeFileSync(
       join(runDir, "outputs", `${output.identityId}.md`),
       `# ${output.identityName}\n\n*${output.wordCount} words*\n\n---\n\n${output.body}`,
       "utf-8",
     );
+  }
+
+  // Stage 6 — cross-tenant matrix (one file per persona)
+  if (result.crossTenantMatrix) {
+    const ct = result.crossTenantMatrix;
+    for (let i = 0; i < ct.outputs.length; i++) {
+      const output = ct.outputs[i]!;
+      const persona = ct.personas[i]!;
+      writeFileSync(
+        join(
+          runDir,
+          "outputs",
+          `stage6_${output.identityId}__${output.personaId ?? persona.id}.md`,
+        ),
+        `# ${output.identityName} — ${persona.name}\n\n` +
+          `*${output.wordCount} words · ${persona.regionalVariant} · ${persona.brandVoice}*\n\n` +
+          `---\n\n${output.body}`,
+        "utf-8",
+      );
+    }
+  }
+
+  // Stage 7 — narrative-state control + treatment (one file per persona per group)
+  if (result.narrativeStateTest) {
+    const ns = result.narrativeStateTest;
+    const writeGroup = (
+      group: "control" | "treatment",
+      outputs: typeof ns.controlOutputs,
+    ): void => {
+      for (let i = 0; i < outputs.length; i++) {
+        const output = outputs[i]!;
+        const personaId = output.personaId ?? `unknown-${i}`;
+        const label = group === "control" ? "CONTROL (no narrative state)" : "TREATMENT (with narrative state)";
+        writeFileSync(
+          join(
+            runDir,
+            "outputs",
+            `stage7_${group}_${output.identityId}__${personaId}.md`,
+          ),
+          `# ${output.identityName} — ${personaId} — ${label}\n\n` +
+            `*${output.wordCount} words · event: ${ns.secondEvent.title}*\n\n` +
+            `---\n\n${output.body}`,
+          "utf-8",
+        );
+      }
+    };
+    writeGroup("control", ns.controlOutputs);
+    writeGroup("treatment", ns.treatmentOutputs);
   }
 
   // Raw structured data for cross-run analysis
