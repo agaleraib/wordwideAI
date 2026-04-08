@@ -697,12 +697,28 @@ function aggregateVerdict(similarities: SimilarityResult[]): { verdict: RunResul
   }
 
   if (fails.length > 0 || borderline.length > 0) {
-    const judgedDistinct = similarities.filter(
+    // Count how many of the borderline/fail pairs the judge cleared as
+    // distinct_products (vs how many were left unjudged or returned a
+    // non-distinct verdict). If EVERY borderline/fail pair was cleared,
+    // the mechanical threshold was over-strict and the run is effectively
+    // PASS under the two-axis judge — previously this fell through to
+    // BORDERLINE unconditionally, which meant a clean judge verdict could
+    // never produce a PASS for the intra-tenant matrix.
+    const nonPassPairs = [...fails, ...borderline];
+    const clearedByJudge = nonPassPairs.filter(
       (s) => s.judgeTrinaryVerdict === "distinct_products",
     ).length;
+
+    if (clearedByJudge === nonPassPairs.length) {
+      return {
+        verdict: "PASS",
+        reasoning: `All ${similarities.length} pair(s) either cleared cross-tenant thresholds or were adjudicated DISTINCT_PRODUCTS by the two-axis judge (${clearedByJudge} borderline pair${clearedByJudge === 1 ? "" : "s"} cleared).`,
+      };
+    }
+
     return {
       verdict: "BORDERLINE",
-      reasoning: `${fails.length + borderline.length} pair(s) crossed the cross-tenant threshold band by raw similarity; ${judgedDistinct} were cleared as DISTINCT_PRODUCTS by the two-axis judge.`,
+      reasoning: `${nonPassPairs.length} pair(s) crossed the cross-tenant threshold band by raw similarity; ${clearedByJudge} of ${nonPassPairs.length} were cleared as DISTINCT_PRODUCTS by the two-axis judge.`,
     };
   }
 

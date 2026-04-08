@@ -9,7 +9,7 @@
 > - **Helix Markets is the one persona that fails factual fidelity** independently of Stage 8. All six of its tag prompts (`tail-risk`, `crowded-trade`, `sentiment-extreme`, `contrarian`, `skeptical`, `provocative`) semantically encode "disagree with something" — and in a shared-FA architecture the only thing for Helix to disagree with is the source itself. This is a persona-design problem, not an architecture problem. See §13 below and `tags.ts`.
 > - **The real uniqueness metric is presentation similarity, and it is already in the target zone** (0.28–0.48 across Stage 6 pairs on the 2026-04-08 run, against a < 0.5 target) without the tilt layer and without masking facts.
 >
-> The section-level addenda are inline: §4.1, §6.1, §9.1, §13 (new). The rescoring artifacts are at:
+> The section-level addenda are inline: §4.1, §6.1, §9.1, §13 (new), and §14 (post-retraction housekeeping — two-axis judge wired into production in `040d019`, Stage 6/7 outputs now persisted as individual files in `72c9a82`, `analyze-uniqueness-run` skill added in `d8f6f2e`, plus a list of residual gaps flagged by code review that are not yet fixed). The rescoring artifacts are at:
 > - `uniqueness-poc-runs/2026-04-07T21-04-37-536Z_iran-strike-2026-04-07/report-rescored.md`
 > - `uniqueness-poc-runs/2026-04-08T11-40-20-923Z_iran-strike-2026-04-07/report-rescored.md`
 >
@@ -448,6 +448,44 @@ In a shared-FA architecture where every persona reads the same source analysis, 
 
 ---
 
+## 14. REVISION 2026-04-08 (late) — post-retraction housekeeping + residual gaps
+
+After the two-axis judge wire-up (`040d019`), three follow-up commits cleaned up the harness and captured the analytical workflow as a reusable skill:
+
+- **`91cab2e` — docs + rescore tool + Helix tag rewrite.** Covered in §6.1 / §13. Introduces `packages/api/src/benchmark/uniqueness-poc/rescore.ts` as a standalone migration tool for re-judging pre-2026-04-08 `raw-data.json` files under the new rubric.
+- **`040d019` — two-axis judge wired into production.** Replaces the single-axis judge at all four call sites in `runner.ts`. Stage 6 cross-tenant now judges **every** pair (the cosine-based borderline gate is no longer load-bearing for cross-tenant); Stage 3.5 intra-tenant keeps borderline gating because it is not load-bearing. `SimilarityResult` gains seven optional fields (`judgeFactualFidelity`, `judgeFactualFidelityReasoning`, `judgeFactualDivergences`, `judgePresentationSimilarity`, `judgePresentationSimilarityReasoning`, `judgeTrinaryVerdict`, `judgeCostUsd`); legacy `judgeVerdict`/`judgeReasoning` kept as optional back-compat for `rescore.ts` consumers.
+- **`72c9a82` — Stage 6/7 outputs persisted as individual files.** `persistRun` was silently dropping 12 of 18 generated pieces from `outputs/` on a `--full` run (all Stage 6 cross-tenant outputs shared `identityId === "in-house-journalist"` and would have clobbered each other onto one file even if the loop had covered them). New layout:
+  ```
+  outputs/
+    <identity>.md                               (Stage 2, 6 files)
+    stage6_<identity>__<persona>.md             (Stage 6, 4 files)
+    stage7_control_<identity>__<persona>.md     (Stage 7, 4 files)
+    stage7_treatment_<identity>__<persona>.md   (Stage 7, 4 files)
+  ```
+  Each Stage 6/7 file now carries a header with persona name, regional variant, brand voice, and (for narrative-state) event title and group label so a file read in isolation is self-contextualizing.
+- **`d8f6f2e` — `analyze-uniqueness-run` skill.** Project-scoped skill at `.claude/skills/analyze-uniqueness-run/SKILL.md` that captures the deep-analysis workflow for a PoC run as a reusable procedure: run metadata → sorted per-pair table → per-pair fabrication triage → cross-pair pattern detection → judge-vs-arithmetic consistency → Stage 7 A/B → Stage 3.5 → cost → prioritized next steps. Hard rules from the 2026-04-08 session are baked in: read the prose not just the numbers, trinary verdict is load-bearing (cosine is diagnostic only), distinguish invention from omission from framing-disagreement, findings not transcripts, cross-rubric comparisons must be caveated when `--compare` spans the pre/post 2026-04-08 measurement revision.
+
+### 14.1 Residual gaps flagged by code review (not yet fixed)
+
+A post-hoc adversarial review of the above commits surfaced four issues that are **not blocking** but that future-Claude should fix before trusting the §6.1 retraction end-to-end:
+
+1. **HARD RULE is prompt-only, not code-enforced** (`llm-judge.ts:160-168, :293-300`). The "any level/probability/direction/stop/historical-anchor divergence ⇒ `fabrication_risk`" rule lives only in the system prompt and tool-schema description. `judgePairUniqueness` spreads the model response with no post-hoc check. Haiku can — and reportedly does — return `factualDivergences: [{kind: "level", …}]` alongside `verdict: "distinct_products"`. Four-line fix: after parsing, if `factualDivergences.some(d => HARD_KINDS.has(d.kind))`, force `verdict = "fabrication_risk"`. The entire retraction rests on this rule being reliable; leaving it as a prompt hint is the single biggest gap in the two-axis wiring.
+2. **Tool-use response is cast, not Zod-parsed** (`llm-judge.ts:293-300`). `toolUse.input as {…}` trusts the model to return well-formed numbers. If a numeric field comes back as a string, `report.ts .toFixed()` throws at render time, after the run's API spend is sunk. Project convention (`CLAUDE.md`) is Zod on structured output.
+3. **`rescore.ts` duplicates the judge implementation** (`rescore.ts:104-340` ≈ `llm-judge.ts:13-320`). System prompt, schema, types, and `judge()` function are near-line-for-line copies. Any rubric tweak drifts silently between production and the tool used to *validate* production. Should `import` from `llm-judge.ts`.
+4. **`rescore.ts` lives under `src/` and runs `main()` at import time** (`rescore.ts:631`). A top-level `main().catch(...)` fires `loadDotEnvFromRepoRoot()` and the Anthropic client as a side effect on any barrel/bundle import. Move to `scripts/` or guard with `if (import.meta.main)`.
+
+Minor:
+
+- **Stage 3.5 `aggregateVerdict` can never return PASS** (`runner.ts:699-706`) even when the judge clears every borderline/fail pair as `distinct_products`; it falls through to `BORDERLINE` unconditionally. Pre-existing behavior, but the two-axis wiring makes the fix trivial (`if (judgedDistinct === fails.length + borderline.length) return PASS`). Leaving it unfixed means a clean intra-tenant run with any mechanically-borderline pair is permanently mislabeled.
+- **Cost-summary label is now wrong** (`report.ts:492`) — still reads `"LLM judge (Haiku, borderline pairs)"`, but Stage 6 now judges every pair.
+- **Filename interpolation in `persistRun` is unsanitized** (`index.ts:142/162/180`). `identityId` / `personaId` are config-derived (safe in practice), but a persona id containing `/` or `..` would escape `runDir/outputs/`. Cheap defensive fix alongside the commit that just hardened filename collisions.
+- **Stage 7 `personaId ?? \`unknown-${i}\`` fallback** (`index.ts:170`) silently masks a contract violation — should throw, not invent a filename.
+- **Helix `contrarian` tag rewrite is the closest remaining edge** (`tags.ts:217`: *"question the implicit confidence of the base case in voice and framing"*). Passes the governing rule as written, but is the tag most likely to regress under aggressive voice. Worth an explicit post-Helix-run audit on the next full run.
+
+These are tracked for the next session, not hotfixed — the PoC harness is not production, and the playground spec (`docs/specs/2026-04-08-uniqueness-poc-playground.md`) will exercise the same judge path and surface any regression immediately.
+
+---
+
 **End of session journal.**
 
-*Generated 2026-04-07 by Claude (Opus 4.6) at the end of a multi-hour PoC session. Session covered: architectural design, harness implementation, four iterative runs, qualitative prose analysis, empirical characterization of the differentiation budget, identification of the persona-tilt fix as the next experiment, and capture of the running-thesis dashboard view as a future product feature. All artifacts committed to branch `workstream-b-sources-spec`.*
+*Generated 2026-04-07 by Claude (Opus 4.6) at the end of a multi-hour PoC session. Session covered: architectural design, harness implementation, four iterative runs, qualitative prose analysis, empirical characterization of the differentiation budget, identification of the persona-tilt fix as the next experiment, and capture of the running-thesis dashboard view as a future product feature. Revised 2026-04-08 after the measurement-rubric retraction (§4.1 / §6.1 / §9.1 / §13) and again later the same day with post-retraction housekeeping (§14). All artifacts committed to branch `workstream-b-sources-spec`.*

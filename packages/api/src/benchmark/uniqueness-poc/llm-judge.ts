@@ -57,9 +57,70 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { computeCostUsd } from "./pricing.js";
 
 const JUDGE_MODEL = "claude-haiku-4-5-20251001";
+
+// ───────────────────────────────────────────────────────────────────
+// Zod schema for the judge tool response
+// ───────────────────────────────────────────────────────────────────
+//
+// Replaces the previous `toolUse.input as {...}` cast. If Haiku ever returns
+// a malformed response (string instead of number, missing field, unknown
+// enum value), `.parse()` throws with a descriptive error before the run's
+// API spend cascades into a `.toFixed()` crash at render time.
+
+const FACTUAL_DIVERGENCE_KINDS = [
+  "level",
+  "probability",
+  "direction",
+  "stop",
+  "confidence",
+  "historical_anchor",
+  "transmission_chain_set",
+  "conclusion",
+  "other",
+] as const;
+
+const TRINARY_VERDICTS = [
+  "distinct_products",
+  "reskinned_same_article",
+  "fabrication_risk",
+] as const;
+
+const FactualDivergenceSchema = z.object({
+  kind: z.enum(FACTUAL_DIVERGENCE_KINDS),
+  docA: z.string(),
+  docB: z.string(),
+});
+
+const JudgeResponseSchema = z.object({
+  factualFidelity: z.number().min(0).max(1),
+  factualFidelityReasoning: z.string(),
+  factualDivergences: z.array(FactualDivergenceSchema),
+  presentationSimilarity: z.number().min(0).max(1),
+  presentationSimilarityReasoning: z.string(),
+  verdict: z.enum(TRINARY_VERDICTS),
+});
+
+// The HARD RULE — code-enforced, not prompt-only.
+//
+// The rubric says: any divergence in {level, probability, direction, stop,
+// historical_anchor} forces `fabrication_risk` regardless of the model's
+// returned verdict. This rule is stated in the system prompt and in the
+// tool-schema description, but the model does not always apply it (Haiku
+// has been observed returning `distinct_products` alongside a
+// `{kind: "level"}` divergence). The 2026-04-08 measurement retraction
+// rests on this rule being reliable, so we enforce it here rather than
+// trusting the model.
+const HARD_RULE_KINDS = new Set<(typeof FACTUAL_DIVERGENCE_KINDS)[number]>([
+  "level",
+  "probability",
+  "direction",
+  "stop",
+  "historical_anchor",
+]);
 
 const JUDGE_SYSTEM_PROMPT = `You are an editorial uniqueness judge for a financial content platform. You are evaluating two pieces of market analysis written for different brokers from the SAME underlying FA/TA source analysis.
 
@@ -198,25 +259,9 @@ const JUDGE_TOOL = {
   },
 };
 
-export interface FactualDivergence {
-  kind:
-    | "level"
-    | "probability"
-    | "direction"
-    | "stop"
-    | "confidence"
-    | "historical_anchor"
-    | "transmission_chain_set"
-    | "conclusion"
-    | "other";
-  docA: string;
-  docB: string;
-}
+export type FactualDivergence = z.infer<typeof FactualDivergenceSchema>;
 
-export type TrinaryVerdict =
-  | "distinct_products"
-  | "reskinned_same_article"
-  | "fabrication_risk";
+export type TrinaryVerdict = (typeof TRINARY_VERDICTS)[number];
 
 export interface JudgeVerdict {
   factualFidelity: number;
@@ -290,17 +335,27 @@ Submit your verdict via the submit_uniqueness_verdict tool.`;
     );
   }
 
-  const input = toolUse.input as {
-    factualFidelity: number;
-    factualFidelityReasoning: string;
-    factualDivergences: FactualDivergence[];
-    presentationSimilarity: number;
-    presentationSimilarityReasoning: string;
-    verdict: TrinaryVerdict;
-  };
+  // Zod-validate instead of casting. If Haiku returns malformed output
+  // (e.g., a number as a string), this throws here with a descriptive
+  // error rather than crashing `.toFixed()` at render time downstream.
+  const parsed = JudgeResponseSchema.parse(toolUse.input);
+
+  // Code-enforce the HARD RULE. See the HARD_RULE_KINDS comment above for
+  // why the model's own verdict is not trusted on this point.
+  const hardRuleFired = parsed.factualDivergences.some((d) =>
+    HARD_RULE_KINDS.has(d.kind),
+  );
+  const verdict: TrinaryVerdict = hardRuleFired
+    ? "fabrication_risk"
+    : parsed.verdict;
 
   return {
-    ...input,
+    factualFidelity: parsed.factualFidelity,
+    factualFidelityReasoning: parsed.factualFidelityReasoning,
+    factualDivergences: parsed.factualDivergences,
+    presentationSimilarity: parsed.presentationSimilarity,
+    presentationSimilarityReasoning: parsed.presentationSimilarityReasoning,
+    verdict,
     inputTokens: response.usage.input_tokens,
     outputTokens: response.usage.output_tokens,
     costUsd: computeCostUsd(
