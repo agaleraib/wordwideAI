@@ -89,6 +89,38 @@ export interface IdentityOutput {
 
 export type SimilarityStatus = "pass" | "borderline-cross-tenant" | "fail-cross-tenant";
 
+/**
+ * Two-axis judge verdict, populated on cross-tenant pairs by `llm-judge.ts`.
+ *
+ * - Factual fidelity: agreement on shared facts (levels, probabilities, direction,
+ *   anchors). Target ≥ 0.9. Low = fabrication risk, not uniqueness win.
+ * - Presentation similarity: how alike the prose reads (voice, structure, lead).
+ *   Target < 0.5. Shared facts explicitly excluded from this axis.
+ * - Trinary verdict gates the pipeline (distinct → pass, reskinned → fail,
+ *   fabrication_risk → halt).
+ *
+ * See `llm-judge.ts` top-of-file comment for the full rubric rationale.
+ */
+export interface FactualDivergenceRecord {
+  kind:
+    | "level"
+    | "probability"
+    | "direction"
+    | "stop"
+    | "confidence"
+    | "historical_anchor"
+    | "transmission_chain_set"
+    | "conclusion"
+    | "other";
+  docA: string;
+  docB: string;
+}
+
+export type TrinaryUniquenessVerdict =
+  | "distinct_products"
+  | "reskinned_same_article"
+  | "fabrication_risk";
+
 export interface SimilarityResult {
   pairId: string;
   identityA: string;
@@ -98,10 +130,26 @@ export interface SimilarityResult {
   /** ROUGE-L F1 in [0, 1]. Higher = more n-gram overlap. */
   rougeL: number;
   status: SimilarityStatus;
-  /** LLM judge verdict, only populated for borderline pairs. */
+
+  /**
+   * Two-axis judge fields. Populated on every cross-tenant pair by
+   * `judgePairUniqueness` in `llm-judge.ts`.
+   */
+  judgeFactualFidelity?: number;
+  judgeFactualFidelityReasoning?: string;
+  judgeFactualDivergences?: FactualDivergenceRecord[];
+  judgePresentationSimilarity?: number;
+  judgePresentationSimilarityReasoning?: string;
+  judgeTrinaryVerdict?: TrinaryUniquenessVerdict;
+  judgeCostUsd?: number;
+
+  /**
+   * Legacy single-axis fields — present only in historical raw-data.json
+   * files from runs before 2026-04-08. The production judge no longer
+   * populates them. Kept on the type so `rescore.ts` can read old runs.
+   */
   judgeVerdict?: "unique" | "duplicate";
   judgeReasoning?: string;
-  judgeCostUsd?: number;
 }
 
 export interface ReproducibilityResult {

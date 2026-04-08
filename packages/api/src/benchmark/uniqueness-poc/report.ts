@@ -8,7 +8,13 @@
  * (or shared with a partner) without needing to look at any code or JSON.
  */
 
-import type { RunResult, SimilarityResult, IdentityOutput, SimilarityStatus } from "./types.js";
+import type {
+  RunResult,
+  SimilarityResult,
+  IdentityOutput,
+  SimilarityStatus,
+  TrinaryUniquenessVerdict,
+} from "./types.js";
 import { UNIQUENESS_THRESHOLDS } from "./types.js";
 import { formatUsd } from "./pricing.js";
 
@@ -31,6 +37,19 @@ function verdictBadge(verdict: "PASS" | "BORDERLINE" | "FAIL"): string {
       return "⚠️ BORDERLINE";
     case "FAIL":
       return "❌ FAIL";
+  }
+}
+
+function trinaryVerdictBadge(v: TrinaryUniquenessVerdict | undefined): string {
+  switch (v) {
+    case "distinct_products":
+      return "✅ distinct";
+    case "reskinned_same_article":
+      return "❌ reskinned";
+    case "fabrication_risk":
+      return "🚨 fabrication";
+    default:
+      return "—";
   }
 }
 
@@ -78,17 +97,16 @@ function similarityMatrixTable(
   outputs: IdentityOutput[],
 ): string {
   const lines: string[] = [];
-  lines.push("| Pair | Cosine | ROUGE-L | Status | LLM Judge |");
-  lines.push("|---|---:|---:|---|---|");
+  lines.push("| Pair | Cosine | ROUGE-L | Status | Fidelity | Presentation | Verdict |");
+  lines.push("|---|---:|---:|---|---:|---:|---|");
 
   for (const sim of similarities) {
     const a = outputs.find((o) => o.identityId === sim.identityA);
     const b = outputs.find((o) => o.identityId === sim.identityB);
-    const judge = sim.judgeVerdict
-      ? `**${sim.judgeVerdict}** — ${sim.judgeReasoning ?? ""}`
-      : "—";
+    const fidelity = sim.judgeFactualFidelity !== undefined ? sim.judgeFactualFidelity.toFixed(2) : "—";
+    const presentation = sim.judgePresentationSimilarity !== undefined ? sim.judgePresentationSimilarity.toFixed(2) : "—";
     lines.push(
-      `| ${a?.identityName} ↔ ${b?.identityName} | ${sim.cosineSimilarity.toFixed(4)} | ${sim.rougeL.toFixed(4)} | ${statusBadge(sim.status)} | ${judge} |`,
+      `| ${a?.identityName} ↔ ${b?.identityName} | ${sim.cosineSimilarity.toFixed(4)} | ${sim.rougeL.toFixed(4)} | ${statusBadge(sim.status)} | ${fidelity} | ${presentation} | ${trinaryVerdictBadge(sim.judgeTrinaryVerdict)} |`,
     );
   }
 
@@ -297,17 +315,45 @@ export function renderReport(result: RunResult): string {
       `${ct.personas.length} personas → ${ct.similarities.length} cross-tenant pairs. Each scored against the strict cross-tenant thresholds.`,
     );
     lines.push("");
-    lines.push("| Pair | Cosine | ROUGE-L | Status | LLM Judge |");
-    lines.push("|---|---:|---:|---|---|");
+    lines.push("| Pair | Cosine | ROUGE-L | Status | Fidelity | Presentation | Verdict |");
+    lines.push("|---|---:|---:|---|---:|---:|---|");
     for (const sim of ct.similarities) {
-      const judge = sim.judgeVerdict
-        ? `**${sim.judgeVerdict}** — ${sim.judgeReasoning ?? ""}`
-        : "—";
+      const fidelity = sim.judgeFactualFidelity !== undefined ? sim.judgeFactualFidelity.toFixed(2) : "—";
+      const presentation = sim.judgePresentationSimilarity !== undefined ? sim.judgePresentationSimilarity.toFixed(2) : "—";
       lines.push(
-        `| ${sim.identityA} ↔ ${sim.identityB} | ${sim.cosineSimilarity.toFixed(4)} | ${sim.rougeL.toFixed(4)} | ${statusBadge(sim.status)} | ${judge} |`,
+        `| ${sim.identityA} ↔ ${sim.identityB} | ${sim.cosineSimilarity.toFixed(4)} | ${sim.rougeL.toFixed(4)} | ${statusBadge(sim.status)} | ${fidelity} | ${presentation} | ${trinaryVerdictBadge(sim.judgeTrinaryVerdict)} |`,
       );
     }
     lines.push("");
+
+    // Per-pair judge reasoning + any factual divergences
+    const judged = ct.similarities.filter((s) => s.judgeTrinaryVerdict);
+    if (judged.length > 0) {
+      lines.push("### Two-axis judge reasoning");
+      lines.push("");
+      for (const sim of judged) {
+        lines.push(
+          `**${sim.identityA} ↔ ${sim.identityB}** — ${trinaryVerdictBadge(sim.judgeTrinaryVerdict)} &nbsp;·&nbsp; fidelity ${sim.judgeFactualFidelity?.toFixed(2)} &nbsp;·&nbsp; presentation ${sim.judgePresentationSimilarity?.toFixed(2)}`,
+        );
+        lines.push("");
+        if (sim.judgeFactualFidelityReasoning) {
+          lines.push(`*Fidelity:* ${sim.judgeFactualFidelityReasoning}`);
+          lines.push("");
+        }
+        if (sim.judgeFactualDivergences && sim.judgeFactualDivergences.length > 0) {
+          lines.push(`*Factual divergences (${sim.judgeFactualDivergences.length}):*`);
+          lines.push("");
+          for (const d of sim.judgeFactualDivergences) {
+            lines.push(`- \`${d.kind}\` — **A:** ${d.docA} &nbsp;·&nbsp; **B:** ${d.docB}`);
+          }
+          lines.push("");
+        }
+        if (sim.judgePresentationSimilarityReasoning) {
+          lines.push(`*Presentation:* ${sim.judgePresentationSimilarityReasoning}`);
+          lines.push("");
+        }
+      }
+    }
 
     // Distribution stats
     lines.push("### Distribution statistics");
@@ -441,7 +487,7 @@ export function renderReport(result: RunResult): string {
   const identityCost = identityOutputs.reduce((s, o) => s + o.costUsd, 0);
   lines.push(`| Identity adaptation × ${identityOutputs.length} (Sonnet) | ${identityOutputs.length} | ${formatUsd(identityCost)} |`);
   const judgeCost = similarities.reduce((s, sim) => s + (sim.judgeCostUsd ?? 0), 0);
-  const judgeCount = similarities.filter((s) => s.judgeVerdict).length;
+  const judgeCount = similarities.filter((s) => s.judgeTrinaryVerdict).length;
   if (judgeCount > 0) {
     lines.push(`| LLM judge (Haiku, borderline pairs) | ${judgeCount} | ${formatUsd(judgeCost)} |`);
   }
@@ -455,7 +501,7 @@ export function renderReport(result: RunResult): string {
     const ctCost =
       result.crossTenantMatrix.outputs.reduce((s, o) => s + o.costUsd, 0) +
       result.crossTenantMatrix.similarities.reduce((s, sim) => s + (sim.judgeCostUsd ?? 0), 0);
-    const ctJudgeCount = result.crossTenantMatrix.similarities.filter((s) => s.judgeVerdict).length;
+    const ctJudgeCount = result.crossTenantMatrix.similarities.filter((s) => s.judgeTrinaryVerdict).length;
     lines.push(
       `| **Cross-tenant matrix** (Sonnet × ${result.crossTenantMatrix.outputs.length} + Haiku judge × ${ctJudgeCount}) | ${result.crossTenantMatrix.outputs.length + ctJudgeCount} | ${formatUsd(ctCost)} |`,
     );
@@ -473,8 +519,8 @@ export function renderReport(result: RunResult): string {
       ns.controlSimilarities.reduce((s, sim) => s + (sim.judgeCostUsd ?? 0), 0) +
       ns.treatmentSimilarities.reduce((s, sim) => s + (sim.judgeCostUsd ?? 0), 0);
     const nsJudgeCount =
-      ns.controlSimilarities.filter((s) => s.judgeVerdict).length +
-      ns.treatmentSimilarities.filter((s) => s.judgeVerdict).length;
+      ns.controlSimilarities.filter((s) => s.judgeTrinaryVerdict).length +
+      ns.treatmentSimilarities.filter((s) => s.judgeTrinaryVerdict).length;
     lines.push(
       `| **Stage 7 narrative test** (1 Opus + 4 Haiku extractors + 8 Sonnet + ${nsJudgeCount} Haiku judges) | ${1 + 4 + 8 + nsJudgeCount} | ${formatUsd(nsCost)} |`,
     );

@@ -33,7 +33,22 @@ import { FA_AGENT_SYSTEM_PROMPT, buildFAAgentUserMessage } from "./prompts/fa-ag
 import { IDENTITY_REGISTRY, getIdentityById } from "./prompts/identities/index.js";
 import { computeCostUsd, modelForTier } from "./pricing.js";
 import { embedText, scorePair, cosineSimilarity, rougeLF1 } from "./similarity.js";
-import { judgePairUniqueness } from "./llm-judge.js";
+import { judgePairUniqueness, type JudgeVerdict } from "./llm-judge.js";
+
+/**
+ * Copy a two-axis judge verdict onto a SimilarityResult. Used at every
+ * judge call site in this file so the field-population logic stays in one
+ * place.
+ */
+function applyJudgeVerdict(sim: SimilarityResult, verdict: JudgeVerdict): void {
+  sim.judgeFactualFidelity = verdict.factualFidelity;
+  sim.judgeFactualFidelityReasoning = verdict.factualFidelityReasoning;
+  sim.judgeFactualDivergences = verdict.factualDivergences;
+  sim.judgePresentationSimilarity = verdict.presentationSimilarity;
+  sim.judgePresentationSimilarityReasoning = verdict.presentationSimilarityReasoning;
+  sim.judgeTrinaryVerdict = verdict.verdict;
+  sim.judgeCostUsd = verdict.costUsd;
+}
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -215,6 +230,9 @@ async function judgeBorderlinePairs(
   similarities: SimilarityResult[],
   outputs: IdentityOutput[],
 ): Promise<void> {
+  // Intra-tenant cross-identity matrix: keep the borderline gate since it's
+  // not load-bearing for production (cross-tenant is the load-bearing test
+  // and fires on every pair below in `runCrossTenantMatrix`).
   const borderline = similarities.filter(
     (s) => s.status === "borderline-cross-tenant" || s.status === "fail-cross-tenant",
   );
@@ -232,9 +250,7 @@ async function judgeBorderlinePairs(
       rougeL: sim.rougeL,
     });
 
-    sim.judgeVerdict = verdict.verdict;
-    sim.judgeReasoning = verdict.reasoning;
-    sim.judgeCostUsd = verdict.costUsd;
+    applyJudgeVerdict(sim, verdict);
   }
 }
 
@@ -373,12 +389,11 @@ async function runCrossTenantMatrix(
     }
   }
 
-  // LLM judge on borderline + fail pairs
-  const borderline = similarities.filter(
-    (s) => s.status === "borderline-cross-tenant" || s.status === "fail-cross-tenant",
-  );
-
-  for (const sim of borderline) {
+  // Two-axis LLM judge on EVERY cross-tenant pair (not just borderline).
+  // The cosine-based borderline gate is unreliable — the new judge is the
+  // authoritative cross-tenant metric and the mechanical metrics are
+  // diagnostics. See docs/poc-uniqueness-session-2026-04-07.md §4.1.
+  for (const sim of similarities) {
     const indexA = personas.findIndex((p) => p.name === sim.identityA);
     const indexB = personas.findIndex((p) => p.name === sim.identityB);
     const outA = outputs[indexA]!;
@@ -393,9 +408,7 @@ async function runCrossTenantMatrix(
       rougeL: sim.rougeL,
     });
 
-    sim.judgeVerdict = verdict.verdict;
-    sim.judgeReasoning = verdict.reasoning;
-    sim.judgeCostUsd = verdict.costUsd;
+    applyJudgeVerdict(sim, verdict);
   }
 
   // Distribution stats
@@ -404,24 +417,29 @@ async function runCrossTenantMatrix(
   const meanCosine = cosines.reduce((a, b) => a + b, 0) / cosines.length;
   const meanRougeL = rouges.reduce((a, b) => a + b, 0) / rouges.length;
 
-  // Cross-tenant verdict — judge-aware
-  const judgeFails = similarities.filter((s) => s.judgeVerdict === "duplicate");
-  const rawFails = similarities.filter((s) => s.status === "fail-cross-tenant");
-  const rawBorderline = similarities.filter((s) => s.status === "borderline-cross-tenant");
+  // Cross-tenant verdict — trinary judge logic.
+  // - ANY fabrication_risk    → FAIL (alarm — the pipeline should halt in prod)
+  // - ANY reskinned           → FAIL (regenerate with diversity hint)
+  // - ALL distinct_products   → PASS
+  const fabricationRiskPairs = similarities.filter(
+    (s) => s.judgeTrinaryVerdict === "fabrication_risk",
+  );
+  const reskinnedPairs = similarities.filter(
+    (s) => s.judgeTrinaryVerdict === "reskinned_same_article",
+  );
 
   let verdict: CrossTenantMatrixResult["verdict"];
   let verdictReasoning: string;
 
-  if (judgeFails.length > 0) {
+  if (fabricationRiskPairs.length > 0) {
     verdict = "FAIL";
-    verdictReasoning = `${judgeFails.length} of ${similarities.length} cross-tenant pair(s) flagged as duplicate by the LLM judge: ${judgeFails.map((s) => s.pairId).join(", ")}.`;
-  } else if (rawFails.length > 0 || rawBorderline.length > 0) {
-    const judged = rawBorderline.filter((s) => s.judgeVerdict === "unique").length;
-    verdict = "BORDERLINE";
-    verdictReasoning = `${rawFails.length + rawBorderline.length} of ${similarities.length} cross-tenant pair(s) crossed the strict threshold band by raw similarity, but ${judged} were cleared by the LLM judge as meaningfully different.`;
+    verdictReasoning = `🚨 ${fabricationRiskPairs.length} of ${similarities.length} cross-tenant pair(s) flagged as FABRICATION_RISK by the two-axis judge: ${fabricationRiskPairs.map((s) => s.pairId).join(", ")}. In production this would HALT the pipeline — at least one writer invented or contradicted facts from the source analysis.`;
+  } else if (reskinnedPairs.length > 0) {
+    verdict = "FAIL";
+    verdictReasoning = `${reskinnedPairs.length} of ${similarities.length} cross-tenant pair(s) flagged as RESKINNED_SAME_ARTICLE — faithful to facts but prose too similar: ${reskinnedPairs.map((s) => s.pairId).join(", ")}. In production this would trigger one regeneration with a diversity hint.`;
   } else {
     verdict = "PASS";
-    verdictReasoning = `All ${similarities.length} cross-tenant pairs cleared the strict cross-tenant thresholds (cosine < ${UNIQUENESS_THRESHOLDS.crossTenant.cosine}, ROUGE-L < ${UNIQUENESS_THRESHOLDS.crossTenant.rougeL}).`;
+    verdictReasoning = `All ${similarities.length} cross-tenant pairs are DISTINCT_PRODUCTS under the two-axis judge (fidelity ≥ 0.9 AND presentation < 0.5). Mean factual fidelity: ${(similarities.reduce((a, b) => a + (b.judgeFactualFidelity ?? 0), 0) / similarities.length).toFixed(3)}. Mean presentation similarity: ${(similarities.reduce((a, b) => a + (b.judgePresentationSimilarity ?? 0), 0) / similarities.length).toFixed(3)}.`;
   }
 
   return {
@@ -478,13 +496,10 @@ async function buildCrossTenantMatrixFromOutputs(
     }
   }
 
-  // LLM judge on borderline + fail pairs (treatment only — to keep cost down,
-  // we'll judge both groups so we can compare verdicts apples-to-apples)
-  const borderline = similarities.filter(
-    (s) => s.status === "borderline-cross-tenant" || s.status === "fail-cross-tenant",
-  );
-
-  for (const sim of borderline) {
+  // Two-axis judge on EVERY pair (not just borderline) — Stage 7 control
+  // and treatment both need full judge coverage so the A/B comparison is
+  // measured on the same metric.
+  for (const sim of similarities) {
     const indexA = personas.findIndex((p) => p.name === sim.identityA);
     const indexB = personas.findIndex((p) => p.name === sim.identityB);
     const outA = outputs[indexA]!;
@@ -498,9 +513,7 @@ async function buildCrossTenantMatrixFromOutputs(
       cosineSimilarity: sim.cosineSimilarity,
       rougeL: sim.rougeL,
     });
-    sim.judgeVerdict = verdict.verdict;
-    sim.judgeReasoning = verdict.reasoning;
-    sim.judgeCostUsd = verdict.costUsd;
+    applyJudgeVerdict(sim, verdict);
   }
 
   const cosines = similarities.map((s) => s.cosineSimilarity);
@@ -598,22 +611,25 @@ async function runNarrativeStateTest(args: {
   console.log(`[runner]     ✓ TREATMENT: cosine mean=${treatmentMatrix.meanCosine.toFixed(4)}, rougeL mean=${treatmentMatrix.meanRougeL.toFixed(4)}`);
   console.log(`[runner]     ✓ DIFFERENTIAL: cosine ${(controlMatrix.meanCosine - treatmentMatrix.meanCosine).toFixed(4)} (positive = treatment more unique)`);
 
-  // STEP 6 — Aggregate verdict for the treatment group
-  const treatmentJudgeFails = treatmentMatrix.similarities.filter((s) => s.judgeVerdict === "duplicate");
-  const treatmentRawFails = treatmentMatrix.similarities.filter((s) => s.status === "fail-cross-tenant");
-  const treatmentRawBorderline = treatmentMatrix.similarities.filter((s) => s.status === "borderline-cross-tenant");
+  // STEP 6 — Aggregate verdict for the treatment group (two-axis trinary)
+  const treatmentFabricationRisk = treatmentMatrix.similarities.filter(
+    (s) => s.judgeTrinaryVerdict === "fabrication_risk",
+  );
+  const treatmentReskinned = treatmentMatrix.similarities.filter(
+    (s) => s.judgeTrinaryVerdict === "reskinned_same_article",
+  );
 
   let treatmentVerdict: NarrativeStateTestResult["treatmentVerdict"];
   let treatmentVerdictReasoning: string;
-  if (treatmentJudgeFails.length > 0) {
+  if (treatmentFabricationRisk.length > 0) {
     treatmentVerdict = "FAIL";
-    treatmentVerdictReasoning = `${treatmentJudgeFails.length} of ${treatmentMatrix.similarities.length} treatment pair(s) flagged as duplicate by the LLM judge.`;
-  } else if (treatmentRawFails.length > 0 || treatmentRawBorderline.length > 0) {
-    treatmentVerdict = "BORDERLINE";
-    treatmentVerdictReasoning = `${treatmentRawFails.length + treatmentRawBorderline.length} of ${treatmentMatrix.similarities.length} treatment pair(s) crossed the strict threshold band but were cleared by the LLM judge.`;
+    treatmentVerdictReasoning = `🚨 ${treatmentFabricationRisk.length} of ${treatmentMatrix.similarities.length} treatment pair(s) flagged as FABRICATION_RISK by the two-axis judge.`;
+  } else if (treatmentReskinned.length > 0) {
+    treatmentVerdict = "FAIL";
+    treatmentVerdictReasoning = `${treatmentReskinned.length} of ${treatmentMatrix.similarities.length} treatment pair(s) flagged as RESKINNED_SAME_ARTICLE by the two-axis judge.`;
   } else {
     treatmentVerdict = "PASS";
-    treatmentVerdictReasoning = `All ${treatmentMatrix.similarities.length} treatment pairs cleared the strict cross-tenant thresholds.`;
+    treatmentVerdictReasoning = `All ${treatmentMatrix.similarities.length} treatment pairs are DISTINCT_PRODUCTS under the two-axis judge.`;
   }
 
   return {
@@ -641,27 +657,52 @@ async function runNarrativeStateTest(args: {
 // Verdict — aggregate the run against the spec's thresholds
 // ───────────────────────────────────────────────────────────────────
 
+/**
+ * Aggregate verdict for the legacy intra-tenant cross-identity matrix.
+ *
+ * This function runs against the 15-pair matrix of all identities (stage 3.5,
+ * not the load-bearing cross-tenant test). It still uses the
+ * borderline-gated judge approach because intra-tenant is not load-bearing
+ * for the architecture. The load-bearing cross-tenant verdict is computed
+ * inline in `runCrossTenantMatrix` with the full two-axis trinary logic.
+ *
+ * For the intra-tenant case, we interpret the new trinary verdict values as
+ * best we can: fabrication_risk → FAIL, reskinned_same_article → FAIL,
+ * distinct_products → PASS. Pairs that weren't judged (below the borderline
+ * gate) count as PASS.
+ */
 function aggregateVerdict(similarities: SimilarityResult[]): { verdict: RunResult["verdict"]; reasoning: string } {
   const fails = similarities.filter((s) => s.status === "fail-cross-tenant");
   const borderline = similarities.filter((s) => s.status === "borderline-cross-tenant");
 
-  // Use judge verdicts for borderline cases — if the judge says unique, count as pass
-  const judgeFails = [...fails, ...borderline].filter(
-    (s) => s.judgeVerdict === "duplicate",
+  const fabricationRisk = similarities.filter(
+    (s) => s.judgeTrinaryVerdict === "fabrication_risk",
+  );
+  const reskinned = similarities.filter(
+    (s) => s.judgeTrinaryVerdict === "reskinned_same_article",
   );
 
-  if (judgeFails.length > 0) {
+  if (fabricationRisk.length > 0) {
     return {
       verdict: "FAIL",
-      reasoning: `${judgeFails.length} pair(s) flagged as duplicate by the LLM judge: ${judgeFails.map((s) => s.pairId).join(", ")}`,
+      reasoning: `🚨 ${fabricationRisk.length} pair(s) flagged as FABRICATION_RISK by the two-axis judge: ${fabricationRisk.map((s) => s.pairId).join(", ")}`,
+    };
+  }
+
+  if (reskinned.length > 0) {
+    return {
+      verdict: "FAIL",
+      reasoning: `${reskinned.length} pair(s) flagged as RESKINNED_SAME_ARTICLE by the two-axis judge: ${reskinned.map((s) => s.pairId).join(", ")}`,
     };
   }
 
   if (fails.length > 0 || borderline.length > 0) {
-    const judged = borderline.filter((s) => s.judgeVerdict === "unique").length;
+    const judgedDistinct = similarities.filter(
+      (s) => s.judgeTrinaryVerdict === "distinct_products",
+    ).length;
     return {
       verdict: "BORDERLINE",
-      reasoning: `${fails.length + borderline.length} pair(s) crossed the cross-tenant threshold band by raw similarity, but ${judged} of them were cleared by the LLM judge as meaningfully different.`,
+      reasoning: `${fails.length + borderline.length} pair(s) crossed the cross-tenant threshold band by raw similarity; ${judgedDistinct} were cleared as DISTINCT_PRODUCTS by the two-axis judge.`,
     };
   }
 
@@ -746,8 +787,12 @@ export async function runUniquenessPoc(opts: RunOptions): Promise<RunResult> {
   if (borderlineCount > 0) {
     console.log(`[runner] Stage 3.5 — running LLM judge on ${borderlineCount} borderline/fail pair(s) (Haiku)...`);
     await judgeBorderlinePairs(similarities, identityOutputs);
-    for (const s of similarities.filter((s) => s.judgeVerdict)) {
-      console.log(`[runner]   ✓ ${s.pairId}: ${s.judgeVerdict} — ${s.judgeReasoning?.slice(0, 100)}...`);
+    for (const s of similarities.filter((s) => s.judgeTrinaryVerdict)) {
+      const fidelity = (s.judgeFactualFidelity ?? 0).toFixed(2);
+      const presentation = (s.judgePresentationSimilarity ?? 0).toFixed(2);
+      console.log(
+        `[runner]   ✓ ${s.pairId}: ${s.judgeTrinaryVerdict} (fidelity=${fidelity}, presentation=${presentation}) — ${s.judgePresentationSimilarityReasoning?.slice(0, 100)}...`,
+      );
     }
   } else {
     console.log(`[runner]   ✓ All pairs cleared cleanly — no LLM judge needed`);
@@ -778,7 +823,7 @@ export async function runUniquenessPoc(opts: RunOptions): Promise<RunResult> {
     console.log(`[runner]   ✓ cosine=${personaDifferentiation.cosineSimilarity.toFixed(4)}, rouge-L=${personaDifferentiation.rougeL.toFixed(4)}, differentiated=${personaDifferentiation.differentiated}`);
   }
 
-  // Stage 6 + Stage 7 are tightly coupled — Stage 7 reuses Stage 6's outputs
+  // Stage 6 + Stage 7 share Stage 6's outputs (Stage 7 uses them as priors)
   let crossTenantMatrix: CrossTenantMatrixResult | undefined;
   let narrativeStateTest: NarrativeStateTestResult | undefined;
   if (opts.withCrossTenantMatrix) {
@@ -807,6 +852,7 @@ export async function runUniquenessPoc(opts: RunOptions): Promise<RunResult> {
       console.log(`[runner]   ✓ TREATMENT VERDICT: ${narrativeStateTest.treatmentVerdict}`);
       console.log(`[runner]     ${narrativeStateTest.treatmentVerdictReasoning}`);
     }
+
   }
 
   // Aggregate verdict (intra-tenant cross-identity matrix; cross-tenant has its own verdict in the matrix result)
