@@ -73,7 +73,7 @@ function wordCount(text: string): number {
 // Stage 1 — core analysis
 // ───────────────────────────────────────────────────────────────────
 
-async function runCoreAnalysis(event: NewsEvent): Promise<CoreAnalysis> {
+export async function runCoreAnalysis(event: NewsEvent): Promise<CoreAnalysis> {
   const client = getClient();
   const model = modelForTier("opus");
   const start = Date.now();
@@ -106,7 +106,7 @@ async function runCoreAnalysis(event: NewsEvent): Promise<CoreAnalysis> {
 // Stage 2 — identity adaptation
 // ───────────────────────────────────────────────────────────────────
 
-async function runIdentity(
+export async function runIdentity(
   identityId: string,
   coreAnalysisBody: string,
   persona?: ContentPersona,
@@ -398,9 +398,9 @@ async function runCrossTenantMatrix(
    */
   tenantWordCountOverrides?: Array<number | null>,
 ): Promise<CrossTenantMatrixResult> {
-  if (personas.length < 3) {
+  if (personas.length < 2) {
     throw new Error(
-      `runCrossTenantMatrix requires at least 3 personas to form a meaningful matrix; got ${personas.length}`,
+      `runCrossTenantMatrix requires at least 2 personas to form a meaningful matrix; got ${personas.length}`,
     );
   }
 
@@ -443,21 +443,38 @@ async function runCrossTenantMatrix(
   // Embed all outputs
   const embedded = await embedOutputs(outputs);
 
-  // Build pairwise matrix using STRICT cross-tenant thresholds
+  // Build pairwise matrix using STRICT cross-tenant thresholds.
+  //
+  // Pair IDs are prefixed with the tenant (pipeline) index so duplicate
+  // personas across tenants never collide, e.g. two tenants both using
+  // `premium-capital-markets` produce a distinct pairId per (i, j). The
+  // underlying persona ids are still in the suffix so existing tooling that
+  // greps for them keeps working.
+  // Also track the tenant indices on each SimilarityResult so the judge loop
+  // below can look up the right outputs by index rather than by persona name
+  // (name-based lookup also collides on duplicates).
+  interface IndexedSimilarity {
+    indexA: number;
+    indexB: number;
+    sim: SimilarityResult;
+  }
+  const indexedSimilarities: IndexedSimilarity[] = [];
   const similarities: SimilarityResult[] = [];
   for (let i = 0; i < embedded.length; i++) {
     for (let j = i + 1; j < embedded.length; j++) {
       const a = embedded[i]!;
       const b = embedded[j]!;
       const score = scorePair(a.embedding, b.embedding, a.output.body, b.output.body);
-      similarities.push({
-        pairId: `${personas[i]!.id}__${personas[j]!.id}`,
+      const sim: SimilarityResult = {
+        pairId: `${i}_${personas[i]!.id}__${j}_${personas[j]!.id}`,
         identityA: personas[i]!.name,
         identityB: personas[j]!.name,
         cosineSimilarity: score.cosineSimilarity,
         rougeL: score.rougeL,
         status: classifyCrossTenantStatus(score.cosineSimilarity, score.rougeL),
-      });
+      };
+      similarities.push(sim);
+      indexedSimilarities.push({ indexA: i, indexB: j, sim });
     }
   }
 
@@ -465,9 +482,7 @@ async function runCrossTenantMatrix(
   // The cosine-based borderline gate is unreliable — the new judge is the
   // authoritative cross-tenant metric and the mechanical metrics are
   // diagnostics. See docs/poc-uniqueness-session-2026-04-07.md §4.1.
-  for (const sim of similarities) {
-    const indexA = personas.findIndex((p) => p.name === sim.identityA);
-    const indexB = personas.findIndex((p) => p.name === sim.identityB);
+  for (const { indexA, indexB, sim } of indexedSimilarities) {
     const outA = outputs[indexA]!;
     const outB = outputs[indexB]!;
 

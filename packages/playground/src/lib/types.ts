@@ -121,15 +121,32 @@ export interface RunResult {
   verdictReasoning: string;
 }
 
+export interface SoloRunResult {
+  runId: string;
+  startedAt: string;
+  finishedAt: string;
+  event: NewsEvent;
+  coreAnalysisBody: string;
+  personaId: string;
+  output: IdentityOutput;
+  totalCostUsd: number;
+  totalDurationMs: number;
+}
+
+export type RunMode = "compare" | "solo";
+
 export type PocSseEvent =
-  | { type: "run_started"; runId: string; estimatedCostUsd: number }
+  | { type: "run_started"; runId: string; estimatedCostUsd: number; runMode: RunMode }
   | { type: "stage_started"; stage: "core" | "identity" | "cross-tenant" | "judge" }
   | { type: "core_analysis_completed"; body: string; tokens: number; costUsd: number }
   | { type: "tenant_started"; tenantIndex: number; personaId: string }
   | { type: "tenant_completed"; tenantIndex: number; output: IdentityOutput }
+  | { type: "solo_identity_started"; personaId: string; identityId: string }
+  | { type: "solo_identity_completed"; output: IdentityOutput }
   | { type: "judge_completed"; pairId: string; similarity: SimilarityResult }
   | { type: "cost_updated"; totalCostUsd: number }
-  | { type: "run_completed"; runId: string; result: RunResult }
+  | { type: "run_completed"; runId: string; result: RunResult | SoloRunResult }
+  | { type: "solo_run_completed"; runId: string; result: SoloRunResult }
   | { type: "run_errored"; runId: string; error: string };
 
 // ── Run request ──────────────────────────────────────────────────
@@ -144,7 +161,8 @@ export interface PlaygroundRunTenant {
   targetWordCount: number;
 }
 
-export interface PlaygroundRunRequest {
+export interface CompareRunRequest {
+  runMode: "compare";
   eventBody: string;
   eventTitle?: string;
   fixtureId?: string | null;
@@ -152,6 +170,16 @@ export interface PlaygroundRunRequest {
   quickMode: QuickMode;
   tenants: PlaygroundRunTenant[];
 }
+
+export interface SoloRunRequest {
+  runMode: "solo";
+  eventBody: string;
+  eventTitle?: string;
+  fixtureId?: string | null;
+  pipeline: PlaygroundRunTenant;
+}
+
+export type PlaygroundRunRequest = CompareRunRequest | SoloRunRequest;
 
 export interface PlaygroundRunResponse {
   runId: string;

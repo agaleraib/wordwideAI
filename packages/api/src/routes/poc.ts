@@ -27,7 +27,12 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runUniquenessPoc, type RunCallbacks } from "../benchmark/uniqueness-poc/runner.js";
+import {
+  runUniquenessPoc,
+  runCoreAnalysis,
+  runIdentity,
+  type RunCallbacks,
+} from "../benchmark/uniqueness-poc/runner.js";
 import type {
   ContentPersona,
   IdentityDefinition,
@@ -74,15 +79,35 @@ function loadFixtures(): NewsEvent[] {
 // SSE event protocol — mirrors the spec §7.5 union (v1.0 subset)
 // ───────────────────────────────────────────────────────────────────
 
+/**
+ * Solo-mode run result shape (v1.2). A trimmed-down result produced by the
+ * Solo branch below — it only carries the single Stage 1 analysis + the one
+ * identity output, with no cross-tenant matrix, judge, or verdict.
+ */
+export interface SoloRunResult {
+  runId: string;
+  startedAt: string;
+  finishedAt: string;
+  event: NewsEvent;
+  coreAnalysisBody: string;
+  personaId: string;
+  output: IdentityOutput;
+  totalCostUsd: number;
+  totalDurationMs: number;
+}
+
 export type PocSseEvent =
-  | { type: "run_started"; runId: string; estimatedCostUsd: number }
+  | { type: "run_started"; runId: string; estimatedCostUsd: number; runMode: "compare" | "solo" }
   | { type: "stage_started"; stage: "core" | "identity" | "cross-tenant" | "judge" }
   | { type: "core_analysis_completed"; body: string; tokens: number; costUsd: number }
   | { type: "tenant_started"; tenantIndex: number; personaId: string }
   | { type: "tenant_completed"; tenantIndex: number; output: IdentityOutput }
+  | { type: "solo_identity_started"; personaId: string; identityId: string }
+  | { type: "solo_identity_completed"; output: IdentityOutput }
   | { type: "judge_completed"; pairId: string; similarity: SimilarityResult }
   | { type: "cost_updated"; totalCostUsd: number }
-  | { type: "run_completed"; runId: string; result: RunResult }
+  | { type: "run_completed"; runId: string; result: RunResult | SoloRunResult }
+  | { type: "solo_run_completed"; runId: string; result: SoloRunResult }
   | { type: "run_errored"; runId: string; error: string };
 
 // ───────────────────────────────────────────────────────────────────
@@ -115,33 +140,52 @@ function emit(entry: RunEntry, event: PocSseEvent): void {
 // Request schema (v1.0 minimal)
 // ───────────────────────────────────────────────────────────────────
 
-const PlaygroundRunRequestSchema = z.object({
+const TenantConfigSchema = z.object({
+  personaId: z.string().min(1),
+  identityId: z.string().min(1).optional(),
+  angleTagsOverride: z.array(z.string()).nullable().optional(),
+  personalityTagsOverride: z.array(z.string()).nullable().optional(),
+  targetWordCount: z.number().int().min(50).max(4000).optional(),
+});
+
+const CompareRunRequestSchema = z.object({
+  runMode: z.literal("compare"),
   eventBody: z.string().min(1),
   eventTitle: z.string().optional(),
   fixtureId: z.string().nullable().optional(),
   enabledStages: z.array(z.number().int()).optional(),
   quickMode: z.enum(["off", "200", "700", "1500"]).optional(),
-  tenants: z
-    .array(
-      z.object({
-        personaId: z.string().min(1),
-        identityId: z.string().min(1).optional(),
-        angleTagsOverride: z.array(z.string()).nullable().optional(),
-        personalityTagsOverride: z.array(z.string()).nullable().optional(),
-        targetWordCount: z.number().int().min(50).max(4000).optional(),
-      }),
-    )
-    .min(1)
-    .max(6),
+  tenants: z.array(TenantConfigSchema).min(2).max(6),
 });
 
+const SoloRunRequestSchema = z.object({
+  runMode: z.literal("solo"),
+  eventBody: z.string().min(1),
+  eventTitle: z.string().optional(),
+  fixtureId: z.string().nullable().optional(),
+  pipeline: TenantConfigSchema,
+});
+
+const PlaygroundRunRequestSchema = z.discriminatedUnion("runMode", [
+  CompareRunRequestSchema,
+  SoloRunRequestSchema,
+]);
+
 export type PlaygroundRunRequest = z.infer<typeof PlaygroundRunRequestSchema>;
+export type CompareRunRequest = z.infer<typeof CompareRunRequestSchema>;
+export type SoloRunRequest = z.infer<typeof SoloRunRequestSchema>;
 
 // ───────────────────────────────────────────────────────────────────
 // Run launcher
 // ───────────────────────────────────────────────────────────────────
 
-function buildEvent(req: PlaygroundRunRequest, fixtures: NewsEvent[]): NewsEvent {
+interface EventInputs {
+  eventBody: string;
+  eventTitle?: string;
+  fixtureId?: string | null;
+}
+
+function buildEvent(req: EventInputs, fixtures: NewsEvent[]): NewsEvent {
   const fixture = req.fixtureId
     ? fixtures.find((f) => f.id === req.fixtureId)
     : undefined;
@@ -172,36 +216,40 @@ function buildEvent(req: PlaygroundRunRequest, fixtures: NewsEvent[]): NewsEvent
   };
 }
 
-function startRun(
-  req: PlaygroundRunRequest,
+function resolveTenantPersona(
+  t: { personaId: string; angleTagsOverride?: string[] | null; personalityTagsOverride?: string[] | null },
+  personas: ContentPersona[],
+): ContentPersona {
+  const base = personas.find((x) => x.id === t.personaId);
+  if (!base) throw new Error(`Unknown personaId: ${t.personaId}`);
+  const angleOverride = t.angleTagsOverride;
+  const personalityOverride = t.personalityTagsOverride;
+  if (
+    (angleOverride && angleOverride.length > 0) ||
+    (personalityOverride && personalityOverride.length > 0)
+  ) {
+    return {
+      ...base,
+      ...(angleOverride && angleOverride.length > 0
+        ? { preferredAngles: angleOverride as AngleTag[] }
+        : {}),
+      ...(personalityOverride && personalityOverride.length > 0
+        ? { personalityTags: personalityOverride as PersonalityTag[] }
+        : {}),
+    };
+  }
+  return base;
+}
+
+function startCompareRun(
+  req: CompareRunRequest,
   personas: ContentPersona[],
   fixtures: NewsEvent[],
 ): { runId: string; entry: RunEntry } {
   // Resolve personas by id, then clone + apply per-tenant tag overrides.
-  // The clone is shallow but the arrays we replace (preferredAngles /
-  // personalityTags) get fresh references, so the original persona on disk
-  // is never mutated.
-  const tenantPersonas: ContentPersona[] = req.tenants.map((t) => {
-    const base = personas.find((x) => x.id === t.personaId);
-    if (!base) throw new Error(`Unknown personaId: ${t.personaId}`);
-    const angleOverride = t.angleTagsOverride;
-    const personalityOverride = t.personalityTagsOverride;
-    if (
-      (angleOverride && angleOverride.length > 0) ||
-      (personalityOverride && personalityOverride.length > 0)
-    ) {
-      return {
-        ...base,
-        ...(angleOverride && angleOverride.length > 0
-          ? { preferredAngles: angleOverride as AngleTag[] }
-          : {}),
-        ...(personalityOverride && personalityOverride.length > 0
-          ? { personalityTags: personalityOverride as PersonalityTag[] }
-          : {}),
-      };
-    }
-    return base;
-  });
+  const tenantPersonas: ContentPersona[] = req.tenants.map((t) =>
+    resolveTenantPersona(t, personas),
+  );
 
   const tenantIdentityIds: Array<string | null> = req.tenants.map(
     (t) => t.identityId ?? null,
@@ -220,8 +268,10 @@ function startRun(
   const withReproducibility = enabled.has(4)
     ? { identityId: tenantIdentityIds[0] ?? "in-house-journalist", runs: 3 }
     : undefined;
+  // Compare mode needs at least 2 pipelines to form a pair. Duplicate
+  // personas are allowed — the runner handles that via index-based pair IDs.
   const withCrossTenantMatrix =
-    enabled.has(6) && tenantPersonas.length >= 3
+    enabled.has(6) && tenantPersonas.length >= 2
       ? {
           identityId: "in-house-journalist",
           personas: tenantPersonas,
@@ -241,7 +291,7 @@ function startRun(
   // Build callbacks that funnel into the entry buffer.
   const callbacks: RunCallbacks = {
     onRunStarted: (_runId, estimatedCostUsd) =>
-      emit(entry, { type: "run_started", runId, estimatedCostUsd }),
+      emit(entry, { type: "run_started", runId, estimatedCostUsd, runMode: "compare" }),
     onStageStarted: (stage) =>
       emit(entry, { type: "stage_started", stage }),
     onCoreAnalysisCompleted: (body, costUsd, tokens) =>
@@ -272,6 +322,93 @@ function startRun(
         },
         callbacks,
       );
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      emit(entry, { type: "run_errored", runId, error: error.message });
+    }
+  })();
+
+  return { runId, entry };
+}
+
+// ───────────────────────────────────────────────────────────────────
+// Solo run path — one pipeline, Stage 1 + one identity call, no matrix
+// ───────────────────────────────────────────────────────────────────
+
+function startSoloRun(
+  req: SoloRunRequest,
+  personas: ContentPersona[],
+  fixtures: NewsEvent[],
+): { runId: string; entry: RunEntry } {
+  const persona = resolveTenantPersona(req.pipeline, personas);
+  const identityId = req.pipeline.identityId ?? "in-house-journalist";
+  const targetWordCount = req.pipeline.targetWordCount ?? 800;
+
+  const event = buildEvent(req, fixtures);
+  const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}_${event.id}_solo`;
+
+  const entry: RunEntry = {
+    runId,
+    events: [],
+    listener: null,
+    done: false,
+  };
+  runs.set(runId, entry);
+
+  void (async () => {
+    const startTime = Date.now();
+    const startedAt = new Date().toISOString();
+    try {
+      emit(entry, {
+        type: "run_started",
+        runId,
+        estimatedCostUsd: 0,
+        runMode: "solo",
+      });
+
+      // Stage 1 — core analysis
+      emit(entry, { type: "stage_started", stage: "core" });
+      const core = await runCoreAnalysis(event);
+      emit(entry, {
+        type: "core_analysis_completed",
+        body: core.body,
+        tokens: core.outputTokens,
+        costUsd: core.costUsd,
+      });
+      emit(entry, { type: "cost_updated", totalCostUsd: core.costUsd });
+
+      // Stage 2 — single identity call
+      emit(entry, { type: "stage_started", stage: "identity" });
+      emit(entry, {
+        type: "solo_identity_started",
+        personaId: persona.id,
+        identityId,
+      });
+      const output = await runIdentity(identityId, core.body, persona, {
+        targetWordCount,
+      });
+      // Mirror tenant_started/completed so the single PipelineCard surfaces
+      // output with the same reducer logic the Compare path uses.
+      emit(entry, { type: "tenant_started", tenantIndex: 0, personaId: persona.id });
+      emit(entry, { type: "tenant_completed", tenantIndex: 0, output });
+      emit(entry, { type: "solo_identity_completed", output });
+
+      const totalCostUsd = core.costUsd + output.costUsd;
+      emit(entry, { type: "cost_updated", totalCostUsd });
+
+      const result: SoloRunResult = {
+        runId,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        event,
+        coreAnalysisBody: core.body,
+        personaId: persona.id,
+        output,
+        totalCostUsd,
+        totalDurationMs: Date.now() - startTime,
+      };
+      emit(entry, { type: "solo_run_completed", runId, result });
+      emit(entry, { type: "run_completed", runId, result });
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       emit(entry, { type: "run_errored", runId, error: error.message });
@@ -486,7 +623,11 @@ export function createPocRoutes() {
     try {
       const personas = loadPersonas();
       const fixtures = loadFixtures();
-      const { runId } = startRun(parsed.data, personas, fixtures);
+      const data = parsed.data;
+      const { runId } =
+        data.runMode === "solo"
+          ? startSoloRun(data, personas, fixtures)
+          : startCompareRun(data, personas, fixtures);
       return c.json({ runId, streamUrl: `/poc/runs/${runId}/stream` });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";

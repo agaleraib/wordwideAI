@@ -13,10 +13,17 @@ import type { SimilarityResult, TrinaryVerdict } from "../lib/types";
 
 interface Props {
   pairs: SimilarityResult[];
+  /**
+   * Optional map from pairId → classification. When provided, the tooltip
+   * renders a muted sub-line labelling the pair as cross-tenant or
+   * intra-tenant. Computed by the page from the pipeline configuration.
+   */
+  classifications?: Record<string, "cross-tenant" | "intra-tenant">;
 }
 
 interface ScatterDot {
   pairId: string;
+  classification?: "cross-tenant" | "intra-tenant";
   x: number; // presentation
   y: number; // fidelity
 }
@@ -38,7 +45,10 @@ const VERDICT_LABEL: Record<TrinaryVerdict, string> = {
   fabrication_risk: "Fabrication risk",
 };
 
-function partition(pairs: SimilarityResult[]): Record<TrinaryVerdict, ScatterDot[]> {
+function partition(
+  pairs: SimilarityResult[],
+  classifications: Record<string, "cross-tenant" | "intra-tenant"> | undefined,
+): Record<TrinaryVerdict, ScatterDot[]> {
   const out: Record<TrinaryVerdict, ScatterDot[]> = {
     distinct_products: [],
     reskinned_same_article: [],
@@ -49,13 +59,22 @@ function partition(pairs: SimilarityResult[]): Record<TrinaryVerdict, ScatterDot
     const x = p.judgePresentationSimilarity;
     const y = p.judgeFactualFidelity;
     if (!v || x == null || y == null) continue;
-    out[v].push({ pairId: p.pairId, x, y });
+    const classification = classifications?.[p.pairId];
+    out[v].push({
+      pairId: p.pairId,
+      x,
+      y,
+      ...(classification ? { classification } : {}),
+    });
   }
   return out;
 }
 
-export default function FidelityPresentationScatter({ pairs }: Props) {
-  const partitioned = partition(pairs);
+export default function FidelityPresentationScatter({
+  pairs,
+  classifications,
+}: Props) {
+  const partitioned = partition(pairs, classifications);
   const total = pairs.filter((p) => p.judgeTrinaryVerdict).length;
 
   if (total === 0) {
@@ -107,17 +126,44 @@ export default function FidelityPresentationScatter({ pairs }: Props) {
         <ReferenceLine y={0.9} stroke={COLOR_BORDER_FOCUS} strokeDasharray="4 4" />
         <Tooltip
           cursor={{ stroke: "#5ba8a0", strokeWidth: 1 }}
-          contentStyle={{
-            background: COLOR_BG_RAISED,
-            border: `1px solid ${COLOR_BORDER_FOCUS}`,
-            borderRadius: 6,
-            color: "#e8e6e3",
-            fontSize: 12,
-          }}
-          formatter={(value: number) => value.toFixed(2)}
-          labelFormatter={(_, payload) => {
-            const first = payload?.[0]?.payload as ScatterDot | undefined;
-            return first?.pairId ?? "";
+          content={({ active, payload }) => {
+            if (!active || !payload || payload.length === 0) return null;
+            const dot = payload[0]?.payload as ScatterDot | undefined;
+            if (!dot) return null;
+            return (
+              <div
+                style={{
+                  background: COLOR_BG_RAISED,
+                  border: `1px solid ${COLOR_BORDER_FOCUS}`,
+                  borderRadius: 6,
+                  color: "#e8e6e3",
+                  fontSize: 12,
+                  padding: "8px 10px",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                <div style={{ marginBottom: 4, wordBreak: "break-all" }}>
+                  {dot.pairId}
+                </div>
+                <div style={{ color: COLOR_TEXT_MUTED }}>
+                  fid {dot.y.toFixed(2)} · pres {dot.x.toFixed(2)}
+                </div>
+                {dot.classification && (
+                  <div
+                    style={{
+                      marginTop: 4,
+                      color: COLOR_TEXT_MUTED,
+                      fontSize: 11,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {dot.classification === "cross-tenant"
+                      ? "cross-tenant comparison"
+                      : "intra-tenant comparison"}
+                  </div>
+                )}
+              </div>
+            );
           }}
         />
         <Legend

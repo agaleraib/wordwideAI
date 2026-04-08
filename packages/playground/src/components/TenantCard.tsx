@@ -57,16 +57,41 @@ const VERDICT_GLYPH: Record<TrinaryVerdict, string> = {
   fabrication_risk: "!",
 };
 
+/**
+ * Locate the SimilarityResult for the pair formed by two pipelines at the
+ * given indices, using the index-prefixed pairId the runner now emits
+ * (`${i}_${personaIdA}__${j}_${personaIdB}`, where i < j). Searching by
+ * persona id alone would collide when two pipelines share the same persona.
+ */
 function findPair(
   pairs: SimilarityResult[],
-  personaA: string,
-  personaB: string,
+  indexA: number,
+  indexB: number,
+  personaIdA: string,
+  personaIdB: string,
 ): SimilarityResult | undefined {
-  return pairs.find(
-    (p) =>
-      p.pairId === `${personaA}__${personaB}` ||
-      p.pairId === `${personaB}__${personaA}`,
-  );
+  const [lo, hi, pLo, pHi] =
+    indexA < indexB
+      ? [indexA, indexB, personaIdA, personaIdB]
+      : [indexB, indexA, personaIdB, personaIdA];
+  const expected = `${lo}_${pLo}__${hi}_${pHi}`;
+  return pairs.find((p) => p.pairId === expected);
+}
+
+/**
+ * Pair classification — cross-tenant vs intra-tenant. Two pipelines with
+ * different personas are cross-tenant (the uniqueness question); two pipelines
+ * with the same persona are intra-tenant (the voice-consistency question).
+ */
+export type PairClassification = "cross-tenant" | "intra-tenant";
+
+export function classifyPair(
+  pipelineA: { personaId: string },
+  pipelineB: { personaId: string },
+): PairClassification {
+  return pipelineA.personaId === pipelineB.personaId
+    ? "intra-tenant"
+    : "cross-tenant";
 }
 
 function estimateCostUsd(targetWordCount: number): number {
@@ -100,7 +125,7 @@ export default function TenantCard({
       }}
     >
       <div className="flex items-center justify-between">
-        <span className="label-uppercase">Tenant {index + 1}</span>
+        <span className="label-uppercase">Pipeline {index + 1}</span>
         <div className={`status-pill ${tenant.status}`}>
           <span className="dot" />
           {tenant.status}
@@ -215,7 +240,7 @@ export default function TenantCard({
         )}
         {tenant.status === "generating" && (
           <span style={{ color: "var(--accent)" }}>
-            {persona?.name ?? "Tenant"} writing as {identity?.name ?? "identity"}…
+            {persona?.name ?? "Pipeline"} writing as {identity?.name ?? "identity"}…
           </span>
         )}
         {tenant.status === "error" && (
@@ -237,15 +262,46 @@ export default function TenantCard({
           style={{ borderTop: "1px solid var(--border)", paddingTop: 8 }}
         >
           {others.map(({ tenant: otherTenant, index: otherIndex }) => {
-            const pair = findPair(pairs, tenant.personaId, otherTenant.personaId);
+            const pair = findPair(
+              pairs,
+              index,
+              otherIndex,
+              tenant.personaId,
+              otherTenant.personaId,
+            );
             const verdict = pair?.judgeTrinaryVerdict;
+            const classification = classifyPair(tenant, otherTenant);
+            const chipLabel = classification === "cross-tenant" ? "X-T" : "I-T";
             return (
               <div
                 key={otherIndex}
                 className="flex items-center justify-between mono"
                 style={{ fontSize: 10 }}
               >
-                <span style={{ color: "var(--text-muted)" }}>vs T{otherIndex + 1}</span>
+                <span
+                  className="flex items-center gap-2"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  <span
+                    title={
+                      classification === "cross-tenant"
+                        ? "Cross-tenant comparison (different persona)"
+                        : "Intra-tenant comparison (same persona, different format)"
+                    }
+                    style={{
+                      fontSize: 9,
+                      letterSpacing: "0.05em",
+                      padding: "1px 4px",
+                      borderRadius: 2,
+                      border: "1px solid var(--border)",
+                      color: "var(--text-muted)",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {chipLabel}
+                  </span>
+                  vs P{otherIndex + 1}
+                </span>
                 {pair ? (
                   <span className="flex items-center gap-2">
                     <span style={{ color: "var(--text-secondary)" }}>
