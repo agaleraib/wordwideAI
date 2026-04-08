@@ -1,21 +1,35 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
-import TopBar from "../components/TopBar";
+import AppShell from "../components/layout/AppShell";
+import TopBar, { type StageId } from "../components/TopBar";
 import TenantCard, { type TenantState } from "../components/TenantCard";
 import FidelityPresentationScatter from "../components/FidelityPresentationScatter";
 import TrinaryVerdictDonut from "../components/TrinaryVerdictDonut";
-import { fetchFixtures, fetchPersonas, startRun } from "../lib/api";
+import {
+  fetchFixtures,
+  fetchPersonas,
+  fetchIdentities,
+  fetchTags,
+  startRun,
+} from "../lib/api";
 import { useSSE } from "../lib/useSSE";
 import type {
   ContentPersona,
+  IdentityDefinition,
   NewsEvent,
   PocSseEvent,
+  QuickMode,
   SimilarityResult,
+  TagsCatalog,
 } from "../lib/types";
 
 type RunStatus = "idle" | "running" | "complete" | "error";
 
 interface PageState {
   tenants: TenantState[];
+  enabledStages: Set<StageId>;
+  quickMode: QuickMode;
+  /** Snapshot of per-tenant word counts before quick mode was enabled. */
+  preQuickWordCounts: number[] | null;
   runStatus: RunStatus;
   costUsd: number | null;
   pairs: SimilarityResult[];
@@ -23,34 +37,100 @@ interface PageState {
 }
 
 type Action =
-  | { type: "set_persona"; index: number; personaId: string }
+  | { type: "set_tenant"; index: number; patch: Partial<TenantState> }
+  | { type: "add_tenant"; tenant: TenantState }
+  | { type: "remove_tenant" }
+  | { type: "toggle_stage"; stage: StageId }
+  | { type: "set_quick_mode"; mode: QuickMode }
   | { type: "reset_for_run" }
   | { type: "sse"; event: PocSseEvent }
   | { type: "set_status"; status: RunStatus; errorMessage?: string };
 
-const DEFAULT_PERSONA_IDS = [
+const DEFAULT_PERSONA_ROTATION = [
   "premium-capital-markets",
   "fasttrade-pro",
   "helix-markets",
   "northbridge-wealth",
+  "premium-capital-markets",
+  "fasttrade-pro",
 ];
 
-function makeInitialTenants(): TenantState[] {
-  return DEFAULT_PERSONA_IDS.map((personaId) => ({
+function makeTenant(personaId: string): TenantState {
+  return {
     personaId,
-    status: "pending" as const,
+    identityId: "in-house-journalist",
+    angleTagsOverride: [],
+    personalityTagsOverride: [],
+    targetWordCount: 800,
+    status: "pending",
     body: null,
     wordCount: null,
-  }));
+  };
+}
+
+function makeInitialTenants(): TenantState[] {
+  return DEFAULT_PERSONA_ROTATION.slice(0, 4).map(makeTenant);
+}
+
+function applyQuickMode(
+  tenants: TenantState[],
+  mode: QuickMode,
+  preQuick: number[] | null,
+): { tenants: TenantState[]; preQuick: number[] | null } {
+  if (mode === "off") {
+    if (!preQuick) return { tenants, preQuick: null };
+    return {
+      tenants: tenants.map((t, i) => ({
+        ...t,
+        targetWordCount: preQuick[i] ?? t.targetWordCount,
+      })),
+      preQuick: null,
+    };
+  }
+  const target = parseInt(mode, 10);
+  const snapshot =
+    preQuick ?? tenants.map((t) => t.targetWordCount);
+  return {
+    tenants: tenants.map((t) => ({ ...t, targetWordCount: target })),
+    preQuick: snapshot,
+  };
 }
 
 function reducer(state: PageState, action: Action): PageState {
   switch (action.type) {
-    case "set_persona": {
+    case "set_tenant": {
       const tenants = state.tenants.map((t, i) =>
-        i === action.index ? { ...t, personaId: action.personaId } : t,
+        i === action.index ? { ...t, ...action.patch } : t,
       );
       return { ...state, tenants };
+    }
+    case "add_tenant": {
+      return { ...state, tenants: [...state.tenants, action.tenant] };
+    }
+    case "remove_tenant": {
+      return { ...state, tenants: state.tenants.slice(0, -1) };
+    }
+    case "toggle_stage": {
+      const next = new Set(state.enabledStages);
+      if (next.has(action.stage)) {
+        next.delete(action.stage);
+      } else {
+        next.add(action.stage);
+      }
+      return { ...state, enabledStages: next };
+    }
+    case "set_quick_mode": {
+      const { tenants, preQuick } = applyQuickMode(
+        state.tenants,
+        action.mode,
+        state.preQuickWordCounts,
+      );
+      return {
+        ...state,
+        tenants,
+        quickMode: action.mode,
+        preQuickWordCounts: preQuick,
+      };
     }
     case "reset_for_run": {
       return {
@@ -89,7 +169,6 @@ function reducer(state: PageState, action: Action): PageState {
           return { ...state, tenants };
         }
         case "judge_completed": {
-          // Replace the matching pair (if any) or append.
           const others = state.pairs.filter(
             (p) => p.pairId !== event.similarity.pairId,
           );
@@ -136,34 +215,44 @@ const SSE_EVENT_TYPES: ReadonlyArray<PocSseEvent["type"]> = [
   "run_errored",
 ];
 
+const FIXTURES_WITH_CONTINUATION: ReadonlySet<string> = new Set(["iran-strike"]);
+
 export default function PlaygroundUniqueness() {
   const [fixtures, setFixtures] = useState<NewsEvent[] | null>(null);
   const [personas, setPersonas] = useState<ContentPersona[] | null>(null);
+  const [identities, setIdentities] = useState<IdentityDefinition[] | null>(null);
+  const [tagsCatalog, setTagsCatalog] = useState<TagsCatalog | null>(null);
   const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(null);
   const [eventBody, setEventBody] = useState<string>("");
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
 
   const [state, dispatch] = useReducer(reducer, {
     tenants: makeInitialTenants(),
+    enabledStages: new Set<StageId>([1, 6]),
+    quickMode: "off" as QuickMode,
+    preQuickWordCounts: null,
     runStatus: "idle" as RunStatus,
     costUsd: null,
     pairs: [],
     errorMessage: null,
   });
 
-  // Load catalogs once on mount.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const [f, p] = await Promise.all([fetchFixtures(), fetchPersonas()]);
+        const [f, p, i, t] = await Promise.all([
+          fetchFixtures(),
+          fetchPersonas(),
+          fetchIdentities(),
+          fetchTags(),
+        ]);
         if (cancelled) return;
         setFixtures(f);
         setPersonas(p);
-        // Default-pick the first fixture id if none chosen yet, but leave the
-        // body empty until the user explicitly selects.
+        setIdentities(i);
+        setTagsCatalog(t);
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.error("[playground] failed to load catalogs", err);
       }
     })();
@@ -184,6 +273,19 @@ export default function PlaygroundUniqueness() {
     [fixtures],
   );
 
+  const handleAddTenant = useCallback(() => {
+    if (state.tenants.length >= 6) return;
+    const personaId =
+      DEFAULT_PERSONA_ROTATION[state.tenants.length] ??
+      DEFAULT_PERSONA_ROTATION[0]!;
+    dispatch({ type: "add_tenant", tenant: makeTenant(personaId) });
+  }, [state.tenants.length]);
+
+  const handleRemoveTenant = useCallback(() => {
+    if (state.tenants.length <= 1) return;
+    dispatch({ type: "remove_tenant" });
+  }, [state.tenants.length]);
+
   const handleRunAll = useCallback(async () => {
     dispatch({ type: "reset_for_run" });
     dispatch({ type: "set_status", status: "running" });
@@ -191,14 +293,23 @@ export default function PlaygroundUniqueness() {
       const res = await startRun({
         eventBody,
         ...(selectedFixtureId ? { fixtureId: selectedFixtureId } : {}),
-        tenants: state.tenants.map((t) => ({ personaId: t.personaId })),
+        enabledStages: Array.from(state.enabledStages),
+        quickMode: state.quickMode,
+        tenants: state.tenants.map((t) => ({
+          personaId: t.personaId,
+          identityId: t.identityId,
+          angleTagsOverride: t.angleTagsOverride.length > 0 ? t.angleTagsOverride : null,
+          personalityTagsOverride:
+            t.personalityTagsOverride.length > 0 ? t.personalityTagsOverride : null,
+          targetWordCount: t.targetWordCount,
+        })),
       });
       setStreamUrl(res.streamUrl);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       dispatch({ type: "set_status", status: "error", errorMessage: message });
     }
-  }, [eventBody, selectedFixtureId, state.tenants]);
+  }, [eventBody, selectedFixtureId, state.tenants, state.enabledStages, state.quickMode]);
 
   const onSseEvent = useCallback((event: PocSseEvent) => {
     dispatch({ type: "sse", event });
@@ -207,8 +318,6 @@ export default function PlaygroundUniqueness() {
   useSSE<PocSseEvent>(streamUrl, SSE_EVENT_TYPES, {
     onEvent: onSseEvent,
     onError: () => {
-      // EventSource auto-reconnects on transient errors; we just log.
-      // eslint-disable-next-line no-console
       console.warn("[playground] SSE error");
     },
   });
@@ -218,71 +327,150 @@ export default function PlaygroundUniqueness() {
     [state.runStatus, state.pairs],
   );
 
+  const fixtureHasContinuation = selectedFixtureId
+    ? FIXTURES_WITH_CONTINUATION.has(selectedFixtureId)
+    : false;
+
+  const running = state.runStatus === "running";
+
   return (
-    <div className="min-h-full flex flex-col">
+    <AppShell costUsd={state.costUsd} runStatus={state.runStatus}>
+      <div className="flex items-end justify-between fade-up" style={{ marginBottom: 24 }}>
+        <div>
+          <h1 className="page-title">Uniqueness Playground</h1>
+          <p className="page-subtitle">
+            Iterate on tags, personas, and events. Measure what ships.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn-accent"
+            onClick={handleRunAll}
+            disabled={running || eventBody.trim().length === 0}
+          >
+            {running ? "Running…" : "Run all"}
+          </button>
+        </div>
+      </div>
+
+      {state.errorMessage && (
+        <div
+          className="mono"
+          style={{
+            border: "1px solid var(--danger)",
+            background: "var(--danger-subtle)",
+            color: "var(--danger)",
+            padding: "var(--sp-3) var(--sp-4)",
+            borderRadius: "var(--radius-md)",
+            marginBottom: 16,
+            fontSize: 12,
+          }}
+        >
+          {state.errorMessage}
+        </div>
+      )}
+
       <TopBar
         fixtures={fixtures}
         selectedFixtureId={selectedFixtureId}
         eventBody={eventBody}
-        runStatus={state.runStatus}
-        costUsd={state.costUsd}
+        enabledStages={state.enabledStages}
+        quickMode={state.quickMode}
+        tenantCount={state.tenants.length}
+        fixtureHasContinuation={fixtureHasContinuation}
+        running={running}
         onFixtureChange={handleFixtureChange}
         onEventBodyChange={setEventBody}
-        onRunAll={handleRunAll}
+        onToggleStage={(stage) => dispatch({ type: "toggle_stage", stage })}
+        onQuickMode={(mode) => dispatch({ type: "set_quick_mode", mode })}
       />
 
-      <main className="flex-1 px-6 py-6 flex flex-col gap-6 max-w-[1400px] mx-auto w-full">
-        {state.errorMessage && (
-          <div className="border border-fabrication/40 bg-fabrication/10 text-fabrication text-sm rounded-md px-4 py-2 font-mono">
-            {state.errorMessage}
-          </div>
-        )}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+          gap: 16,
+          marginBottom: 16,
+          transition: "all var(--duration-normal) var(--ease-out)",
+        }}
+      >
+        {state.tenants.map((tenant, i) => (
+          <TenantCard
+            key={i}
+            index={i}
+            tenant={tenant}
+            personas={personas}
+            identities={identities}
+            tagsCatalog={tagsCatalog}
+            pairs={state.pairs}
+            allTenants={state.tenants}
+            disabled={running}
+            onChange={(patch) => dispatch({ type: "set_tenant", index: i, patch })}
+          />
+        ))}
+      </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {state.tenants.map((tenant, i) => (
-            <TenantCard
-              key={i}
-              index={i}
-              tenant={tenant}
-              personas={personas}
-              pairs={state.pairs}
-              allTenants={state.tenants}
-              disabled={state.runStatus === "running"}
-              onPersonaChange={(personaId) =>
-                dispatch({ type: "set_persona", index: i, personaId })
-              }
-            />
-          ))}
-        </section>
+      <div className="flex items-center gap-2" style={{ marginBottom: 24 }}>
+        <button
+          type="button"
+          className="btn-outline"
+          onClick={handleAddTenant}
+          disabled={running || state.tenants.length >= 6}
+        >
+          + Add tenant
+        </button>
+        <button
+          type="button"
+          className="btn-outline"
+          onClick={handleRemoveTenant}
+          disabled={running || state.tenants.length <= 1}
+        >
+          − Remove last tenant
+        </button>
+        <span className="mono" style={{ color: "var(--text-muted)" }}>
+          {state.tenants.length}/6 tenants
+        </span>
+      </div>
 
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-card border border-border rounded-lg p-4">
-            <h2 className="text-xs uppercase tracking-wide text-foreground-muted mb-2">
-              Fidelity vs Presentation
-            </h2>
-            {showCharts ? (
-              <FidelityPresentationScatter pairs={state.pairs} />
-            ) : (
-              <div className="h-[320px] flex items-center justify-center text-foreground-muted text-sm">
-                Charts populate after the run completes.
-              </div>
-            )}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "2fr 1fr",
+          gap: 16,
+        }}
+      >
+        <div className="card-raised">
+          <div className="label-uppercase" style={{ marginBottom: 12 }}>
+            Fidelity vs Presentation
           </div>
-
-          <div className="bg-card border border-border rounded-lg p-4">
-            <h2 className="text-xs uppercase tracking-wide text-foreground-muted mb-2">
-              Trinary verdict
-            </h2>
-            {showCharts ? (
-              <TrinaryVerdictDonut pairs={state.pairs} />
-            ) : (
-              <div className="h-[260px] flex items-center justify-center text-foreground-muted text-sm">
-                —
-              </div>
-            )}
+          {showCharts ? (
+            <FidelityPresentationScatter pairs={state.pairs} />
+          ) : (
+            <div
+              className="flex items-center justify-center"
+              style={{ height: 320, color: "var(--text-muted)", fontSize: 13 }}
+            >
+              Charts populate after the run completes.
+            </div>
+          )}
+        </div>
+        <div className="card-raised">
+          <div className="label-uppercase" style={{ marginBottom: 12 }}>
+            Trinary verdict
           </div>
-        </section>
-      </main>
-    </div>
+          {showCharts ? (
+            <TrinaryVerdictDonut pairs={state.pairs} />
+          ) : (
+            <div
+              className="flex items-center justify-center"
+              style={{ height: 260, color: "var(--text-muted)", fontSize: 13 }}
+            >
+              —
+            </div>
+          )}
+        </div>
+      </section>
+    </AppShell>
   );
 }

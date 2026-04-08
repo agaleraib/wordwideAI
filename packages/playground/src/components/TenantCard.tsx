@@ -1,9 +1,33 @@
-import type { ContentPersona, SimilarityResult, TrinaryVerdict } from "../lib/types";
+/**
+ * TenantCard — one card per tenant in the playground grid.
+ *
+ * v1.1 surface area:
+ *   - Persona dropdown
+ *   - Identity dropdown
+ *   - Word-count slider with cost estimate
+ *   - Angle / personality TagPickers
+ *   - Output area with status pill
+ *   - Per-pair fidelity / presentation / verdict mini-table
+ */
+
+import * as Slider from "@radix-ui/react-slider";
+import TagPicker from "./TagPicker";
+import type {
+  ContentPersona,
+  IdentityDefinition,
+  SimilarityResult,
+  TagsCatalog,
+  TrinaryVerdict,
+} from "../lib/types";
 
 export type TenantStatus = "pending" | "generating" | "complete" | "error";
 
 export interface TenantState {
   personaId: string;
+  identityId: string;
+  angleTagsOverride: string[];
+  personalityTagsOverride: string[];
+  targetWordCount: number;
   status: TenantStatus;
   body: string | null;
   wordCount: number | null;
@@ -13,17 +37,18 @@ interface Props {
   index: number;
   tenant: TenantState;
   personas: ContentPersona[] | null;
+  identities: IdentityDefinition[] | null;
+  tagsCatalog: TagsCatalog | null;
   pairs: SimilarityResult[];
-  /** All four tenants in order — used to label the per-pair mini-table. */
   allTenants: TenantState[];
   disabled: boolean;
-  onPersonaChange: (personaId: string) => void;
+  onChange: (patch: Partial<TenantState>) => void;
 }
 
 const VERDICT_COLOR: Record<TrinaryVerdict, string> = {
-  distinct_products: "text-distinct",
-  reskinned_same_article: "text-reskinned",
-  fabrication_risk: "text-fabrication",
+  distinct_products: "var(--success)",
+  reskinned_same_article: "var(--warning)",
+  fabrication_risk: "var(--danger)",
 };
 
 const VERDICT_GLYPH: Record<TrinaryVerdict, string> = {
@@ -37,7 +62,6 @@ function findPair(
   personaA: string,
   personaB: string,
 ): SimilarityResult | undefined {
-  // pairId is `${a.id}__${b.id}` per the runner; either order may match.
   return pairs.find(
     (p) =>
       p.pairId === `${personaA}__${personaB}` ||
@@ -45,109 +69,205 @@ function findPair(
   );
 }
 
+function estimateCostUsd(targetWordCount: number): number {
+  // Rough Sonnet identity-call estimate, normalized to ~$0.032 per 800 words.
+  return (targetWordCount / 800) * 0.032;
+}
+
 export default function TenantCard({
   index,
   tenant,
   personas,
+  identities,
+  tagsCatalog,
   pairs,
   allTenants,
   disabled,
-  onPersonaChange,
+  onChange,
 }: Props) {
   const persona = personas?.find((p) => p.id === tenant.personaId);
+  const identity = identities?.find((i) => i.id === tenant.identityId);
   const others = allTenants
     .map((t, i) => ({ tenant: t, index: i }))
     .filter((x) => x.index !== index);
 
   return (
-    <div className="bg-card border border-border rounded-lg p-4 flex flex-col gap-3 min-h-[320px]">
+    <div
+      className="card-raised flex flex-col gap-3 fade-up"
+      style={{
+        minHeight: 480,
+        animationDelay: `${index * 80}ms`,
+      }}
+    >
       <div className="flex items-center justify-between">
-        <span className="text-xs uppercase tracking-wide text-foreground-muted">
-          Tenant {index + 1}
-        </span>
-        <span
-          className={
-            tenant.status === "complete"
-              ? "text-xs text-distinct"
-              : tenant.status === "generating"
-                ? "text-xs text-accent animate-pulse"
-                : tenant.status === "error"
-                  ? "text-xs text-fabrication"
-                  : "text-xs text-foreground-muted"
-          }
-        >
+        <span className="label-uppercase">Tenant {index + 1}</span>
+        <div className={`status-pill ${tenant.status}`}>
+          <span className="dot" />
           {tenant.status}
-        </span>
+        </div>
       </div>
 
-      <select
-        className="bg-card-elevated border border-border-strong rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent"
-        value={tenant.personaId}
-        onChange={(e) => onPersonaChange(e.target.value)}
-        disabled={disabled || !personas}
-      >
-        {personas?.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
-          </option>
-        ))}
-      </select>
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1">
+          <label className="label-uppercase">Persona</label>
+          <select
+            className="input"
+            value={tenant.personaId}
+            onChange={(e) => onChange({ personaId: e.target.value })}
+            disabled={disabled || !personas}
+          >
+            {personas?.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <div className="flex-1 min-h-[100px] bg-background border border-border rounded-md p-3 text-xs leading-relaxed font-mono text-foreground-dim overflow-y-auto max-h-[280px]">
+        <div className="flex flex-col gap-1">
+          <label className="label-uppercase">Identity</label>
+          <select
+            className="input"
+            value={tenant.identityId}
+            onChange={(e) => {
+              const next = identities?.find((i) => i.id === e.target.value);
+              onChange({
+                identityId: e.target.value,
+                ...(next ? { targetWordCount: next.targetWordCount.target } : {}),
+              });
+            }}
+            disabled={disabled || !identities}
+          >
+            {identities?.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name} ({i.targetWordCount.min}–{i.targetWordCount.max})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <div className="flex items-baseline justify-between">
+            <label className="label-uppercase">Word count</label>
+            <span className="mono" style={{ color: "var(--text-secondary)" }}>
+              {tenant.targetWordCount} words · ≈ ${estimateCostUsd(tenant.targetWordCount).toFixed(3)}
+            </span>
+          </div>
+          <Slider.Root
+            className="slider-root"
+            value={[tenant.targetWordCount]}
+            min={100}
+            max={2000}
+            step={50}
+            disabled={disabled}
+            onValueChange={(v) => {
+              const next = v[0];
+              if (next != null) onChange({ targetWordCount: next });
+            }}
+          >
+            <Slider.Track className="slider-track">
+              <Slider.Range className="slider-range" />
+            </Slider.Track>
+            <Slider.Thumb className="slider-thumb" aria-label="Target word count" />
+          </Slider.Root>
+        </div>
+
+        {tagsCatalog && (
+          <>
+            <TagPicker
+              label="Angle tags"
+              tags={tagsCatalog.angle}
+              selectedIds={tenant.angleTagsOverride}
+              onChange={(ids) => onChange({ angleTagsOverride: ids })}
+              disabled={disabled}
+            />
+            <TagPicker
+              label="Personality tags"
+              tags={tagsCatalog.personality}
+              selectedIds={tenant.personalityTagsOverride}
+              onChange={(ids) => onChange({ personalityTagsOverride: ids })}
+              disabled={disabled}
+            />
+          </>
+        )}
+      </div>
+
+      <div
+        className={tenant.status === "generating" ? "streaming" : ""}
+        style={{
+          flex: 1,
+          minHeight: 120,
+          maxHeight: 280,
+          overflowY: "auto",
+          background: "var(--bg-app)",
+          border: "1px solid var(--border-light)",
+          borderRadius: "var(--radius-md)",
+          padding: "var(--sp-3)",
+          fontFamily: "var(--font-mono)",
+          fontSize: 11,
+          lineHeight: 1.7,
+          color: "var(--text-secondary)",
+          whiteSpace: "pre-wrap",
+        }}
+      >
         {tenant.status === "pending" && (
-          <span className="text-foreground-muted">waiting…</span>
+          <span style={{ color: "var(--text-muted)" }}>waiting…</span>
         )}
         {tenant.status === "generating" && (
-          <span className="text-accent animate-pulse">
-            {persona?.name ?? "Tenant"} is thinking…
+          <span style={{ color: "var(--accent)" }}>
+            {persona?.name ?? "Tenant"} writing as {identity?.name ?? "identity"}…
           </span>
         )}
         {tenant.status === "error" && (
-          <span className="text-fabrication">error</span>
+          <span style={{ color: "var(--danger)" }}>error</span>
         )}
-        {tenant.status === "complete" && tenant.body && (
-          <div className="whitespace-pre-wrap">{tenant.body}</div>
-        )}
+        {tenant.status === "complete" && tenant.body}
       </div>
 
-      <div className="flex items-center justify-between text-xs text-foreground-muted">
-        <span>
-          {tenant.wordCount != null ? `${tenant.wordCount} words` : "—"}
-        </span>
+      <div
+        className="flex items-center justify-between mono"
+        style={{ color: "var(--text-muted)" }}
+      >
+        <span>{tenant.wordCount != null ? `${tenant.wordCount} words` : "—"}</span>
       </div>
 
-      {/* Per-pair judge results vs the other tenants */}
-      <div className="border-t border-border pt-2 flex flex-col gap-1">
-        {others.map(({ tenant: otherTenant, index: otherIndex }) => {
-          const pair = findPair(pairs, tenant.personaId, otherTenant.personaId);
-          const verdict = pair?.judgeTrinaryVerdict;
-          return (
-            <div
-              key={otherIndex}
-              className="flex items-center justify-between text-[11px] font-mono"
-            >
-              <span className="text-foreground-muted">vs T{otherIndex + 1}</span>
-              {pair ? (
-                <span className="flex items-center gap-2">
-                  <span className="text-foreground-dim">
-                    fid {pair.judgeFactualFidelity?.toFixed(2) ?? "—"}
-                  </span>
-                  <span className="text-foreground-dim">
-                    pres {pair.judgePresentationSimilarity?.toFixed(2) ?? "—"}
-                  </span>
-                  {verdict && (
-                    <span className={VERDICT_COLOR[verdict]}>
-                      {VERDICT_GLYPH[verdict]}
+      {others.length > 0 && (
+        <div
+          className="flex flex-col gap-1"
+          style={{ borderTop: "1px solid var(--border)", paddingTop: 8 }}
+        >
+          {others.map(({ tenant: otherTenant, index: otherIndex }) => {
+            const pair = findPair(pairs, tenant.personaId, otherTenant.personaId);
+            const verdict = pair?.judgeTrinaryVerdict;
+            return (
+              <div
+                key={otherIndex}
+                className="flex items-center justify-between mono"
+                style={{ fontSize: 10 }}
+              >
+                <span style={{ color: "var(--text-muted)" }}>vs T{otherIndex + 1}</span>
+                {pair ? (
+                  <span className="flex items-center gap-2">
+                    <span style={{ color: "var(--text-secondary)" }}>
+                      fid {pair.judgeFactualFidelity?.toFixed(2) ?? "—"}
                     </span>
-                  )}
-                </span>
-              ) : (
-                <span className="text-foreground-muted">—</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                    <span style={{ color: "var(--text-secondary)" }}>
+                      pres {pair.judgePresentationSimilarity?.toFixed(2) ?? "—"}
+                    </span>
+                    {verdict && (
+                      <span style={{ color: VERDICT_COLOR[verdict] }}>
+                        {VERDICT_GLYPH[verdict]}
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span style={{ color: "var(--text-muted)" }}>—</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

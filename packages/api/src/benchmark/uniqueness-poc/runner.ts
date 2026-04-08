@@ -27,7 +27,14 @@ import type {
   RunResult,
   SimilarityStatus,
 } from "./types.js";
-import { buildNarrativeStateFromPriorOutput } from "./narrative-state.js";
+import {
+  buildNarrativeStateFromPriorOutput,
+  extractNarrativeState,
+} from "./narrative-state.js";
+import {
+  lookupPersonaState,
+  type NarrativeStateStore,
+} from "./narrative-state-store.js";
 import { UNIQUENESS_THRESHOLDS } from "./types.js";
 import { FA_AGENT_SYSTEM_PROMPT, buildFAAgentUserMessage } from "./prompts/fa-agent.js";
 import { IDENTITY_REGISTRY, getIdentityById } from "./prompts/identities/index.js";
@@ -106,6 +113,12 @@ async function runIdentity(
   options?: {
     narrativeState?: TenantTopicNarrativeState;
     topicName?: string;
+    /**
+     * Optional hard word-count override (playground only). When provided,
+     * a directive is appended to the user message instructing the writer
+     * to hit this exact target instead of the identity's baked-in range.
+     */
+    targetWordCount?: number;
   },
 ): Promise<IdentityOutput> {
   const registered = getIdentityById(identityId);
@@ -125,6 +138,11 @@ async function runIdentity(
     options?: { narrativeState?: TenantTopicNarrativeState; topicName?: string },
   ) => string;
 
+  let userMessage = userMessageBuilder(coreAnalysisBody, persona, options);
+  if (options?.targetWordCount && options.targetWordCount > 0) {
+    userMessage += `\n\n# WORD-COUNT OVERRIDE — HARD CONSTRAINT\n\nTarget word count: ${options.targetWordCount} words. This is a hard limit, not a guideline. It overrides any word count range specified in your system prompt. Allowed band: ±10%.`;
+  }
+
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
@@ -132,7 +150,7 @@ async function runIdentity(
     messages: [
       {
         role: "user",
-        content: userMessageBuilder(coreAnalysisBody, persona, options),
+        content: userMessage,
       },
     ],
   });
@@ -352,6 +370,33 @@ async function runCrossTenantMatrix(
   coreAnalysisBody: string,
   personas: ContentPersona[],
   callbacks?: RunCallbacks,
+  /**
+   * Optional: inject accumulated narrative state into each persona's identity
+   * call. Only populated by the sequence runner (`poc:uniqueness:sequence`);
+   * single-event `--full` runs pass `undefined` and behave exactly as before.
+   * Each entry is the state for the persona at the same index, or null if
+   * the store had nothing for that persona.
+   */
+  narrativeStates?: Array<TenantTopicNarrativeState | null>,
+  /**
+   * Topic display name for the injected directive (see
+   * `renderNarrativeStateDirective`). Only consulted when `narrativeStates`
+   * is provided.
+   */
+  narrativeTopicName?: string,
+  /**
+   * Playground-only: per-tenant identity override. When `tenantIdentityIds[i]`
+   * is a non-empty string, that persona uses that identity instead of the
+   * default `identityId`. The CLI never sets this and the matrix's reported
+   * `identityId` / `identityName` are still the default.
+   */
+  tenantIdentityIds?: Array<string | null>,
+  /**
+   * Playground-only: per-tenant hard word-count override. When `tenantWordCountOverrides[i]`
+   * is a positive number, the directive appended to that persona's user
+   * message forces this exact target. The CLI never sets this.
+   */
+  tenantWordCountOverrides?: Array<number | null>,
 ): Promise<CrossTenantMatrixResult> {
   if (personas.length < 3) {
     throw new Error(
@@ -370,7 +415,26 @@ async function runCrossTenantMatrix(
   const outputs = await Promise.all(
     personas.map(async (persona, index) => {
       callbacks?.onTenantStarted?.(index, persona.id);
-      const out = await runIdentity(identityId, coreAnalysisBody, persona);
+      const narrativeState = narrativeStates?.[index] ?? undefined;
+      const wordCountOverride = tenantWordCountOverrides?.[index] ?? undefined;
+      const identityOptions =
+        narrativeState || wordCountOverride
+          ? {
+              ...(narrativeState ? { narrativeState, topicName: narrativeTopicName } : {}),
+              ...(wordCountOverride ? { targetWordCount: wordCountOverride } : {}),
+            }
+          : undefined;
+      const perTenantIdentity = tenantIdentityIds?.[index];
+      const effectiveIdentityId =
+        perTenantIdentity && perTenantIdentity.length > 0
+          ? perTenantIdentity
+          : identityId;
+      const out = await runIdentity(
+        effectiveIdentityId,
+        coreAnalysisBody,
+        persona,
+        identityOptions,
+      );
       callbacks?.onTenantCompleted?.(index, out);
       return out;
     }),
@@ -534,6 +598,38 @@ async function buildCrossTenantMatrixFromOutputs(
   };
 }
 
+/**
+ * Resolve the narrative state to inject into a persona's treatment call.
+ *
+ * Store-first, synthesis-fallback. If a store is provided and has a non-empty
+ * entry for the (fixture, persona, topic) triple, use it directly. Otherwise
+ * fall back to today's in-memory single-prior synthesis from the prior
+ * Stage 6 output.
+ */
+async function resolveNarrativeStateForPersona(args: {
+  persona: ContentPersona;
+  topicId: string;
+  priorOutput: IdentityOutput;
+  priorPublishedAt: string;
+  store: NarrativeStateStore | undefined;
+  fixtureId: string | undefined;
+}): Promise<TenantTopicNarrativeState> {
+  const existing = await lookupPersonaState({
+    store: args.store,
+    fixtureId: args.fixtureId,
+    persona: args.persona,
+    topicId: args.topicId,
+  });
+  if (existing) return existing;
+
+  return buildNarrativeStateFromPriorOutput(
+    args.persona,
+    args.topicId,
+    args.priorOutput,
+    args.priorPublishedAt,
+  );
+}
+
 async function runNarrativeStateTest(args: {
   identityId: string;
   personas: ContentPersona[];
@@ -543,6 +639,10 @@ async function runNarrativeStateTest(args: {
   priorPublishedAt: string;
   /** The second event to write about — the continuation. */
   secondEvent: NewsEvent;
+  /** Optional store; when provided, Stage 7 reads accumulated history from it. */
+  store?: NarrativeStateStore;
+  /** Fixture namespace for store lookups; required if `store` is set. */
+  fixtureId?: string;
 }): Promise<NarrativeStateTestResult> {
   const registered = getIdentityById(args.identityId);
   if (!registered) {
@@ -560,16 +660,20 @@ async function runNarrativeStateTest(args: {
   const secondCoreAnalysis = await runCoreAnalysis(args.secondEvent);
   console.log(`[runner]     ✓ ${secondCoreAnalysis.outputTokens} output tokens, $${secondCoreAnalysis.costUsd.toFixed(4)}`);
 
-  // STEP 2 — Extract narrative state from each prior output
-  console.log(`[runner]   Stage 7.2 — extracting narrative state from ${args.priorOutputs.length} prior pieces (Haiku)...`);
+  // STEP 2 — Resolve narrative state for each persona: store-first if the
+  // store has an accumulated history, otherwise fall back to the in-memory
+  // single-prior synthesis path.
+  console.log(`[runner]   Stage 7.2 — resolving narrative state for ${args.personas.length} personas (store-first, synthesis fallback)...`);
   const narrativeStates = await Promise.all(
     args.personas.map(async (persona, i) => {
-      const state = await buildNarrativeStateFromPriorOutput(
+      const state = await resolveNarrativeStateForPersona({
         persona,
-        args.secondEvent.topicId,
-        args.priorOutputs[i]!,
-        args.priorPublishedAt,
-      );
+        topicId: args.secondEvent.topicId,
+        priorOutput: args.priorOutputs[i]!,
+        priorPublishedAt: args.priorPublishedAt,
+        store: args.store,
+        fixtureId: args.fixtureId,
+      });
       return { personaId: persona.id, personaName: persona.name, state };
     }),
   );
@@ -760,6 +864,16 @@ export interface RunOptions {
   withCrossTenantMatrix?: {
     identityId: string;
     personas: ContentPersona[];
+    /**
+     * Playground-only: per-tenant identity override. Length must equal
+     * `personas.length` when provided. The CLI never sets this.
+     */
+    tenantIdentityIds?: Array<string | null>;
+    /**
+     * Playground-only: per-tenant hard word-count override. Length must equal
+     * `personas.length` when provided. The CLI never sets this.
+     */
+    tenantWordCountOverrides?: Array<number | null>;
   };
   /**
    * Run the temporal narrative continuity test (Stage 7)?
@@ -773,6 +887,28 @@ export interface RunOptions {
     /** Date string to attribute to the prior pieces (the "publishedAt" field). */
     priorPublishedAt: string;
   };
+  /**
+   * Between-runs narrative-state persistence. See
+   * `docs/specs/2026-04-08-narrative-state-persistence.md`.
+   *
+   * When both `store` and `fixtureId` are provided:
+   *   - Stage 7 reads accumulated state from the store instead of synthesising
+   *     a single-entry prior in memory (falls back to synthesis if empty).
+   *   - If `persistNarrativeState === true`, Stage 6 outputs are extracted
+   *     and appended to the store after Stage 6 completes.
+   *   - If `readNarrativeStateInCrossTenant === true`, Stage 6 **reads** from
+   *     the store before each identity call and injects the accumulated
+   *     history into the identity prompt. This is only used by the sequence
+   *     runner; single-event `--full` runs leave it false so back-compat is
+   *     byte-identical.
+   *
+   * All three flags are opt-in and default to `undefined`/`false`. Existing
+   * call sites that don't pass any of them behave exactly as before.
+   */
+  store?: NarrativeStateStore;
+  fixtureId?: string;
+  persistNarrativeState?: boolean;
+  readNarrativeStateInCrossTenant?: boolean;
 }
 
 /**
@@ -883,20 +1019,80 @@ export async function runUniquenessPoc(
   // Stage 6 + Stage 7 share Stage 6's outputs (Stage 7 uses them as priors)
   let crossTenantMatrix: CrossTenantMatrixResult | undefined;
   let narrativeStateTest: NarrativeStateTestResult | undefined;
+  let stage6PersistCost = 0;
   if (opts.withCrossTenantMatrix) {
     console.log(`[runner] Stage 6 — CROSS-TENANT MATRIX (the load-bearing test): ${opts.withCrossTenantMatrix.identityId} × ${opts.withCrossTenantMatrix.personas.length} personas...`);
     callbacks?.onStageStarted?.("cross-tenant");
+
+    // Sequence-mode: pre-fetch accumulated narrative state from the store
+    // so each persona's identity call in Stage 6 gets injected with its own
+    // history. Single-event `--full` runs skip this entirely and remain
+    // byte-identical to today.
+    let stage6NarrativeStates: Array<TenantTopicNarrativeState | null> | undefined;
+    if (
+      opts.readNarrativeStateInCrossTenant &&
+      opts.store &&
+      opts.fixtureId
+    ) {
+      stage6NarrativeStates = await Promise.all(
+        opts.withCrossTenantMatrix.personas.map((persona) =>
+          lookupPersonaState({
+            store: opts.store,
+            fixtureId: opts.fixtureId,
+            persona,
+            topicId: opts.event.topicId,
+          }),
+        ),
+      );
+      const hits = stage6NarrativeStates.filter((s) => s !== null).length;
+      console.log(
+        `[runner]   ✓ injected accumulated narrative state from store for ${hits}/${stage6NarrativeStates.length} personas`,
+      );
+    }
+
     crossTenantMatrix = await runCrossTenantMatrix(
       opts.withCrossTenantMatrix.identityId,
       coreAnalysis.body,
       opts.withCrossTenantMatrix.personas,
       callbacks,
+      stage6NarrativeStates,
+      opts.event.topicName,
+      opts.withCrossTenantMatrix.tenantIdentityIds,
+      opts.withCrossTenantMatrix.tenantWordCountOverrides,
     );
     console.log(`[runner]   ✓ ${crossTenantMatrix.similarities.length} pairs`);
     console.log(`[runner]   ✓ cosine: mean=${crossTenantMatrix.meanCosine.toFixed(4)}, min=${crossTenantMatrix.minCosine.toFixed(4)}, max=${crossTenantMatrix.maxCosine.toFixed(4)}`);
     console.log(`[runner]   ✓ rougeL: mean=${crossTenantMatrix.meanRougeL.toFixed(4)}, min=${crossTenantMatrix.minRougeL.toFixed(4)}, max=${crossTenantMatrix.maxRougeL.toFixed(4)}`);
     console.log(`[runner]   ✓ CROSS-TENANT VERDICT: ${crossTenantMatrix.verdict}`);
     console.log(`[runner]     ${crossTenantMatrix.verdictReasoning}`);
+
+    // Stage 6 write-back: append each output to the store as a new entry.
+    // Guarded by `opts.persistNarrativeState` so existing runs don't silently
+    // mutate state on disk.
+    if (opts.persistNarrativeState && opts.store && opts.fixtureId) {
+      console.log(
+        `[runner]   ✓ persisting ${crossTenantMatrix.outputs.length} Stage 6 output(s) to narrative-state store...`,
+      );
+      for (const output of crossTenantMatrix.outputs) {
+        if (!output.personaId) {
+          throw new Error(
+            `runUniquenessPoc: Stage 6 output is missing personaId, cannot persist narrative state`,
+          );
+        }
+        const entry = await extractNarrativeState({
+          pieceId: `${output.personaId}-${runId}`,
+          publishedAt: opts.event.publishedAt,
+          body: output.body,
+        });
+        await opts.store.append(
+          opts.fixtureId,
+          output.personaId,
+          opts.event.topicId,
+          entry,
+        );
+        stage6PersistCost += entry.extractionCostUsd;
+      }
+    }
 
     // Stage 7 — narrative state test (uses Stage 6 outputs as priors)
     if (opts.withNarrativeStateTest) {
@@ -907,6 +1103,8 @@ export async function runUniquenessPoc(
         priorOutputs: crossTenantMatrix.outputs,
         priorPublishedAt: opts.withNarrativeStateTest.priorPublishedAt,
         secondEvent: opts.withNarrativeStateTest.secondEvent,
+        store: opts.store,
+        fixtureId: opts.fixtureId,
       });
       console.log(`[runner]   ✓ TREATMENT VERDICT: ${narrativeStateTest.treatmentVerdict}`);
       console.log(`[runner]     ${narrativeStateTest.treatmentVerdictReasoning}`);
@@ -949,6 +1147,7 @@ export async function runUniquenessPoc(
     reproCost +
     crossTenantCost +
     narrativeStateCost +
+    stage6PersistCost +
     (personaDifferentiation
       ? personaDifferentiation.outputA.costUsd + personaDifferentiation.outputB.costUsd
       : 0);

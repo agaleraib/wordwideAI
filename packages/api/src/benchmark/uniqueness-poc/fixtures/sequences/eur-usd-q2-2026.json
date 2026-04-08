@@ -1,0 +1,10 @@
+{
+  "id": "eur-usd-q2-2026",
+  "title": "EUR/USD Q2 2026 — Iran strike → Fed hawkish hold → Iran retaliation (Yanbu)",
+  "topicId": "eurusd",
+  "stepRefs": [
+    "iran-strike",
+    "fed-rate-decision",
+    "iran-retaliation"
+  ]
+}

@@ -24,6 +24,26 @@ export interface NewsEvent {
   topicContext: string;
 }
 
+/**
+ * An ordered list of related events sharing the same topic. Consumed by the
+ * `poc:uniqueness:sequence` CLI mode, which walks the steps in order,
+ * persisting narrative state between them, so Stage 7 on the final step can
+ * be driven against accumulated multi-event history rather than a single
+ * in-memory prior piece.
+ *
+ * Spec: docs/specs/2026-04-08-narrative-state-persistence.md §8.
+ */
+export interface EventSequence {
+  /** Stable id, also used as the fixtureId in the store path. */
+  id: string;
+  /** Human-readable title. */
+  title: string;
+  /** The topic key persisted into the store for every step. Required. */
+  topicId: string;
+  /** Ordered list of events. Length must be ≥ 2. */
+  steps: NewsEvent[];
+}
+
 import type { AngleTag, PersonalityTag } from "./tags.js";
 
 export interface ContentPersona {

@@ -1,13 +1,15 @@
 /**
- * Tiny fetch wrappers for the v1.0 backend routes. All paths go through the
- * Vite proxy in dev (`/poc/* → http://localhost:3000/poc/*`).
+ * Tiny fetch wrappers for the playground backend routes. All paths go through
+ * the Vite proxy in dev (`/poc/* → http://localhost:3000/poc/*`).
  */
 
 import type {
   ContentPersona,
+  IdentityDefinition,
   NewsEvent,
   PlaygroundRunRequest,
   PlaygroundRunResponse,
+  TagsCatalog,
 } from "./types";
 
 async function jsonGet<T>(path: string): Promise<T> {
@@ -24,6 +26,14 @@ export function fetchPersonas(): Promise<ContentPersona[]> {
 
 export function fetchFixtures(): Promise<NewsEvent[]> {
   return jsonGet<NewsEvent[]>("/poc/fixtures");
+}
+
+export function fetchTags(): Promise<TagsCatalog> {
+  return jsonGet<TagsCatalog>("/poc/tags");
+}
+
+export function fetchIdentities(): Promise<IdentityDefinition[]> {
+  return jsonGet<IdentityDefinition[]>("/poc/identities");
 }
 
 export async function startRun(

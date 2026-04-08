@@ -30,11 +30,20 @@ import { fileURLToPath } from "node:url";
 import { runUniquenessPoc, type RunCallbacks } from "../benchmark/uniqueness-poc/runner.js";
 import type {
   ContentPersona,
+  IdentityDefinition,
   NewsEvent,
   RunResult,
   IdentityOutput,
   SimilarityResult,
 } from "../benchmark/uniqueness-poc/types.js";
+import {
+  ANGLE_TAG_DESCRIPTIONS,
+  PERSONALITY_TAG_DESCRIPTIONS,
+  type AngleTag,
+  type PersonalityTag,
+} from "../benchmark/uniqueness-poc/tags.js";
+import { classifyTagRisk } from "../benchmark/uniqueness-poc/tags-risk-rules.js";
+import { IDENTITY_REGISTRY } from "../benchmark/uniqueness-poc/prompts/identities/index.js";
 
 // ───────────────────────────────────────────────────────────────────
 // Disk loaders for personas + fixtures
@@ -109,14 +118,20 @@ function emit(entry: RunEntry, event: PocSseEvent): void {
 const PlaygroundRunRequestSchema = z.object({
   eventBody: z.string().min(1),
   eventTitle: z.string().optional(),
-  fixtureId: z.string().optional(),
+  fixtureId: z.string().nullable().optional(),
+  enabledStages: z.array(z.number().int()).optional(),
+  quickMode: z.enum(["off", "200", "700", "1500"]).optional(),
   tenants: z
     .array(
       z.object({
         personaId: z.string().min(1),
+        identityId: z.string().min(1).optional(),
+        angleTagsOverride: z.array(z.string()).nullable().optional(),
+        personalityTagsOverride: z.array(z.string()).nullable().optional(),
+        targetWordCount: z.number().int().min(50).max(4000).optional(),
       }),
     )
-    .min(2)
+    .min(1)
     .max(6),
 });
 
@@ -162,15 +177,58 @@ function startRun(
   personas: ContentPersona[],
   fixtures: NewsEvent[],
 ): { runId: string; entry: RunEntry } {
-  // Resolve personas by id
+  // Resolve personas by id, then clone + apply per-tenant tag overrides.
+  // The clone is shallow but the arrays we replace (preferredAngles /
+  // personalityTags) get fresh references, so the original persona on disk
+  // is never mutated.
   const tenantPersonas: ContentPersona[] = req.tenants.map((t) => {
-    const p = personas.find((x) => x.id === t.personaId);
-    if (!p) throw new Error(`Unknown personaId: ${t.personaId}`);
-    return p;
+    const base = personas.find((x) => x.id === t.personaId);
+    if (!base) throw new Error(`Unknown personaId: ${t.personaId}`);
+    const angleOverride = t.angleTagsOverride;
+    const personalityOverride = t.personalityTagsOverride;
+    if (
+      (angleOverride && angleOverride.length > 0) ||
+      (personalityOverride && personalityOverride.length > 0)
+    ) {
+      return {
+        ...base,
+        ...(angleOverride && angleOverride.length > 0
+          ? { preferredAngles: angleOverride as AngleTag[] }
+          : {}),
+        ...(personalityOverride && personalityOverride.length > 0
+          ? { personalityTags: personalityOverride as PersonalityTag[] }
+          : {}),
+      };
+    }
+    return base;
   });
+
+  const tenantIdentityIds: Array<string | null> = req.tenants.map(
+    (t) => t.identityId ?? null,
+  );
+  const tenantWordCountOverrides: Array<number | null> = req.tenants.map(
+    (t) => t.targetWordCount ?? null,
+  );
 
   const event = buildEvent(req, fixtures);
   const runId = `${new Date().toISOString().replace(/[:.]/g, "-")}_${event.id}`;
+  // Stages enabled by default in v1.0: just Stage 6 (cross-tenant matrix).
+  // The runner unconditionally also runs Stages 1–3; Stage 2 (intra-tenant
+  // identities matrix) cannot be skipped without refactoring.
+  // TODO: make Stage 2 truly optional in the runner.
+  const enabled = new Set(req.enabledStages ?? [1, 6]);
+  const withReproducibility = enabled.has(4)
+    ? { identityId: tenantIdentityIds[0] ?? "in-house-journalist", runs: 3 }
+    : undefined;
+  const withCrossTenantMatrix =
+    enabled.has(6) && tenantPersonas.length >= 3
+      ? {
+          identityId: "in-house-journalist",
+          personas: tenantPersonas,
+          tenantIdentityIds,
+          tenantWordCountOverrides,
+        }
+      : undefined;
 
   const entry: RunEntry = {
     runId,
@@ -209,10 +267,8 @@ function startRun(
       await runUniquenessPoc(
         {
           event,
-          withCrossTenantMatrix: {
-            identityId: "in-house-journalist",
-            personas: tenantPersonas,
-          },
+          ...(withReproducibility ? { withReproducibility } : {}),
+          ...(withCrossTenantMatrix ? { withCrossTenantMatrix } : {}),
         },
         callbacks,
       );
@@ -229,6 +285,173 @@ function startRun(
 // Hono route factory
 // ───────────────────────────────────────────────────────────────────
 
+// ───────────────────────────────────────────────────────────────────
+// Tag category groupings — derived from the section headers in tags.ts.
+// Kept here so adding a tag in tags.ts is a one-line change in two places.
+// ───────────────────────────────────────────────────────────────────
+
+type AngleCategory =
+  | "macro"
+  | "technical"
+  | "action"
+  | "risk"
+  | "educational"
+  | "cross-asset"
+  | "positioning";
+
+const ANGLE_TAG_CATEGORIES: Record<AngleCategory, AngleTag[]> = {
+  macro: [
+    "macro-flow",
+    "macro-narrative",
+    "geopolitical",
+    "central-bank-watch",
+    "cycle-positioning",
+  ],
+  technical: [
+    "technical-reaction",
+    "levels-and-zones",
+    "momentum-driven",
+    "pattern-recognition",
+  ],
+  action: ["trade-idea", "signal-extract", "entry-exit", "risk-managed-trade"],
+  risk: [
+    "risk-warning",
+    "volatility-watch",
+    "tail-risk",
+    "hedge-suggestion",
+    "safe-haven",
+  ],
+  educational: [
+    "educational",
+    "concept-walkthrough",
+    "historical-parallel",
+    "mechanism-explainer",
+  ],
+  "cross-asset": [
+    "correlation-play",
+    "cross-asset",
+    "sector-rotation",
+    "currency-pair-relative",
+  ],
+  positioning: [
+    "positioning",
+    "flow-watch",
+    "sentiment-extreme",
+    "crowded-trade",
+  ],
+};
+
+type PersonalityCategory =
+  | "editorial"
+  | "risk-temperament"
+  | "communication"
+  | "density"
+  | "confidence"
+  | "tone";
+
+const PERSONALITY_TAG_CATEGORIES: Record<PersonalityCategory, PersonalityTag[]> = {
+  editorial: [
+    "contrarian",
+    "consensus-aligned",
+    "independent",
+    "skeptical",
+    "provocative",
+    "balanced",
+  ],
+  "risk-temperament": [
+    "cautious",
+    "aggressive",
+    "conservative",
+    "opportunistic",
+    "defensive",
+  ],
+  communication: [
+    "prescriptive",
+    "consultative",
+    "exploratory",
+    "directive",
+    "socratic",
+  ],
+  density: [
+    "data-driven",
+    "narrative-driven",
+    "concise",
+    "comprehensive",
+    "chart-heavy",
+  ],
+  confidence: [
+    "high-conviction",
+    "calibrated",
+    "hedged",
+    "forecaster",
+    "observer",
+  ],
+  tone: [
+    "urgent",
+    "measured",
+    "formal",
+    "conversational",
+    "energetic",
+    "authoritative",
+    "warm",
+  ],
+};
+
+interface AngleTagInfo {
+  id: AngleTag;
+  category: AngleCategory;
+  description: string;
+  risk: "safe" | "caution";
+}
+
+interface PersonalityTagInfo {
+  id: PersonalityTag;
+  category: PersonalityCategory;
+  description: string;
+  risk: "safe" | "caution";
+}
+
+interface TagsCatalog {
+  angle: AngleTagInfo[];
+  personality: PersonalityTagInfo[];
+}
+
+function buildTagsCatalog(): TagsCatalog {
+  const angle: AngleTagInfo[] = [];
+  for (const [category, ids] of Object.entries(ANGLE_TAG_CATEGORIES) as Array<
+    [AngleCategory, AngleTag[]]
+  >) {
+    for (const id of ids) {
+      const description = ANGLE_TAG_DESCRIPTIONS[id];
+      angle.push({
+        id,
+        category,
+        description,
+        risk: classifyTagRisk(description),
+      });
+    }
+  }
+  const personality: PersonalityTagInfo[] = [];
+  for (const [category, ids] of Object.entries(
+    PERSONALITY_TAG_CATEGORIES,
+  ) as Array<[PersonalityCategory, PersonalityTag[]]>) {
+    for (const id of ids) {
+      const description = PERSONALITY_TAG_DESCRIPTIONS[id];
+      personality.push({
+        id,
+        category,
+        description,
+        risk: classifyTagRisk(description),
+      });
+    }
+  }
+  return { angle, personality };
+}
+
+function loadIdentities(): IdentityDefinition[] {
+  return IDENTITY_REGISTRY.map((r) => r.definition);
+}
+
 export function createPocRoutes() {
   const app = new Hono();
 
@@ -238,6 +461,14 @@ export function createPocRoutes() {
 
   app.get("/fixtures", (c) => {
     return c.json(loadFixtures());
+  });
+
+  app.get("/tags", (c) => {
+    return c.json(buildTagsCatalog());
+  });
+
+  app.get("/identities", (c) => {
+    return c.json(loadIdentities());
   });
 
   app.post("/runs", async (c) => {

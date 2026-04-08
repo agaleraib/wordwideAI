@@ -1,10 +1,10 @@
 /**
  * Frontend mirrors of the backend types from
  * `packages/api/src/benchmark/uniqueness-poc/types.ts` and
- * `packages/api/src/routes/poc.ts`. Kept in sync by hand — when you change
- * the backend types, change these too.
+ * `packages/api/src/routes/poc.ts`. Kept in sync by hand.
  *
- * v1.0 only models the fields the playground actually reads.
+ * v1.1 — adds tag catalog, identity catalog, and per-tenant overrides for
+ * the playground iteration UI.
  */
 
 export type TrinaryVerdict =
@@ -34,6 +34,57 @@ export interface NewsEvent {
   topicName: string;
   topicContext: string;
 }
+
+export interface IdentityDefinition {
+  id: string;
+  name: string;
+  shortDescription: string;
+  systemPrompt: string;
+  modelTier: "opus" | "sonnet" | "haiku";
+  targetWordCount: { min: number; target: number; max: number };
+}
+
+// ── Tag catalog ──────────────────────────────────────────────────
+
+export type TagRisk = "safe" | "caution";
+
+export type AngleCategory =
+  | "macro"
+  | "technical"
+  | "action"
+  | "risk"
+  | "educational"
+  | "cross-asset"
+  | "positioning";
+
+export type PersonalityCategory =
+  | "editorial"
+  | "risk-temperament"
+  | "communication"
+  | "density"
+  | "confidence"
+  | "tone";
+
+export interface AngleTagInfo {
+  id: string;
+  category: AngleCategory;
+  description: string;
+  risk: TagRisk;
+}
+
+export interface PersonalityTagInfo {
+  id: string;
+  category: PersonalityCategory;
+  description: string;
+  risk: TagRisk;
+}
+
+export interface TagsCatalog {
+  angle: AngleTagInfo[];
+  personality: PersonalityTagInfo[];
+}
+
+// ── Run results / SSE ────────────────────────────────────────────
 
 export interface IdentityOutput {
   identityId: string;
@@ -81,11 +132,25 @@ export type PocSseEvent =
   | { type: "run_completed"; runId: string; result: RunResult }
   | { type: "run_errored"; runId: string; error: string };
 
+// ── Run request ──────────────────────────────────────────────────
+
+export type QuickMode = "off" | "200" | "700" | "1500";
+
+export interface PlaygroundRunTenant {
+  personaId: string;
+  identityId: string;
+  angleTagsOverride: string[] | null;
+  personalityTagsOverride: string[] | null;
+  targetWordCount: number;
+}
+
 export interface PlaygroundRunRequest {
   eventBody: string;
   eventTitle?: string;
-  fixtureId?: string;
-  tenants: Array<{ personaId: string }>;
+  fixtureId?: string | null;
+  enabledStages: number[];
+  quickMode: QuickMode;
+  tenants: PlaygroundRunTenant[];
 }
 
 export interface PlaygroundRunResponse {

@@ -22,10 +22,15 @@ interface ScatterDot {
 }
 
 const VERDICT_COLOR: Record<TrinaryVerdict, string> = {
-  distinct_products: "#4ade80",
-  reskinned_same_article: "#fbbf24",
-  fabrication_risk: "#f87171",
+  distinct_products: "#4a9a6a",
+  reskinned_same_article: "#c9a85b",
+  fabrication_risk: "#c96b6b",
 };
+
+const COLOR_BORDER = "rgba(255,255,255,0.06)";
+const COLOR_BORDER_FOCUS = "rgba(255,255,255,0.15)";
+const COLOR_TEXT_MUTED = "#8a8a8e";
+const COLOR_BG_RAISED = "#14141a";
 
 const VERDICT_LABEL: Record<TrinaryVerdict, string> = {
   distinct_products: "Distinct",
@@ -55,7 +60,10 @@ export default function FidelityPresentationScatter({ pairs }: Props) {
 
   if (total === 0) {
     return (
-      <div className="flex h-[320px] items-center justify-center text-foreground-muted text-sm">
+      <div
+        className="flex h-[320px] items-center justify-center text-sm"
+        style={{ color: COLOR_TEXT_MUTED }}
+      >
         Scatter populates after the judge runs.
       </div>
     );
@@ -64,19 +72,19 @@ export default function FidelityPresentationScatter({ pairs }: Props) {
   return (
     <ResponsiveContainer width="100%" height={320}>
       <ScatterChart margin={{ top: 16, right: 24, bottom: 32, left: 8 }}>
-        <CartesianGrid stroke="#262630" strokeDasharray="3 3" />
+        <CartesianGrid stroke={COLOR_BORDER} strokeDasharray="3 3" />
         <XAxis
           type="number"
           dataKey="x"
           name="Presentation"
           domain={[0, 1]}
-          tick={{ fill: "#a1a1aa", fontSize: 11 }}
-          stroke="#353541"
+          tick={{ fill: COLOR_TEXT_MUTED, fontSize: 11 }}
+          stroke={COLOR_BORDER_FOCUS}
           label={{
             value: "Presentation similarity",
             position: "insideBottom",
             offset: -16,
-            fill: "#a1a1aa",
+            fill: COLOR_TEXT_MUTED,
             fontSize: 12,
           }}
         />
@@ -85,25 +93,25 @@ export default function FidelityPresentationScatter({ pairs }: Props) {
           dataKey="y"
           name="Fidelity"
           domain={[0, 1]}
-          tick={{ fill: "#a1a1aa", fontSize: 11 }}
-          stroke="#353541"
+          tick={{ fill: COLOR_TEXT_MUTED, fontSize: 11 }}
+          stroke={COLOR_BORDER_FOCUS}
           label={{
             value: "Factual fidelity",
             angle: -90,
             position: "insideLeft",
-            fill: "#a1a1aa",
+            fill: COLOR_TEXT_MUTED,
             fontSize: 12,
           }}
         />
-        <ReferenceLine x={0.5} stroke="#d97757" strokeDasharray="4 4" />
-        <ReferenceLine y={0.9} stroke="#d97757" strokeDasharray="4 4" />
+        <ReferenceLine x={0.5} stroke={COLOR_BORDER_FOCUS} strokeDasharray="4 4" />
+        <ReferenceLine y={0.9} stroke={COLOR_BORDER_FOCUS} strokeDasharray="4 4" />
         <Tooltip
-          cursor={{ stroke: "#d97757", strokeWidth: 1 }}
+          cursor={{ stroke: "#5ba8a0", strokeWidth: 1 }}
           contentStyle={{
-            background: "#14141a",
-            border: "1px solid #353541",
+            background: COLOR_BG_RAISED,
+            border: `1px solid ${COLOR_BORDER_FOCUS}`,
             borderRadius: 6,
-            color: "#e4e4e7",
+            color: "#e8e6e3",
             fontSize: 12,
           }}
           formatter={(value: number) => value.toFixed(2)}
@@ -113,8 +121,8 @@ export default function FidelityPresentationScatter({ pairs }: Props) {
           }}
         />
         <Legend
-          wrapperStyle={{ fontSize: 12, color: "#a1a1aa" }}
-          formatter={(value) => <span style={{ color: "#a1a1aa" }}>{value}</span>}
+          wrapperStyle={{ fontSize: 12, color: COLOR_TEXT_MUTED }}
+          formatter={(value) => <span style={{ color: COLOR_TEXT_MUTED }}>{value}</span>}
         />
         {(Object.keys(partitioned) as TrinaryVerdict[]).map((verdict) => (
           <Scatter
