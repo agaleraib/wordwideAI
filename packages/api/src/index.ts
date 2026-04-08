@@ -34,6 +34,11 @@ const port = parseInt(process.env["PORT"] ?? "3000", 10);
 
 export default {
   port,
+  // Bun's default idleTimeout is 10 seconds, which kills SSE streams as soon
+  // as an upstream LLM call takes more than 10s (Stage 1 Opus is ~60s). Bump
+  // to the max (255s) as a backstop — the /poc/runs/:id/stream handler also
+  // emits a heartbeat every 15s to keep the connection warm.
+  idleTimeout: 255,
   fetch: app.fetch,
 };
 

@@ -300,9 +300,28 @@ export function createPocRoutes() {
       try {
         while (!entry.done || queue.length > 0) {
           if (queue.length === 0) {
-            await new Promise<void>((resolve) => {
-              resolveNext = resolve;
+            // Race the next event against a 15s heartbeat timer. If the timer
+            // wins and no event arrived in the meantime, emit an SSE heartbeat
+            // to keep the connection warm through long LLM calls (Stage 1 Opus
+            // can take ~60s, longer than Bun's default idleTimeout).
+            type Winner = "event" | "timer";
+            const eventWait = new Promise<Winner>((resolve) => {
+              resolveNext = () => {
+                resolveNext = null;
+                resolve("event");
+              };
             });
+            const timer = new Promise<Winner>((resolve) => {
+              setTimeout(() => resolve("timer"), 15000);
+            });
+            const winner = await Promise.race([eventWait, timer]);
+            if (winner === "timer") {
+              if (resolveNext) resolveNext = null;
+              if (queue.length === 0 && !entry.done) {
+                await stream.writeSSE({ event: "heartbeat", data: "{}" });
+                continue;
+              }
+            }
           }
           const next = queue.shift();
           if (!next) continue;
