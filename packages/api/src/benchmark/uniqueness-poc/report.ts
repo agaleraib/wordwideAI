@@ -489,7 +489,9 @@ export function renderReport(result: RunResult): string {
   const judgeCost = similarities.reduce((s, sim) => s + (sim.judgeCostUsd ?? 0), 0);
   const judgeCount = similarities.filter((s) => s.judgeTrinaryVerdict).length;
   if (judgeCount > 0) {
-    lines.push(`| LLM judge (Haiku, borderline pairs) | ${judgeCount} | ${formatUsd(judgeCost)} |`);
+    // Intra-tenant matrix still uses borderline gating (not load-bearing).
+    // Cross-tenant judge cost is bundled into the crossTenantMatrix row below.
+    lines.push(`| LLM judge (Haiku, intra-tenant borderline pairs) | ${judgeCount} | ${formatUsd(judgeCost)} |`);
   }
   if (result.personaDifferentiation) {
     const pdCost =
