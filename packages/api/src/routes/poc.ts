@@ -49,6 +49,10 @@ import {
 } from "../benchmark/uniqueness-poc/tags.js";
 import { classifyTagRisk } from "../benchmark/uniqueness-poc/tags-risk-rules.js";
 import { IDENTITY_REGISTRY } from "../benchmark/uniqueness-poc/prompts/identities/index.js";
+import {
+  persistRun,
+  persistSoloRun,
+} from "../benchmark/uniqueness-poc/persist.js";
 
 // ───────────────────────────────────────────────────────────────────
 // Disk loaders for personas + fixtures
@@ -314,7 +318,7 @@ function startCompareRun(
   // in the background and the SSE consumer can connect at any time.
   void (async () => {
     try {
-      await runUniquenessPoc(
+      const result = await runUniquenessPoc(
         {
           event,
           ...(withReproducibility ? { withReproducibility } : {}),
@@ -322,6 +326,19 @@ function startCompareRun(
         },
         callbacks,
       );
+
+      // Persist to disk so the run survives server restarts and can be
+      // inspected later with the `analyze-uniqueness-run` skill — same
+      // filesystem layout as CLI runs. Errors are swallowed to not mask
+      // a successful run.
+      try {
+        persistRun(result);
+      } catch (persistErr) {
+        console.error(
+          `[poc] failed to persist compare run ${runId}:`,
+          persistErr,
+        );
+      }
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       emit(entry, { type: "run_errored", runId, error: error.message });
@@ -409,6 +426,16 @@ function startSoloRun(
       };
       emit(entry, { type: "solo_run_completed", runId, result });
       emit(entry, { type: "run_completed", runId, result });
+
+      // Persist to disk so the run survives server restarts.
+      try {
+        persistSoloRun(result);
+      } catch (persistErr) {
+        console.error(
+          `[poc] failed to persist solo run ${runId}:`,
+          persistErr,
+        );
+      }
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       emit(entry, { type: "run_errored", runId, error: error.message });
