@@ -259,16 +259,27 @@ async function judgeBorderlinePairs(
     const outA = outputs.find((o) => o.identityId === sim.identityA)!;
     const outB = outputs.find((o) => o.identityId === sim.identityB)!;
 
-    const verdict = await judgePairUniqueness({
-      identityA: outA.identityName,
-      identityB: outB.identityName,
-      contentA: outA.body,
-      contentB: outB.body,
-      cosineSimilarity: sim.cosineSimilarity,
-      rougeL: sim.rougeL,
-    });
-
-    applyJudgeVerdict(sim, verdict);
+    // The judge already retries internally up to 3x on Zod/transport errors.
+    // If it still throws after 3 attempts, that's a hard failure we skip
+    // rather than abort the whole (potentially multi-step) run. The pair
+    // ends up without a trinary verdict — downstream aggregation treats
+    // missing verdicts as "did not judge" which is a safe no-op.
+    try {
+      const verdict = await judgePairUniqueness({
+        identityA: outA.identityName,
+        identityB: outB.identityName,
+        contentA: outA.body,
+        contentB: outB.body,
+        cosineSimilarity: sim.cosineSimilarity,
+        rougeL: sim.rougeL,
+      });
+      applyJudgeVerdict(sim, verdict);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[runner]   ⚠ skipping pair ${sim.pairId} after 3 judge attempts: ${message.slice(0, 120)}`,
+      );
+    }
   }
 }
 
@@ -482,21 +493,29 @@ async function runCrossTenantMatrix(
   // The cosine-based borderline gate is unreliable — the new judge is the
   // authoritative cross-tenant metric and the mechanical metrics are
   // diagnostics. See docs/poc-uniqueness-session-2026-04-07.md §4.1.
+  // The judge retries internally 3x on Zod/transport failures; if it still
+  // throws we skip the pair with a warning rather than abort.
   for (const { indexA, indexB, sim } of indexedSimilarities) {
     const outA = outputs[indexA]!;
     const outB = outputs[indexB]!;
 
-    const verdict = await judgePairUniqueness({
-      identityA: `${registered.definition.name} for ${sim.identityA}`,
-      identityB: `${registered.definition.name} for ${sim.identityB}`,
-      contentA: outA.body,
-      contentB: outB.body,
-      cosineSimilarity: sim.cosineSimilarity,
-      rougeL: sim.rougeL,
-    });
-
-    applyJudgeVerdict(sim, verdict);
-    callbacks?.onJudgeCompleted?.(sim.pairId, sim);
+    try {
+      const verdict = await judgePairUniqueness({
+        identityA: `${registered.definition.name} for ${sim.identityA}`,
+        identityB: `${registered.definition.name} for ${sim.identityB}`,
+        contentA: outA.body,
+        contentB: outB.body,
+        cosineSimilarity: sim.cosineSimilarity,
+        rougeL: sim.rougeL,
+      });
+      applyJudgeVerdict(sim, verdict);
+      callbacks?.onJudgeCompleted?.(sim.pairId, sim);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[runner]   ⚠ skipping cross-tenant pair ${sim.pairId} after 3 judge attempts: ${message.slice(0, 120)}`,
+      );
+    }
   }
 
   // Distribution stats
@@ -586,22 +605,30 @@ async function buildCrossTenantMatrixFromOutputs(
 
   // Two-axis judge on EVERY pair (not just borderline) — Stage 7 control
   // and treatment both need full judge coverage so the A/B comparison is
-  // measured on the same metric.
+  // measured on the same metric. Resilient: retries 3x internally, skips
+  // the pair with a warning if it still fails.
   for (const sim of similarities) {
     const indexA = personas.findIndex((p) => p.name === sim.identityA);
     const indexB = personas.findIndex((p) => p.name === sim.identityB);
     const outA = outputs[indexA]!;
     const outB = outputs[indexB]!;
 
-    const verdict = await judgePairUniqueness({
-      identityA: `${identityName} for ${sim.identityA}`,
-      identityB: `${identityName} for ${sim.identityB}`,
-      contentA: outA.body,
-      contentB: outB.body,
-      cosineSimilarity: sim.cosineSimilarity,
-      rougeL: sim.rougeL,
-    });
-    applyJudgeVerdict(sim, verdict);
+    try {
+      const verdict = await judgePairUniqueness({
+        identityA: `${identityName} for ${sim.identityA}`,
+        identityB: `${identityName} for ${sim.identityB}`,
+        contentA: outA.body,
+        contentB: outB.body,
+        cosineSimilarity: sim.cosineSimilarity,
+        rougeL: sim.rougeL,
+      });
+      applyJudgeVerdict(sim, verdict);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[runner]   ⚠ skipping Stage 7 pair ${sim.pairId} after 3 judge attempts: ${message.slice(0, 120)}`,
+      );
+    }
   }
 
   const cosines = similarities.map((s) => s.cosineSimilarity);

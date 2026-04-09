@@ -178,11 +178,35 @@ interface RunOneOptions {
   skipReproducibility?: boolean;
 }
 
+/**
+ * Run one event end-to-end.
+ *
+ * Accepts either a loaded `NewsEvent` (sequence mode, where the sequence
+ * runner already has the event in hand) or a fixture filename stem (single
+ * runs + `--all` mode, where we look up the fixture by filename). The
+ * filename-stem overload always hits disk via `loadFixture`; the event
+ * overload skips disk entirely.
+ *
+ * Both overloads were previously collapsed into `(fixtureId: string)` but
+ * that broke sequences because a sequence step's `.id` field is the
+ * NewsEvent's internal id (e.g. `"iran-strike-2026-04-07"`), NOT the
+ * filename stem (`"iran-strike"`), so the re-load would throw.
+ */
 async function runOne(
-  fixtureId: string,
+  eventOrFixtureId: NewsEvent | string,
   opts: RunOneOptions,
 ): Promise<RunResult> {
-  const event = loadFixture(fixtureId);
+  const event =
+    typeof eventOrFixtureId === "string"
+      ? loadFixture(eventOrFixtureId)
+      : eventOrFixtureId;
+  // Prefer the original filename stem (if called with a string) and fall
+  // back to the event's internal id. Used for (a) the "auto-load paired
+  // continuation fixture" check below, (b) the narrative state store
+  // namespace. For sequence steps, the event's internal id doubles as the
+  // namespace because the sequence runner already sets
+  // `opts.fixtureNamespace` to the sequence id.
+  const fixtureId = typeof eventOrFixtureId === "string" ? eventOrFixtureId : event.id;
   const { full } = opts;
 
   // In --full mode, load ALL FOUR personas for the cross-tenant matrix
@@ -293,7 +317,10 @@ async function runSequence(sequenceId: string): Promise<void> {
       `[index] ═══════════════════════════════════════════════════════════════\n`,
     );
 
-    const result = await runOne(step.id, {
+    // Pass the loaded NewsEvent directly — step.id is the event's internal
+    // id (e.g. "iran-strike-2026-04-07"), which doesn't match the filename
+    // stem "iran-strike" that loadFixture would look for.
+    const result = await runOne(step, {
       full: true,
       store,
       fixtureNamespace: sequence.id,

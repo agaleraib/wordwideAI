@@ -319,49 +319,82 @@ These numbers are computed over the raw text and will be inflated by shared fact
 
 Submit your verdict via the submit_uniqueness_verdict tool.`;
 
-  const response = await client.messages.create({
-    model: JUDGE_MODEL,
-    max_tokens: 2048,
-    system: JUDGE_SYSTEM_PROMPT,
-    tools: [JUDGE_TOOL],
-    tool_choice: { type: "tool", name: "submit_uniqueness_verdict" },
-    messages: [{ role: "user", content: userMessage }],
-  });
+  // Retry the model call + Zod parse up to MAX_ATTEMPTS times. Haiku
+  // occasionally returns a tool_use payload with a missing required field
+  // (e.g. `verdict` undefined). Before 2026-04-09 this would throw the
+  // whole run — killing multi-step sequences after 5+ minutes. Now each
+  // call can recover from one transient malformation without blowing up
+  // the experiment, and only escalates on repeated failure.
+  const MAX_ATTEMPTS = 3;
+  let lastError: unknown = null;
 
-  const toolUse = response.content.find((block) => block.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error(
-      `Judge did not return a tool_use block: ${JSON.stringify(response.content)}`,
-    );
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await client.messages.create({
+        model: JUDGE_MODEL,
+        max_tokens: 2048,
+        system: JUDGE_SYSTEM_PROMPT,
+        tools: [JUDGE_TOOL],
+        tool_choice: { type: "tool", name: "submit_uniqueness_verdict" },
+        messages: [{ role: "user", content: userMessage }],
+      });
+
+      const toolUse = response.content.find((block) => block.type === "tool_use");
+      if (!toolUse || toolUse.type !== "tool_use") {
+        throw new Error(
+          `Judge did not return a tool_use block: ${JSON.stringify(response.content)}`,
+        );
+      }
+
+      // Zod-validate instead of casting. If Haiku returns malformed output
+      // (e.g., a number as a string, or a missing required field), throws
+      // a ZodError here with a descriptive message. The retry loop above
+      // will catch it and re-invoke the model.
+      const parsed = JudgeResponseSchema.parse(toolUse.input);
+
+      // Code-enforce the HARD RULE. See the HARD_RULE_KINDS comment above
+      // for why the model's own verdict is not trusted on this point.
+      const hardRuleFired = parsed.factualDivergences.some((d) =>
+        HARD_RULE_KINDS.has(d.kind),
+      );
+      const verdict: TrinaryVerdict = hardRuleFired
+        ? "fabrication_risk"
+        : parsed.verdict;
+
+      return {
+        factualFidelity: parsed.factualFidelity,
+        factualFidelityReasoning: parsed.factualFidelityReasoning,
+        factualDivergences: parsed.factualDivergences,
+        presentationSimilarity: parsed.presentationSimilarity,
+        presentationSimilarityReasoning: parsed.presentationSimilarityReasoning,
+        verdict,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        costUsd: computeCostUsd(
+          JUDGE_MODEL,
+          response.usage.input_tokens,
+          response.usage.output_tokens,
+        ),
+      };
+    } catch (err) {
+      lastError = err;
+      const errName =
+        err instanceof Error ? err.constructor.name : typeof err;
+      const errMsg =
+        err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200);
+      console.warn(
+        `[llm-judge] attempt ${attempt}/${MAX_ATTEMPTS} failed for ${args.identityA} ↔ ${args.identityB}: ${errName}: ${errMsg}`,
+      );
+      if (attempt < MAX_ATTEMPTS) {
+        // Small backoff before retry — gives the model a beat to reset.
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      }
+    }
   }
 
-  // Zod-validate instead of casting. If Haiku returns malformed output
-  // (e.g., a number as a string), this throws here with a descriptive
-  // error rather than crashing `.toFixed()` at render time downstream.
-  const parsed = JudgeResponseSchema.parse(toolUse.input);
-
-  // Code-enforce the HARD RULE. See the HARD_RULE_KINDS comment above for
-  // why the model's own verdict is not trusted on this point.
-  const hardRuleFired = parsed.factualDivergences.some((d) =>
-    HARD_RULE_KINDS.has(d.kind),
-  );
-  const verdict: TrinaryVerdict = hardRuleFired
-    ? "fabrication_risk"
-    : parsed.verdict;
-
-  return {
-    factualFidelity: parsed.factualFidelity,
-    factualFidelityReasoning: parsed.factualFidelityReasoning,
-    factualDivergences: parsed.factualDivergences,
-    presentationSimilarity: parsed.presentationSimilarity,
-    presentationSimilarityReasoning: parsed.presentationSimilarityReasoning,
-    verdict,
-    inputTokens: response.usage.input_tokens,
-    outputTokens: response.usage.output_tokens,
-    costUsd: computeCostUsd(
-      JUDGE_MODEL,
-      response.usage.input_tokens,
-      response.usage.output_tokens,
-    ),
-  };
+  // All attempts failed — propagate the last error so the caller can
+  // decide whether to skip the pair or abort the run.
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Judge failed after ${MAX_ATTEMPTS} attempts: ${String(lastError)}`);
 }
