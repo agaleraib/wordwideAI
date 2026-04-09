@@ -291,6 +291,28 @@ export interface NarrativeStateTestResult {
  * actual *distribution* of cross-tenant similarity, not just one anecdotal
  * pair.
  */
+/**
+ * Record of a judge pair that failed all retry attempts and was skipped.
+ *
+ * Surfaced on `CrossTenantMatrixResult.judgeFailures` and `RunResult.
+ * judgeFailures` so the raw-data.json + analyze-uniqueness-run skill can
+ * see skipped pairs at a glance — previously these were logged only to
+ * stdout, producing run artifacts that "looked complete" when a
+ * persistent auth error or rate limit was silently dropping verdicts.
+ */
+export interface JudgeFailureRecord {
+  /** Pair id the judge was called on (`${i}_${idA}__${j}_${idB}` format). */
+  pairId: string;
+  /** Stage the failure happened in. `intra-tenant` = Stage 3.5, `cross-tenant` = Stage 6, `narrative-state` = Stage 7. */
+  stage: "intra-tenant" | "cross-tenant" | "narrative-state";
+  /** Error class name (e.g. `ZodError`, `APIError`, `Error`). */
+  errorName: string;
+  /** Error message, truncated to 300 chars. */
+  errorMessage: string;
+  /** ISO timestamp when the failure was recorded. */
+  timestamp: string;
+}
+
 export interface CrossTenantMatrixResult {
   identityId: string;
   identityName: string;
@@ -308,6 +330,13 @@ export interface CrossTenantMatrixResult {
   /** Cross-tenant verdict (PASS/BORDERLINE/FAIL) for this matrix. */
   verdict: "PASS" | "BORDERLINE" | "FAIL";
   verdictReasoning: string;
+  /**
+   * Pairs where `judgePairUniqueness` threw after all retries and the
+   * runner had to skip the pair. Empty array means the judge ran cleanly
+   * on every pair. Non-empty means the aggregate stats and verdict were
+   * computed over a subset — consumers should surface a warning.
+   */
+  judgeFailures: JudgeFailureRecord[];
 }
 
 export interface RunResult {
@@ -329,6 +358,15 @@ export interface RunResult {
   /** Intra-tenant cross-identity verdict (the original matrix). */
   verdict: "PASS" | "BORDERLINE" | "FAIL";
   verdictReasoning: string;
+  /**
+   * Run-level rollup of every judge pair that was skipped due to persistent
+   * failures (after all retries). Aggregated from Stage 3.5 (intra-tenant),
+   * Stage 6 (cross-tenant), and Stage 7 (narrative-state) judge passes.
+   * Empty array means every judge call succeeded. Non-empty means the
+   * aggregate metrics in the result are computed over a subset — treat
+   * with caution.
+   */
+  judgeFailures: JudgeFailureRecord[];
 }
 
 /**

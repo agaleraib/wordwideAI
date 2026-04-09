@@ -195,11 +195,25 @@ function reducer(state: PageState, action: Action): PageState {
 
       // Helper: every branch below returns a state patch; we merge the log
       // fields in at the end so each case doesn't have to repeat them.
+      //
+      // Spread order matters:
+      //   1. `...state`          — base
+      //   2. `currentStage`      — outer-computed default (tracks latest stage)
+      //   3. `...patch`          — individual cases can override anything,
+      //                            including `currentStage: null` for
+      //                            run_completed / run_errored (without
+      //                            this order, the outer `currentStage` would
+      //                            silently win and the stage pill would keep
+      //                            showing the last stage label after the
+      //                            run ended — the original bug caught by
+      //                            code review)
+      //   4. `activityLog`       — always the freshly-appended log; never
+      //                            overridable by a patch
       const withLog = (patch: Partial<PageState>): PageState => ({
         ...state,
+        currentStage,
         ...patch,
         activityLog,
-        currentStage,
       });
 
       switch (event.type) {

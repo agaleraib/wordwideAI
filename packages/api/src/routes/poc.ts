@@ -52,6 +52,7 @@ import { IDENTITY_REGISTRY } from "../benchmark/uniqueness-poc/prompts/identitie
 import {
   persistRun,
   persistSoloRun,
+  type PersistableSoloRunResult,
 } from "../benchmark/uniqueness-poc/persist.js";
 
 // ───────────────────────────────────────────────────────────────────
@@ -99,6 +100,16 @@ export interface SoloRunResult {
   totalCostUsd: number;
   totalDurationMs: number;
 }
+
+/**
+ * Type-level tripwire: if `SoloRunResult` ever drifts out of structural
+ * compatibility with `PersistableSoloRunResult` (the shape `persistSoloRun`
+ * writes to disk), this assignment fails to compile. Caught at `bun run
+ * typecheck` instead of at runtime after a Solo run is already in flight.
+ */
+const _persistableSoloRunResultTripwire: PersistableSoloRunResult =
+  null as unknown as SoloRunResult;
+void _persistableSoloRunResultTripwire;
 
 export type PocSseEvent =
   | { type: "run_started"; runId: string; estimatedCostUsd: number; runMode: "compare" | "solo" }
@@ -308,8 +319,11 @@ function startCompareRun(
       emit(entry, { type: "judge_completed", pairId, similarity }),
     onCostUpdated: (totalCostUsd) =>
       emit(entry, { type: "cost_updated", totalCostUsd }),
-    onRunCompleted: (result) =>
-      emit(entry, { type: "run_completed", runId, result }),
+    // NOTE: `run_completed` is intentionally NOT wired through the runner
+    // callback. The SSE frame must not be emitted until after `persistRun`
+    // succeeds, otherwise clients (playground, analyze skill) can observe
+    // `run_completed` for a run whose `raw-data.json` hasn't been flushed
+    // to disk yet. We fire it manually below, post-persist.
     onRunErrored: (error) =>
       emit(entry, { type: "run_errored", runId, error: error.message }),
   };
@@ -330,7 +344,8 @@ function startCompareRun(
       // Persist to disk so the run survives server restarts and can be
       // inspected later with the `analyze-uniqueness-run` skill — same
       // filesystem layout as CLI runs. Errors are swallowed to not mask
-      // a successful run.
+      // a successful run, but `run_completed` is only emitted after this
+      // step so consumers never observe the event before the file is flushed.
       try {
         persistRun(result);
       } catch (persistErr) {
@@ -339,6 +354,7 @@ function startCompareRun(
           persistErr,
         );
       }
+      emit(entry, { type: "run_completed", runId, result });
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       emit(entry, { type: "run_errored", runId, error: error.message });
@@ -425,9 +441,10 @@ function startSoloRun(
         totalDurationMs: Date.now() - startTime,
       };
       emit(entry, { type: "solo_run_completed", runId, result });
-      emit(entry, { type: "run_completed", runId, result });
 
-      // Persist to disk so the run survives server restarts.
+      // Persist to disk BEFORE the `run_completed` SSE frame so consumers
+      // (playground, analyze skill) cannot observe the event for a run
+      // whose `raw-data.json` hasn't been flushed to disk yet.
       try {
         persistSoloRun(result);
       } catch (persistErr) {
@@ -436,6 +453,7 @@ function startSoloRun(
           persistErr,
         );
       }
+      emit(entry, { type: "run_completed", runId, result });
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       emit(entry, { type: "run_errored", runId, error: error.message });

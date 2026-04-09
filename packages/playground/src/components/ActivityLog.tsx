@@ -165,9 +165,22 @@ interface Props {
 
 export default function ActivityLog({ entries, running, currentStage }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Track whether the user is pinned to the bottom of the log. Updated
+  // by an onScroll handler so manual scroll-up flips it to false and
+  // scroll-back-down flips it back to true. We only auto-scroll when
+  // it's true, so manual reading positions aren't yanked around.
+  const pinnedToBottomRef = useRef(true);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const threshold = 50; // px of slack for fractional scroll positions
+    pinnedToBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+  };
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && pinnedToBottomRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [entries.length]);
@@ -235,6 +248,7 @@ export default function ActivityLog({ entries, running, currentStage }: Props) {
       </div>
       <div
         ref={scrollRef}
+        onScroll={handleScroll}
         style={{
           maxHeight: 220,
           overflowY: "auto",

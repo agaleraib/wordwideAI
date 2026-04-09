@@ -13,6 +13,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
+import { callClaudeCli, isClaudeCliEnabled } from "../../lib/claude-cli.js";
 import type {
   NewsEvent,
   CoreAnalysis,
@@ -26,6 +27,7 @@ import type {
   TenantTopicNarrativeState,
   RunResult,
   SimilarityStatus,
+  JudgeFailureRecord,
 } from "./types.js";
 import {
   buildNarrativeStateFromPriorOutput,
@@ -57,6 +59,30 @@ function applyJudgeVerdict(sim: SimilarityResult, verdict: JudgeVerdict): void {
   sim.judgeCostUsd = verdict.costUsd;
 }
 
+/**
+ * Build a structured failure record for a judge call that gave up after
+ * all retries. Used at every judge call site so persistent failures land
+ * in `CrossTenantMatrixResult.judgeFailures` / `RunResult.judgeFailures`
+ * rather than only stdout.
+ */
+function recordJudgeFailure(
+  pairId: string,
+  stage: JudgeFailureRecord["stage"],
+  err: unknown,
+): JudgeFailureRecord {
+  const errorName =
+    err instanceof Error ? err.constructor.name : typeof err;
+  const errorMessage =
+    err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300);
+  return {
+    pairId,
+    stage,
+    errorName,
+    errorMessage,
+    timestamp: new Date().toISOString(),
+  };
+}
+
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (!_client) {
@@ -74,17 +100,33 @@ function wordCount(text: string): number {
 // ───────────────────────────────────────────────────────────────────
 
 export async function runCoreAnalysis(event: NewsEvent): Promise<CoreAnalysis> {
-  const client = getClient();
   const model = modelForTier("opus");
   const start = Date.now();
+  const userMessage = buildFAAgentUserMessage(event);
 
+  if (isClaudeCliEnabled()) {
+    const cli = await callClaudeCli({
+      model,
+      systemPrompt: FA_AGENT_SYSTEM_PROMPT,
+      userMessage,
+      maxTokens: 4096,
+    });
+    return {
+      body: cli.text,
+      model,
+      inputTokens: cli.inputTokens,
+      outputTokens: cli.outputTokens,
+      durationMs: cli.durationMs,
+      costUsd: computeCostUsd(model, cli.inputTokens, cli.outputTokens),
+    };
+  }
+
+  const client = getClient();
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
     system: FA_AGENT_SYSTEM_PROMPT,
-    messages: [
-      { role: "user", content: buildFAAgentUserMessage(event) },
-    ],
+    messages: [{ role: "user", content: userMessage }],
   });
 
   const textBlock = response.content.find((b) => b.type === "text");
@@ -126,7 +168,6 @@ export async function runIdentity(
     throw new Error(`Unknown identity: ${identityId}`);
   }
 
-  const client = getClient();
   const model = modelForTier(registered.definition.modelTier);
   const start = Date.now();
 
@@ -143,6 +184,28 @@ export async function runIdentity(
     userMessage += `\n\n# WORD-COUNT OVERRIDE — HARD CONSTRAINT\n\nTarget word count: ${options.targetWordCount} words. This is a hard limit, not a guideline. It overrides any word count range specified in your system prompt. Allowed band: ±10%.`;
   }
 
+  if (isClaudeCliEnabled()) {
+    const cli = await callClaudeCli({
+      model,
+      systemPrompt: registered.definition.systemPrompt,
+      userMessage,
+      maxTokens: 4096,
+    });
+    return {
+      identityId,
+      identityName: registered.definition.name,
+      body: cli.text,
+      wordCount: wordCount(cli.text),
+      model,
+      inputTokens: cli.inputTokens,
+      outputTokens: cli.outputTokens,
+      durationMs: cli.durationMs,
+      costUsd: computeCostUsd(model, cli.inputTokens, cli.outputTokens),
+      personaId: persona?.id,
+    };
+  }
+
+  const client = getClient();
   const response = await client.messages.create({
     model,
     max_tokens: 4096,
@@ -247,7 +310,8 @@ function buildPairwiseMatrix(embedded: OutputWithEmbedding[]): SimilarityResult[
 async function judgeBorderlinePairs(
   similarities: SimilarityResult[],
   outputs: IdentityOutput[],
-): Promise<void> {
+): Promise<JudgeFailureRecord[]> {
+  const failures: JudgeFailureRecord[] = [];
   // Intra-tenant cross-identity matrix: keep the borderline gate since it's
   // not load-bearing for production (cross-tenant is the load-bearing test
   // and fires on every pair below in `runCrossTenantMatrix`).
@@ -259,11 +323,13 @@ async function judgeBorderlinePairs(
     const outA = outputs.find((o) => o.identityId === sim.identityA)!;
     const outB = outputs.find((o) => o.identityId === sim.identityB)!;
 
-    // The judge already retries internally up to 3x on Zod/transport errors.
-    // If it still throws after 3 attempts, that's a hard failure we skip
-    // rather than abort the whole (potentially multi-step) run. The pair
-    // ends up without a trinary verdict — downstream aggregation treats
-    // missing verdicts as "did not judge" which is a safe no-op.
+    // The judge retries internally on recoverable errors (ZodError + empty
+    // tool_use). Non-recoverable errors (auth, rate limit, etc.) propagate
+    // immediately. Either way, if we land in the catch here it's a hard
+    // failure — we record it in the failures array AND log it to stdout,
+    // then skip the pair. The failures list gets plumbed into
+    // `RunResult.judgeFailures` so skipped pairs are visible in
+    // `raw-data.json`, not only in the console.
     try {
       const verdict = await judgePairUniqueness({
         identityA: outA.identityName,
@@ -275,12 +341,14 @@ async function judgeBorderlinePairs(
       });
       applyJudgeVerdict(sim, verdict);
     } catch (err) {
+      failures.push(recordJudgeFailure(sim.pairId, "intra-tenant", err));
       const message = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[runner]   ⚠ skipping pair ${sim.pairId} after 3 judge attempts: ${message.slice(0, 120)}`,
+        `[runner]   ⚠ skipping intra-tenant pair ${sim.pairId} (judge failure): ${message.slice(0, 300)}`,
       );
     }
   }
+  return failures;
 }
 
 // ───────────────────────────────────────────────────────────────────
@@ -493,8 +561,11 @@ async function runCrossTenantMatrix(
   // The cosine-based borderline gate is unreliable — the new judge is the
   // authoritative cross-tenant metric and the mechanical metrics are
   // diagnostics. See docs/poc-uniqueness-session-2026-04-07.md §4.1.
-  // The judge retries internally 3x on Zod/transport failures; if it still
-  // throws we skip the pair with a warning rather than abort.
+  // The judge retries internally on recoverable errors (ZodError + empty
+  // tool_use). Non-recoverable errors (auth, rate limit) propagate
+  // immediately. Hard failures are recorded in `judgeFailures` so they
+  // surface in raw-data.json.
+  const crossTenantJudgeFailures: JudgeFailureRecord[] = [];
   for (const { indexA, indexB, sim } of indexedSimilarities) {
     const outA = outputs[indexA]!;
     const outB = outputs[indexB]!;
@@ -511,9 +582,12 @@ async function runCrossTenantMatrix(
       applyJudgeVerdict(sim, verdict);
       callbacks?.onJudgeCompleted?.(sim.pairId, sim);
     } catch (err) {
+      crossTenantJudgeFailures.push(
+        recordJudgeFailure(sim.pairId, "cross-tenant", err),
+      );
       const message = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[runner]   ⚠ skipping cross-tenant pair ${sim.pairId} after 3 judge attempts: ${message.slice(0, 120)}`,
+        `[runner]   ⚠ skipping cross-tenant pair ${sim.pairId} (judge failure): ${message.slice(0, 300)}`,
       );
     }
   }
@@ -563,6 +637,7 @@ async function runCrossTenantMatrix(
     maxRougeL: Math.max(...rouges),
     verdict,
     verdictReasoning,
+    judgeFailures: crossTenantJudgeFailures,
   };
 }
 
@@ -583,6 +658,7 @@ async function buildCrossTenantMatrixFromOutputs(
   similarities: SimilarityResult[];
   meanCosine: number;
   meanRougeL: number;
+  judgeFailures: JudgeFailureRecord[];
 }> {
   const embedded = await embedOutputs(outputs);
 
@@ -606,7 +682,10 @@ async function buildCrossTenantMatrixFromOutputs(
   // Two-axis judge on EVERY pair (not just borderline) — Stage 7 control
   // and treatment both need full judge coverage so the A/B comparison is
   // measured on the same metric. Resilient: retries 3x internally, skips
-  // the pair with a warning if it still fails.
+  // the pair with a warning if it still fails. Skipped pairs are collected
+  // in `judgeFailures` and surfaced on the returned result so consumers
+  // can see that the aggregate stats were computed over a subset.
+  const judgeFailures: JudgeFailureRecord[] = [];
   for (const sim of similarities) {
     const indexA = personas.findIndex((p) => p.name === sim.identityA);
     const indexB = personas.findIndex((p) => p.name === sim.identityB);
@@ -624,9 +703,10 @@ async function buildCrossTenantMatrixFromOutputs(
       });
       applyJudgeVerdict(sim, verdict);
     } catch (err) {
+      judgeFailures.push(recordJudgeFailure(sim.pairId, "narrative-state", err));
       const message = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[runner]   ⚠ skipping Stage 7 pair ${sim.pairId} after 3 judge attempts: ${message.slice(0, 120)}`,
+        `[runner]   ⚠ skipping Stage 7 pair ${sim.pairId} after 3 judge attempts: ${message.slice(0, 300)}`,
       );
     }
   }
@@ -637,6 +717,7 @@ async function buildCrossTenantMatrixFromOutputs(
     similarities,
     meanCosine: cosines.reduce((a, b) => a + b, 0) / cosines.length,
     meanRougeL: rouges.reduce((a, b) => a + b, 0) / rouges.length,
+    judgeFailures,
   };
 }
 
@@ -685,7 +766,7 @@ async function runNarrativeStateTest(args: {
   store?: NarrativeStateStore;
   /** Fixture namespace for store lookups; required if `store` is set. */
   fixtureId?: string;
-}): Promise<NarrativeStateTestResult> {
+}): Promise<{ result: NarrativeStateTestResult; judgeFailures: JudgeFailureRecord[] }> {
   const registered = getIdentityById(args.identityId);
   if (!registered) {
     throw new Error(`Unknown identity: ${args.identityId}`);
@@ -788,23 +869,26 @@ async function runNarrativeStateTest(args: {
   }
 
   return {
-    identityId: args.identityId,
-    identityName: registered.definition.name,
-    secondEvent: args.secondEvent,
-    secondCoreAnalysis,
-    narrativeStates,
-    controlOutputs,
-    controlSimilarities: controlMatrix.similarities,
-    controlMeanCosine: controlMatrix.meanCosine,
-    controlMeanRougeL: controlMatrix.meanRougeL,
-    treatmentOutputs,
-    treatmentSimilarities: treatmentMatrix.similarities,
-    treatmentMeanCosine: treatmentMatrix.meanCosine,
-    treatmentMeanRougeL: treatmentMatrix.meanRougeL,
-    cosineImprovement: controlMatrix.meanCosine - treatmentMatrix.meanCosine,
-    rougeLImprovement: controlMatrix.meanRougeL - treatmentMatrix.meanRougeL,
-    treatmentVerdict,
-    treatmentVerdictReasoning,
+    result: {
+      identityId: args.identityId,
+      identityName: registered.definition.name,
+      secondEvent: args.secondEvent,
+      secondCoreAnalysis,
+      narrativeStates,
+      controlOutputs,
+      controlSimilarities: controlMatrix.similarities,
+      controlMeanCosine: controlMatrix.meanCosine,
+      controlMeanRougeL: controlMatrix.meanRougeL,
+      treatmentOutputs,
+      treatmentSimilarities: treatmentMatrix.similarities,
+      treatmentMeanCosine: treatmentMatrix.meanCosine,
+      treatmentMeanRougeL: treatmentMatrix.meanRougeL,
+      cosineImprovement: controlMatrix.meanCosine - treatmentMatrix.meanCosine,
+      rougeLImprovement: controlMatrix.meanRougeL - treatmentMatrix.meanRougeL,
+      treatmentVerdict,
+      treatmentVerdictReasoning,
+    },
+    judgeFailures: [...controlMatrix.judgeFailures, ...treatmentMatrix.judgeFailures],
   };
 }
 
@@ -1016,12 +1100,13 @@ export async function runUniquenessPoc(
   console.log(`[runner]   ✓ ${similarities.length} pairwise comparisons`);
 
   // Stage 3.5 — LLM judge for borderline pairs
+  let intraTenantJudgeFailures: JudgeFailureRecord[] = [];
   const borderlineCount = similarities.filter(
     (s) => s.status !== "pass",
   ).length;
   if (borderlineCount > 0) {
     console.log(`[runner] Stage 3.5 — running LLM judge on ${borderlineCount} borderline/fail pair(s) (Haiku)...`);
-    await judgeBorderlinePairs(similarities, identityOutputs);
+    intraTenantJudgeFailures = await judgeBorderlinePairs(similarities, identityOutputs);
     for (const s of similarities.filter((s) => s.judgeTrinaryVerdict)) {
       const fidelity = (s.judgeFactualFidelity ?? 0).toFixed(2);
       const presentation = (s.judgePresentationSimilarity ?? 0).toFixed(2);
@@ -1061,6 +1146,7 @@ export async function runUniquenessPoc(
   // Stage 6 + Stage 7 share Stage 6's outputs (Stage 7 uses them as priors)
   let crossTenantMatrix: CrossTenantMatrixResult | undefined;
   let narrativeStateTest: NarrativeStateTestResult | undefined;
+  let narrativeStateJudgeFailures: JudgeFailureRecord[] = [];
   let stage6PersistCost = 0;
   if (opts.withCrossTenantMatrix) {
     console.log(`[runner] Stage 6 — CROSS-TENANT MATRIX (the load-bearing test): ${opts.withCrossTenantMatrix.identityId} × ${opts.withCrossTenantMatrix.personas.length} personas...`);
@@ -1139,7 +1225,7 @@ export async function runUniquenessPoc(
     // Stage 7 — narrative state test (uses Stage 6 outputs as priors)
     if (opts.withNarrativeStateTest) {
       console.log(`[runner] Stage 7 — TEMPORAL NARRATIVE CONTINUITY TEST...`);
-      narrativeStateTest = await runNarrativeStateTest({
+      const nstResult = await runNarrativeStateTest({
         identityId: opts.withCrossTenantMatrix.identityId,
         personas: opts.withCrossTenantMatrix.personas,
         priorOutputs: crossTenantMatrix.outputs,
@@ -1148,6 +1234,8 @@ export async function runUniquenessPoc(
         store: opts.store,
         fixtureId: opts.fixtureId,
       });
+      narrativeStateTest = nstResult.result;
+      narrativeStateJudgeFailures = nstResult.judgeFailures;
       console.log(`[runner]   ✓ TREATMENT VERDICT: ${narrativeStateTest.treatmentVerdict}`);
       console.log(`[runner]     ${narrativeStateTest.treatmentVerdictReasoning}`);
     }
@@ -1199,6 +1287,12 @@ export async function runUniquenessPoc(
 
   callbacks?.onCostUpdated?.(totalCostUsd);
 
+  const judgeFailures: JudgeFailureRecord[] = [
+    ...intraTenantJudgeFailures,
+    ...(crossTenantMatrix?.judgeFailures ?? []),
+    ...narrativeStateJudgeFailures,
+  ];
+
   const result: RunResult = {
     runId,
     startedAt,
@@ -1215,6 +1309,7 @@ export async function runUniquenessPoc(
     totalDurationMs,
     verdict,
     verdictReasoning: reasoning,
+    judgeFailures,
   };
 
   callbacks?.onRunCompleted?.(result);

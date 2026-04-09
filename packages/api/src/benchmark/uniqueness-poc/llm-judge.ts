@@ -319,14 +319,38 @@ These numbers are computed over the raw text and will be inflated by shared fact
 
 Submit your verdict via the submit_uniqueness_verdict tool.`;
 
-  // Retry the model call + Zod parse up to MAX_ATTEMPTS times. Haiku
-  // occasionally returns a tool_use payload with a missing required field
-  // (e.g. `verdict` undefined). Before 2026-04-09 this would throw the
-  // whole run — killing multi-step sequences after 5+ minutes. Now each
-  // call can recover from one transient malformation without blowing up
-  // the experiment, and only escalates on repeated failure.
+  // Retry the model call + Zod parse up to MAX_ATTEMPTS times, but ONLY
+  // on recoverable failures:
+  //
+  //   - ZodError (Haiku returned a tool_use payload missing a required
+  //     field, e.g. `verdict` undefined). Transient, worth retrying.
+  //   - "Judge did not return a tool_use block" (Haiku returned text
+  //     instead of a tool_use). Also transient.
+  //
+  // We deliberately do NOT retry on:
+  //   - Auth errors (401/403)     — retry can't fix a bad API key
+  //   - Rate limit errors (429)   — retry burns budget + headroom
+  //   - Invalid model errors       — retry can't fix a typo in the model id
+  //   - Network DNS / connection   — Anthropic SDK already retries transport
+  //                                  errors internally; we shouldn't double up
+  //   - Anything else              — unknown errors signal bugs, not flakiness
+  //
+  // Those propagate immediately. The runner's per-pair try/catch (at the
+  // judge call sites) will still skip the pair AND surface it via the
+  // new `judgeFailures` field on CrossTenantMatrixResult so persistent
+  // failures can't silently produce a run that looks complete.
   const MAX_ATTEMPTS = 3;
-  let lastError: unknown = null;
+
+  const isRetriable = (err: unknown): boolean => {
+    if (err instanceof z.ZodError) return true;
+    if (
+      err instanceof Error &&
+      err.message.startsWith("Judge did not return a tool_use block")
+    ) {
+      return true;
+    }
+    return false;
+  };
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
@@ -377,24 +401,26 @@ Submit your verdict via the submit_uniqueness_verdict tool.`;
         ),
       };
     } catch (err) {
-      lastError = err;
+      // Non-retriable → propagate immediately, no more attempts.
+      if (!isRetriable(err)) {
+        throw err;
+      }
+      // Retriable, but we've exhausted attempts → propagate.
+      if (attempt >= MAX_ATTEMPTS) {
+        throw err;
+      }
       const errName =
         err instanceof Error ? err.constructor.name : typeof err;
       const errMsg =
-        err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200);
+        err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300);
       console.warn(
-        `[llm-judge] attempt ${attempt}/${MAX_ATTEMPTS} failed for ${args.identityA} ↔ ${args.identityB}: ${errName}: ${errMsg}`,
+        `[llm-judge] retriable failure attempt ${attempt}/${MAX_ATTEMPTS} for ${args.identityA} ↔ ${args.identityB}: ${errName}: ${errMsg}`,
       );
-      if (attempt < MAX_ATTEMPTS) {
-        // Small backoff before retry — gives the model a beat to reset.
-        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
-      }
+      // Small backoff before retry — gives the model a beat to reset.
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
     }
   }
 
-  // All attempts failed — propagate the last error so the caller can
-  // decide whether to skip the pair or abort the run.
-  throw lastError instanceof Error
-    ? lastError
-    : new Error(`Judge failed after ${MAX_ATTEMPTS} attempts: ${String(lastError)}`);
+  // Unreachable — either a try succeeds or a catch throws. TS needs it.
+  throw new Error(`judgePairUniqueness: unreachable end of retry loop`);
 }
