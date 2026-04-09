@@ -1,0 +1,66 @@
+{
+    # Global options — use Caddy's internal CA for self-signed certs on LAN
+    auto_https disable_redirects
+    local_certs
+}
+
+# Main site — serve the playground and proxy the api
+#
+# IMPORTANT: do NOT add `uri strip_prefix /poc` inside the `handle /poc/*`
+# block. The FinFlow api mounts its Hono routes *at* `/poc` (see
+# packages/api/src/index.ts → `app.route("/poc", createPocRoutes())`),
+# so stripping the prefix results in the api returning 404 for every
+# dropdown data endpoint, which surfaces in the playground UI as "tags
+# not loading / dropdowns don't open". We hit this once (2026-04-09)
+# during the initial LXC setup when a config generator pattern-matched
+# to the common "strip mount prefix before forwarding" convention.
+10.1.10.225:443 {
+    tls internal
+
+    # Basic Auth gates everything below. Each tester gets a per-user bcrypt
+    # hash — generate with: `caddy hash-password` on the LXC, paste the
+    # resulting $2a$... string after the username.
+    basic_auth * {
+        # alex <hash>
+        # bel  <hash>
+    }
+
+    # Reverse-proxy the api (Hono) for /poc/* — no strip_prefix, see above.
+    handle /poc/* {
+        reverse_proxy 127.0.0.1:3098 {
+            # SSE-friendly timeouts. The api's idleTimeout is 255s (see
+            # packages/api/src/index.ts) — match it here so Caddy doesn't
+            # close streaming connections while a Stage 1 Opus call is
+            # still generating.
+            flush_interval -1
+            transport http {
+                read_timeout 300s
+                write_timeout 300s
+                dial_timeout 10s
+            }
+        }
+    }
+
+    # Everything else is the built playground static bundle.
+    handle {
+        root * /srv/playground/app/packages/playground/dist
+        try_files {path} /index.html
+        file_server
+        encode gzip
+    }
+
+    # Access logs — useful for debugging auth, routing, and per-tester
+    # activity. Grep by "user_id" to filter by tester.
+    log {
+        output file /var/log/caddy/playground-access.log {
+            roll_size 50mb
+            roll_keep 5
+        }
+        format console
+    }
+}
+
+# Redirect plain http (port 80) to https
+http://10.1.10.225 {
+    redir https://{host}{uri} permanent
+}
