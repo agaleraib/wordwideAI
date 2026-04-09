@@ -33,15 +33,9 @@ import { renderReport } from "./report.js";
 // regardless of the caller's cwd. Same layout the CLI has used since v0.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-export const RUNS_OUTPUT_ROOT = join(
-  __dirname,
-  "..",
-  "..",
-  "..",
-  "..",
-  "..",
-  "uniqueness-poc-runs",
-);
+export const RUNS_OUTPUT_ROOT =
+  process.env["UNIQUENESS_RUNS_DIR"] ??
+  join(__dirname, "..", "..", "..", "..", "..", "uniqueness-poc-runs");
 
 function ensureDir(path: string): void {
   if (!existsSync(path)) {
