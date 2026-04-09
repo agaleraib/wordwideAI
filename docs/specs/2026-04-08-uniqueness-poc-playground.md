@@ -1103,8 +1103,229 @@ type PocSseEvent =
 
 **Implementation trigger:** Next agent run on the playground branch, or inline if Claude and the user have the time. No prerequisites — can land on top of `005d85a` directly.
 
+### 20.4 Live run visibility — activity log panel (SHIPPED 2026-04-09)
+
+**Observation.** During a run the only UI signal was the `running` status pill in the topbar. The user had no sense of what stage the backend was in, which identities were mid-generation, or how far along the run was. Stage 1 (Opus FA core) takes ~60s of silence; Stage 2 (6 parallel Sonnet identity calls, invisible per §20.1) adds another ~90s of silence; only at ~3 minutes into a run did the tenant cards start transitioning to `generating`. The user was staring at a mostly-static screen wondering whether anything was happening.
+
+**Shipped fix (inline commit, not via agent).** A new `ActivityLog` component in `packages/playground/src/components/ActivityLog.tsx` renders every incoming SSE event as a single mono-spaced row with `(+MM:SS)` elapsed time, color-coded by event kind (run / stage / tenant / judge / cost / error), and a live `● LIVE` pill + current-stage label in its header. The reducer in `PlaygroundUniqueness.tsx` was extended with `activityLog: ActivityEntry[]`, `runStartedAtMs: number | null`, and `currentStage: string | null` fields; the SSE case appends to the log on every event and tracks the latest `stage_started` label as the current stage. HMR-tolerance guards (`?? []`, `?? null`) in the reducer handle hot-reload state carry-over when the fields are added.
+
+**What's visible during a live run now:**
+
+```
+Activity ● LIVE · Stage 1 — Opus FA core analysis                 23 events
++00:00  Run started (compare)                                    estimated $0.00
++00:00  Stage 1 — Opus FA core analysis
++01:07  Core FA analysis completed                                2593 tokens · $0.2189
++01:07  Cost updated                                              $0.2189
++01:07  Stage 2 — Identity adaptation (Sonnet ×6, parallel)
++03:12  Stage 6 — Cross-pipeline matrix (Sonnet ×N)
++03:12  Pipeline 1 started                                        premium-capital-markets
++03:12  Pipeline 2 started                                        fasttrade-pro
++03:48  Pipeline 2 completed                                      941w · 36.2s · $0.0304
++03:52  Pipeline 1 completed                                      912w · 40.1s · $0.0298
++03:58  Judge: Premium Capital Markets ↔ FastTrade Pro           fid 0.95 · pres 0.48 · distinct_products
++03:58  Run completed                                             $0.4128 · 238.1s
+```
+
+**Resolved but not perfect — follow-up polish items:**
+
+1. **Stage 2 silence gap.** The ~2-minute silent window during Stage 2's 6 parallel identity calls is still visible because `runUniquenessPoc` doesn't emit per-Stage-2-call events to `RunCallbacks`. Fixable by threading the callback into Stage 2's `Promise.all` loop — same pattern used for Stage 6 tenant calls. ~30 minutes.
+2. **No current-stage pill in the topbar proper.** The activity log header shows the current stage, but if the user scrolls the log out of view during a long run, they lose the stage awareness. Adding a small current-stage chip next to the cost ticker in the `AppShell` topbar would solve this. Requires threading `currentStage` through `AppShell` props. ~20 minutes.
+3. **Persona-defaults indicator on tenant cards.** Surfaced by the user on 2026-04-09: when no angle/personality tags are selected, the pipeline runs with the persona's canonical defaults (from the JSON file). The tenant card should show a small muted chip like `📌 persona defaults` below the tag pickers when both override arrays are empty, so the user knows at a glance whether they're testing canonical or custom configs. ~15 minutes.
+4. **Event grouping / collapse.** When a run fires 20+ events, the log scrolls. Grouping consecutive events of the same kind (e.g., all 6 Stage 2 completions into a collapsible "Stage 2 ×6") would keep the log scannable. Not urgent. ~45 minutes.
+
+None of the four are blocking. They're small polish items that can land in one batch `chore(playground): activity log polish` commit when convenient. The biggest lift is #1 (Stage 2 callback threading) because it requires runner changes; the other three are pure frontend.
+
+### 20.5 Format labels + terminology belong to the persona, not the identity (observed 2026-04-09)
+
+**Observation.** The user ran a side-by-side comparison of two brokers both using the `Trading Desk` identity. The judge correctly scored the outputs as `distinct_products` on fidelity + presentation because the **prose** differed. But side-by-side, the outputs looked like the same template: both had `WHAT:`, `TRADE IDEA:`, `LEVELS:`, `STOP:` section headers; both used the same trading jargon (`bias`, `entry`, `stop`, `TP/SL`); both had the same structural rhythm (section header → one-line body → section header → one-line body). A human reader scanning both outputs would immediately perceive them as reskinned versions of the same piece, even though the judge says otherwise.
+
+**Architectural diagnosis.** The identity system prompts in `packages/api/src/benchmark/uniqueness-poc/prompts/identities/*.ts` hardcode three things that should live at different layers:
+
+1. **Format shape** (legitimately identity-owned): terse vs long-form, bullet vs prose, imperative vs pedagogical, word count range, output intent
+2. **Section labels** (should be persona-owned): `WHAT` vs `THE SETUP` vs `POSITIONING` vs `CONTEXT`
+3. **Domain terminology** (should be persona-owned): `bias` vs `directional stance` vs `view` vs `conviction`; `stop` vs `invalidation` vs `cut line` vs `risk floor`
+
+Today the identity prompt owns all three, so every broker that picks Trading Desk inherits the same labels and the same jargon. The `ContentPersona` overlay controls voice/tone/tags/audience but has no mechanism to override section labels or terminology.
+
+**The architectural principle this violates.** From `feedback_two_layer_generation.md` in memory: *"Content pipeline must split market reasoning from editorial shaping, never collapse them."* The two-layer principle needs to be extended one step further: **within editorial shaping, split *format* (identity) from *brand lexicon* (persona).** A `Trading Desk` is a format shape. What you call the sections and which words you use for "bias" is brand language.
+
+Also violates the companion principle from `feedback_translation_architecture.md`: *"Reason naturally, adapt deterministically at every layer."* The identity agent should reason about market content naturally, using its own default lexicon. Brand-specific substitution should happen deterministically after the LLM writes, via the existing `glossary-patcher.ts` infrastructure — **which is already production code in `packages/api/src/pipeline/`, just not wired into the playground.**
+
+**Connection to existing architecture.**
+
+- `packages/api/src/pipeline/glossary-patcher.ts` — production glossary substitution layer, deterministic, already exists. The content-pipeline spec calls for it to run as part of the conformance stage (stage 9 per `2026-04-07-content-uniqueness.md` §5.2). The playground bypasses it entirely.
+- `2026-04-07-content-uniqueness.md` §6 predicts *"the conformance engine adds ~0.05–0.10 cosine of deterministic differentiation via glossary substitution + regional variant rewrites + brand voice corrections"* — exactly the missing layer.
+- `project_uniqueness_poc_2026_04_07.md` memory's roadmap item 7: *"Integrate the conformance engine as the downstream deterministic layer. Expected to push presentation similarity further without any fidelity cost."* — same item, different name.
+
+**This observation is the empirical signal that conformance-engine integration should move up the priority order.** The user ran into the gap organically while iterating, not via a theoretical analysis. That's the best kind of priority signal.
+
+#### Part A — section labels + termMap in `ContentPersona` (short-term, high-visible leverage)
+
+Move section labels and domain terminology out of the identity system prompts and into the `ContentPersona` schema. Cheap, immediately visible, no conformance-engine integration required.
+
+**Data model:**
+
+```ts
+interface ContentPersona {
+  // ...existing fields
+  /**
+   * Per-identity section label and terminology overrides. Keyed by
+   * identityId (e.g. "trading-desk", "in-house-journalist"). Identity
+   * agents substitute {{section.foo}} / {{term.bar}} placeholders in
+   * their system prompts against the merged map.
+   *
+   * Missing keys fall back to the identity's default labels/terms.
+   */
+  identityOverrides?: Record<string, {
+    sections?: Record<string, string>;   // e.g. { "what": "POSITIONING", "trade_idea": "THE OPPORTUNITY" }
+    terms?: Record<string, string>;      // e.g. { "bias": "directional stance", "stop": "invalidation" }
+  }>;
+}
+```
+
+**Identity system prompt changes:** each identity's prompt uses `{{section.X}}` / `{{term.Y}}` placeholders instead of hardcoded labels. Default values live in the identity definition (`IdentityDefinition.defaultSections` / `defaultTerms`). The runner merges the persona's overrides on top of the defaults before substituting into the prompt.
+
+**Per-broker JSON file edits** — each of the 4 broker presets gets `identityOverrides` for at least Trading Desk, with distinctive section labels and terminology matching the broker's voice:
+
+```json
+// broker-a.json (Premium Capital Markets) — institutional register
+"identityOverrides": {
+  "trading-desk": {
+    "sections": {
+      "what": "POSITIONING",
+      "trade_idea": "THE OPPORTUNITY",
+      "levels": "EXECUTION RANGE",
+      "stop": "INVALIDATION",
+      "target": "PROFIT OBJECTIVES"
+    },
+    "terms": {
+      "bias": "directional view",
+      "entry": "initiation",
+      "stop": "invalidation level",
+      "TP": "profit target"
+    }
+  }
+}
+
+// broker-b.json (FastTrade Pro) — retail energetic register
+"identityOverrides": {
+  "trading-desk": {
+    "sections": {
+      "what": "THE PLAY",
+      "trade_idea": "THE SETUP",
+      "levels": "THE LINES",
+      "stop": "STOP OUT",
+      "target": "TARGETS"
+    },
+    "terms": {
+      "bias": "lean",
+      "entry": "get in",
+      "stop": "cut it",
+      "TP": "book it"
+    }
+  }
+}
+
+// broker-c.json (Helix Markets) — skeptical/contrarian register
+"identityOverrides": {
+  "trading-desk": {
+    "sections": {
+      "what": "WHERE THE CROWD IS",
+      "trade_idea": "THE FADE",
+      "levels": "PRESSURE POINTS",
+      "stop": "WHERE IT DIES",
+      "target": "WHERE IT RUNS"
+    },
+    "terms": {
+      "bias": "view",
+      "entry": "fade-in",
+      "stop": "invalidation",
+      "TP": "objective"
+    }
+  }
+}
+
+// broker-d.json (Northbridge Wealth) — educational/pedagogical register
+"identityOverrides": {
+  "trading-desk": {
+    "sections": {
+      "what": "Market Context",
+      "trade_idea": "Client Positioning",
+      "levels": "Key Price Zones",
+      "stop": "Risk Threshold",
+      "target": "Return Target"
+    },
+    "terms": {
+      "bias": "directional stance",
+      "entry": "position initiation",
+      "stop": "risk threshold",
+      "TP": "profit objective"
+    }
+  }
+}
+```
+
+Similar blocks would be added for every identity each broker uses. In practice for v1 just doing Trading Desk for all 4 brokers proves the concept.
+
+**UI addition** — each tenant card gains a small muted footer under the output area showing the effective section labels + term map for the current persona + identity combo:
+
+```
+Sections: POSITIONING / THE OPPORTUNITY / EXECUTION RANGE / INVALIDATION / PROFIT OBJECTIVES
+Terms:    bias→directional view · entry→initiation · stop→invalidation level · TP→profit target
+```
+
+So the user can eyeball that two different brokers are actually using different templates before they even read the prose. This is cheap to render (just read from the persona JSON and the identity defaults) and makes the architectural split legible.
+
+**Effort:** ~3–4 hours. Single agent run. Touches:
+- `packages/playground/src/lib/types.ts` — `identityOverrides` field on `ContentPersona`
+- `packages/api/src/benchmark/uniqueness-poc/types.ts` — same field server-side
+- `packages/api/src/benchmark/uniqueness-poc/personas/*.json` — 4 broker files, each gets `identityOverrides.trading-desk` at minimum
+- `packages/api/src/benchmark/uniqueness-poc/prompts/identities/trading-desk.ts` — convert hardcoded section labels to `{{section.X}}` placeholders, add `defaultSections` / `defaultTerms` to the identity definition
+- `packages/api/src/benchmark/uniqueness-poc/runner.ts` — `runIdentity` merges persona overrides + identity defaults, substitutes placeholders in the user message
+- `packages/playground/src/components/TenantCard.tsx` — small muted footer showing effective labels + terms
+
+**Impact:**
+- Your next two-Trading-Desk comparison produces visibly different section headers and terminology
+- Zero extra LLM cost
+- Presentation similarity score **may or may not** move meaningfully — section labels are a small fraction of the embedded tokens — but **perceived distinctness** improves dramatically
+- If the judge's presentation score doesn't move despite the visible improvement, that's evidence the judge rubric has a blind spot for structural template overlap (worth documenting as a §20.6 judge-calibration item if it happens)
+
+#### Part B — wire `glossary-patcher.ts` into the playground (medium-term, production-correct)
+
+Integrate the existing production glossary-patcher as a post-LLM conformance stage in the playground run path. This is the architecturally correct version of Part A — deterministic, principled, matches production.
+
+**Backend:**
+- Extract / author a minimal `Glossary` per broker (`Record<term, preferredTerm>`). Can be seeded from Part A's `termMap` fields, then extended as needed.
+- After each `runIdentity` call in `runCrossTenantMatrix` and `runSoloForPipeline`, pipe the output through `glossaryPatcher.patch(output, persona.glossary)`.
+- Emit a new SSE event `conformance_applied` with a diff summary (`{replacements: [{from, to, count}]}`) so the activity log can show the substitutions.
+- The patcher also supports a light LLM-backed brand-voice correction pass (~$0.002 per pipeline); make that an optional stage-level toggle.
+
+**Frontend:**
+- Add a "Conformance pass" toggle in the config card (next to the stages checkboxes) — default off while iterating on Part A, default on once it's stable.
+- The activity log shows `+04:15 Conformance: 12 substitutions applied` when the stage runs.
+- The tenant card's output area can optionally show a small "view pre-conformance" toggle that swaps between the raw identity output and the post-conformance output, so the user can audit what the patcher did.
+
+**Effort:** ~4–6 hours. Single agent run. Touches the translation-engine side + the playground side.
+
+**Impact:**
+- The production architecture flows end-to-end through the playground for the first time
+- Deterministic guarantees on brand vocabulary (the LLM can't slip and use "stop" when the broker's term is "invalidation")
+- Spec estimate: −0.05 to −0.10 presentation similarity
+- The playground becomes a faithful production simulator, not just an identity-agent tester
+
+#### Priority ranking across §20 (updated 2026-04-09)
+
+1. **§20.3 — Stop run button** (~1.5h) — saves money + time every session, unblocks iteration, independent
+2. **§20.5 Part A — section labels + termMap in ContentPersona** (~3–4h) — directly addresses the user's current pain point, high visible impact, no new infrastructure
+3. **§20.4 polish items** (~1.5h total for all 4) — small UX follow-ups on the already-shipped activity log
+4. **§20.5 Part B — glossary patcher integration** (~4–6h) — production-correct architecture, biggest long-term win
+5. **§20.1 + §20.2 — stages selector refactor** (~20m for Option A or ~1–2h for Option B) — mental model cleanup, lowest urgency
+
+Part A of §20.5 is the biggest leverage-for-effort ratio in the current queue. The user has flagged they want to discuss implementation order separately — this ranking is a proposal, not a decision.
+
 ---
 
 **End of spec.**
 
-*Generated 2026-04-08 by Claude (Opus 4.6) at the end of an extended discovery session with Albert. Captures the design decisions for a uniqueness PoC playground GUI, sub-phased v1.0 / v1.1 / v1.2 to ship value continuously. Implementation has landed as commits 540a9b0 (v1.0) / 8058f48 (SSE fix) / 337c0b8 (v1.1) / 14e9b47 (v1.2) / 005d85a (port fix) on `workstream-b-playground`. §20 added 2026-04-09 to track known issues discovered after implementation.*
+*Generated 2026-04-08 by Claude (Opus 4.6) at the end of an extended discovery session with Albert. Captures the design decisions for a uniqueness PoC playground GUI, sub-phased v1.0 / v1.1 / v1.2 to ship value continuously. Implementation has landed as commits 540a9b0 (v1.0) / 8058f48 (SSE fix) / 337c0b8 (v1.1) / 14e9b47 (v1.2) / 005d85a (port fix) on `workstream-b-playground`. §20 added 2026-04-09 to track known issues discovered after implementation. §20.4 (activity log) shipped inline 2026-04-09. §20.5 (format labels + glossary) observed 2026-04-09 and queued; implementation order TBD.*
