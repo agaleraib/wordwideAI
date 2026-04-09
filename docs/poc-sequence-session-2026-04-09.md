@@ -280,6 +280,52 @@ That's the valuable kind of falsification: the spec was executable enough that t
 
 ---
 
+## 9. Afternoon addition — `claude -p` subprocess backend for report generation
+
+**Problem.** Every FinFlow report run — PoC sequences today, live broker reports tomorrow — has been paid per-token through `ANTHROPIC_API_KEY`. This session alone spent $2.70 through the API; as sequence length and broker count grow, the API-key line item scales linearly with report volume. Alex already has a Claude Code subscription covering the same models for flat monthly cost. Reports should use the subscription, not the API key.
+
+**Approach.** Mirror the gobot pattern (`workspace/gobot/src/lib/claude.ts`): spawn `claude -p` as a subprocess, strip `ANTHROPIC_API_KEY` from the child env so the CLI falls back to the Keychain OAuth token, pipe the prompt via stdin, parse the JSON envelope. The CLI returns `result` text, `usage` token counts, `duration_ms`, and `total_cost_usd` — enough to populate the same `CoreAnalysis` / `IdentityOutput` shape the SDK path produces.
+
+**Implementation.**
+
+- **New module:** `packages/api/src/lib/claude-cli.ts` — exports `callClaudeCli({ model, systemPrompt, userMessage, maxTokens })` returning `{ text, inputTokens, outputTokens, durationMs, cliReportedCostUsd, sessionId }`, plus `isClaudeCliEnabled()` reading `FINFLOW_USE_CLAUDE_CLI`. Subprocess flags: `-p --output-format json --model <id> --system-prompt <s> --disable-slash-commands --tools "" --no-session-persistence`. `cwd` defaults to `os.tmpdir()` so no project `CLAUDE.md` is auto-loaded into each call. On macOS, wrapped with `caffeinate -i` (long runs won't stall on idle sleep). On error or timeout, throws a typed `ClaudeCliError` carrying stderr + exit code.
+- **Wire-in points in** `runner.ts`: only the two load-bearing text-generation calls — `runCoreAnalysis` (Stage 1 FA agent, Opus) and `runIdentity` (Stage 2 identity adaptation, Sonnet). Both branch on `isClaudeCliEnabled()`: CLI path if set, SDK path otherwise. Same return shape either way. All other Anthropic call sites (judge, narrative-state extractor, scoring) **stay on the SDK** because they depend on `tool_use` structured output, which `claude -p` does not expose cleanly.
+- **Opt-in, per-run.** Set `FINFLOW_USE_CLAUDE_CLI=1` when invoking the runner. No change to existing callers. Toggle read at call time (not module load), so tests can flip it between invocations.
+
+**Usage:**
+
+```bash
+# API-key path (unchanged default)
+bun run packages/api/src/benchmark/uniqueness-poc/index.ts \
+  --sequence eur-usd-q2-2026 --persist-narrative-state
+
+# Subscription-OAuth path (new)
+FINFLOW_USE_CLAUDE_CLI=1 bun run packages/api/src/benchmark/uniqueness-poc/index.ts \
+  --sequence eur-usd-q2-2026 --persist-narrative-state
+```
+
+Prerequisites for the OAuth path: a working `claude setup-token` (the same one the CLI uses for interactive sessions), and `ANTHROPIC_API_KEY` can be set or unset — the subprocess strips it regardless.
+
+**What this covers, what it doesn't.**
+
+| Call site | Today | With `FINFLOW_USE_CLAUDE_CLI=1` |
+|---|---|---|
+| Stage 1 — FA agent (Opus, long body) | API key | **subscription** |
+| Stage 2 — Identity adaptation (Sonnet × N brokers) | API key | **subscription** |
+| Stage 3.5 — Narrative state extraction (tool_use) | API key | API key |
+| Stage 4/5 — Reproducibility / persona-overlay (text) | API key | API key (could be ported next pass) |
+| Judge (Haiku, tool_use) | API key | API key |
+
+Stages 1 + 2 are where ~90% of the per-run spend lands (the Opus FA body + N × Sonnet identity bodies). Porting them alone captures the bulk of the subscription savings. The judge and narrative-state callers stay on the SDK until the CLI exposes reliable `tool_use`-equivalent structured output.
+
+**Cost accounting note.** The `total_cost_usd` the CLI reports in its JSON envelope is the *API-equivalent* cost — what Anthropic would have charged if this had been an API-key call. Under subscription auth, actual marginal spend is $0. The runner currently recomputes cost from `inputTokens` × `outputTokens` via `computeCostUsd()`, which means the on-disk run totals will still look non-zero under the CLI path — they're now a "what would this have cost on the API" number, not a bill. The reports that read these totals should eventually grow a `backend: "api" | "cli-subscription"` field so the headline cost number in the run summary can reflect real spend. Parked — not needed for the first subscription-backed test run.
+
+**Validation.** `bun run typecheck` clean after the edit. No behavioral change when `FINFLOW_USE_CLAUDE_CLI` is unset — the SDK path is the default. First end-to-end test run under the new backend is pending and should be done with a cheap single-event fixture (`iran-strike --full`) before trusting it on a full sequence.
+
+**Next step for this backend.** Run the iran-retaliation green-field control (section 6.1) under `FINFLOW_USE_CLAUDE_CLI=1` instead of via the API key. Two wins in one run: (a) clean comparison against step 3 of the sequence for the "+0.022 convergence" question, (b) first end-to-end validation that the CLI backend produces report bodies indistinguishable from the SDK backend on the same fixture. If output diverges structurally (different body length, different framing artifacts), that's a signal about CLI-subprocess context leakage and needs investigation before the backend is trusted for live reports.
+
+---
+
 **End of session journal.**
 
 *Generated 2026-04-09 by Claude (Opus 4.6) after the canonical eur-usd-q2-2026 sequence ran end-to-end on the playground branch. This is the first empirical measurement of multi-event narrative-state accumulation on cross-pipeline divergence. Findings: accumulation drives convergence, not divergence, confirming and strengthening the 2026-04-07 single-event prediction. Conformance engine integration (§20.5 Part B) promoted to top priority for cross-pipeline work. All commits (`d3299f5` persistence fix, `dcd2a03` narrative-state spec, `f72d7c4` sequence cli script, `8fe0899` sequence + judge fixes) live on branch `workstream-b-playground`, not yet pushed.*
