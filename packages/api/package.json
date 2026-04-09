@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --hot src/index.ts",
+    "dev:poc": "PORT=3099 bun run --hot src/index.ts",
     "typecheck": "tsc --noEmit",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "poc:uniqueness": "bun run src/benchmark/uniqueness-poc/index.ts",
