@@ -316,7 +316,7 @@ export async function runTranslationEngine(
 
       audit.push({
         stage: specialistName,
-        agent: `${specialistName.charAt(0).toUpperCase() + specialistName.slice(1)}Specialist (Opus)`,
+        agent: `${specialistName.charAt(0).toUpperCase() + specialistName.slice(1)}Specialist (Sonnet)`,
         timestamp: now(),
         durationMs: specialistMs,
         tokens: specialistResult.usage

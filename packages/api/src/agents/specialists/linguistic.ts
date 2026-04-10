@@ -88,7 +88,7 @@ Instructions:
 
 After the translation, add a line "---REASONING---" followed by a brief list of what you changed and why.`;
 
-  const result = await callAgentWithUsage("opus", SYSTEM_PROMPT, prompt, 8192);
+  const result = await callAgentWithUsage("sonnet", SYSTEM_PROMPT, prompt, 8192);
   const [correctedText, reasoning] = parseSpecialistResponse(result.text);
   return { correctedText, reasoning, usage: result.usage };
 }
