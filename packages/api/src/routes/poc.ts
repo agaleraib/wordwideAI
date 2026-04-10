@@ -288,7 +288,7 @@ function startCompareRun(
   const withCrossTenantMatrix =
     enabled.has(6) && tenantPersonas.length >= 2
       ? {
-          identityId: "in-house-journalist",
+          identityId: tenantIdentityIds.find((id) => id != null) ?? "in-house-journalist",
           personas: tenantPersonas,
           tenantIdentityIds,
           tenantWordCountOverrides,
