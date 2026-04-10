@@ -26,6 +26,15 @@
   "regionalVariant": "en-GB",
   "brandPositioning": "The broker serious investors choose when they outgrow retail platforms. We provide institutional-grade research, conservative risk frameworks, and a thoughtful long-view on markets.",
   "jurisdictions": ["UK", "EU", "Switzerland"],
+  "companyBackground": [
+    "Founded in 1994 in London, 30 years in the institutional brokerage space",
+    "320 employees across London, Zurich, and Singapore offices",
+    "Official analytics partner of Arsenal FC since 2021",
+    "Proprietary RiskGuard™ engine processes 2M+ data points daily for portfolio risk assessment",
+    "Winner of 'Best Institutional Research' at the FX Week Awards 2024 and 2025",
+    "Managing director Sir James Hartwell quoted frequently in the Financial Times",
+    "In-house macro research team of 14 analysts, average tenure 11 years"
+  ],
   "preferredAngles": ["positioning", "macro-narrative", "risk-warning"],
   "personalityTags": ["calibrated", "comprehensive", "formal", "observer", "measured"]
 }

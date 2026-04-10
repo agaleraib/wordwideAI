@@ -184,6 +184,13 @@ export async function runIdentity(
     userMessage += `\n\n# WORD-COUNT OVERRIDE — HARD CONSTRAINT\n\nTarget word count: ${options.targetWordCount} words. This is a hard limit, not a guideline. It overrides any word count range specified in your system prompt. Allowed band: ±10%.`;
   }
 
+  // Inject company background facts so the writer can reference them
+  // naturally during generation (two shots: here at generation time,
+  // and again in the conformance pass if enabled).
+  if (persona?.companyBackground && persona.companyBackground.length > 0) {
+    userMessage += `\n\n# COMPANY CONTEXT\n\nYou are writing for ${persona.name}. Weave these facts in naturally where they add credibility or context — do not force every fact into the piece:\n${persona.companyBackground.map((f) => `- ${f}`).join("\n")}`;
+  }
+
   if (isClaudeCliEnabled()) {
     const cli = await callClaudeCli({
       model,
@@ -476,6 +483,13 @@ async function runCrossTenantMatrix(
    * message forces this exact target. The CLI never sets this.
    */
   tenantWordCountOverrides?: Array<number | null>,
+  /**
+   * When true, run the Style & Voice specialist on each output after
+   * generation but before embedding/similarity scoring. This enforces
+   * persona-specific brand voice and drives structural divergence between
+   * outputs that share the same identity agent.
+   */
+  withConformancePass?: boolean,
 ): Promise<CrossTenantMatrixResult> {
   if (personas.length < 2) {
     throw new Error(
@@ -519,8 +533,38 @@ async function runCrossTenantMatrix(
     }),
   );
 
+  // ── Conformance pass (optional) ──────────────────────────────────
+  // When enabled, run the Style & Voice specialist on each output to
+  // enforce persona-specific brand voice. This is the content pipeline's
+  // equivalent of the translation engine's conformance loop, scoped to
+  // the two specialists that drive divergence (Style & Voice) without
+  // pulling in the full 13-metric loop.
+  let conformedOutputs = outputs;
+  let conformanceCostUsd = 0;
+  if (withConformancePass) {
+    try {
+      const { runConformancePassAll } = await import("./conformance-pass.js");
+      console.log(`[runner] Stage 6 — conformance pass: enforcing brand voice on ${outputs.length} outputs...`);
+      const conformanceResult = await runConformancePassAll(
+        outputs,
+        personas,
+        (index, changed) => {
+          const p = personas[index]!;
+          console.log(`[runner]   ${changed ? "✓" : "○"} ${p.name}: ${changed ? "rewritten for brand voice" : "no changes needed"}`);
+        },
+      );
+      conformedOutputs = conformanceResult.outputs;
+      conformanceCostUsd = conformanceResult.totalCostUsd;
+      const changedCount = conformanceResult.conformanceResults.filter((r) => r.changed).length;
+      console.log(`[runner]   Conformance pass complete: ${changedCount}/${outputs.length} outputs rewritten, cost $${conformanceCostUsd.toFixed(4)}`);
+    } catch (err) {
+      console.error(`[runner]   ⚠ Conformance pass failed, using raw outputs:`, err instanceof Error ? err.message : err);
+      // Fall through with original outputs — don't lose the generation work
+    }
+  }
+
   // Embed all outputs
-  const embedded = await embedOutputs(outputs);
+  const embedded = await embedOutputs(conformedOutputs);
 
   // Build pairwise matrix using STRICT cross-tenant thresholds.
   //
@@ -638,6 +682,7 @@ async function runCrossTenantMatrix(
     verdict,
     verdictReasoning,
     judgeFailures: crossTenantJudgeFailures,
+    conformanceCostUsd: conformanceCostUsd > 0 ? conformanceCostUsd : undefined,
   };
 }
 
@@ -1000,6 +1045,12 @@ export interface RunOptions {
      * `personas.length` when provided. The CLI never sets this.
      */
     tenantWordCountOverrides?: Array<number | null>;
+    /**
+     * When true, run the Style & Voice specialist on each output after
+     * generation to enforce persona-specific brand voice, before
+     * embedding and similarity scoring. Adds ~$0.10-0.20 per output.
+     */
+    withConformancePass?: boolean;
   };
   /**
    * Run the temporal narrative continuity test (Stage 7)?
@@ -1187,6 +1238,7 @@ export async function runUniquenessPoc(
       opts.event.topicName,
       opts.withCrossTenantMatrix.tenantIdentityIds,
       opts.withCrossTenantMatrix.tenantWordCountOverrides,
+      opts.withCrossTenantMatrix.withConformancePass,
     );
     console.log(`[runner]   ✓ ${crossTenantMatrix.similarities.length} pairs`);
     console.log(`[runner]   ✓ cosine: mean=${crossTenantMatrix.meanCosine.toFixed(4)}, min=${crossTenantMatrix.minCosine.toFixed(4)}, max=${crossTenantMatrix.maxCosine.toFixed(4)}`);

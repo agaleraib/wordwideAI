@@ -59,6 +59,25 @@ export interface ContentPersona {
   jurisdictions: string[];
 
   /**
+   * Company background facts the writer can weave into content for
+   * authentic differentiation. These are NOT style rules — they're
+   * material: founding story, team size, market presence, sponsorships,
+   * proprietary tools, community stats, track record claims.
+   *
+   * Examples:
+   *   - "Founded in 1994, 300+ employees across London, Zurich, and Singapore"
+   *   - "Official analytics partner of Arsenal FC since 2021"
+   *   - "Proprietary RiskGuard™ engine processes 2M+ data points daily"
+   *
+   * The identity agent and Style & Voice specialist receive these as
+   * available context — they're encouraged to reference them naturally
+   * where relevant, but not forced to use every one in every piece.
+   * This drives divergence by construction: two companies' facts can
+   * never converge the way two tone adjustments can.
+   */
+  companyBackground?: string[];
+
+  /**
    * Onboarding-time analytical-angle preferences, ranked.
    * The first tag is the primary lens; later tags are fallbacks if the
    * first does not fit a specific event. See tags.ts for the full taxonomy.
@@ -337,6 +356,8 @@ export interface CrossTenantMatrixResult {
    * computed over a subset — consumers should surface a warning.
    */
   judgeFailures: JudgeFailureRecord[];
+  /** Cost of the optional conformance pass (0 when not enabled). */
+  conformanceCostUsd?: number;
 }
 
 export interface RunResult {

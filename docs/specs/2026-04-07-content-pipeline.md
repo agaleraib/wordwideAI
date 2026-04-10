@@ -433,6 +433,32 @@ Either way, downstream stages — scoring, glossary patcher, gate, specialists �
 
 **Order rationale:** the conformance engine runs **after** content composition (§5.7b) and **before** the uniqueness gate (§5.10). Brand-voice, glossary, and regional-variant enforcement push the content *away* from cross-tenant similarity (because each client's overlay is unique to them), so running uniqueness on the conformed text catches the bar that actually ships rather than blocking content that would have been unique once the client overlay was applied.
 
+**PoC validation (2026-04-10).** The brand-voice conformance pass was prototyped and tested on the uniqueness PoC playground (`worktree-poc-conformance-layer` branch). Results against the same fixture (fed-rate-pause, Beginner Blogger identity, Premium vs FastTrade personas):
+
+| Metric | Without conformance | With conformance | Delta |
+|---|---|---|---|
+| Cosine | 0.9003 | 0.7916 | **-0.1087** |
+| ROUGE-L | 0.2350 | 0.1583 | **-0.0767** |
+| Presentation | 0.52 | 0.32 | **-0.20** |
+| Fidelity | 0.95 | 0.95 | 0 |
+
+**What was wired in vs what was not (scope decision):**
+
+| Translation engine component | Content pipeline? | Why |
+|---|---|---|
+| Style & Voice specialist | **Yes** (dedicated prompt) | Drives brand-voice divergence; formality, sentence length, hedging, person preference |
+| Terminology / glossary patcher | **Not yet** | Per-language; English glossary could add deterministic divergence later |
+| Structural specialist | **No** | Source-vs-translation comparison; no source document in content generation |
+| Linguistic specialist | **No** | Translation quality only |
+| Full 13-metric scoring loop | **No** | Overkill for content; mixes language-quality concerns with divergence concerns |
+
+**`companyBackground` — new field on `ContentPersona` (added 2026-04-10).** Array of factual company claims (founding year, team size, sponsorships, proprietary tools, community stats, awards). Injected into the identity agent's user message at generation time AND into the conformance pass. Two shots at unique material. Populated during onboarding (scrape client website → questionnaire for human validation). Drives uniqueness by construction — two companies' facts can never converge the way tone adjustments can.
+
+**Onboarding flow for `companyBackground`:** unified with the existing ProfileExtractionAgent onboarding:
+1. **ProfileExtractionAgent** (existing) — sample docs → LanguageProfile (glossary, tone, brand rules)
+2. **Company scrape** (new) — website about/team/press pages → candidate companyBackground facts
+3. **Questionnaire** — human validates both, adds what was missed → final ContentPersona
+
 ### 5.10 Uniqueness gate
 
 See `2026-04-07-content-uniqueness.md`. Runs against `generated_content` filtered by `(eventId, topicId, last 90 days)`, with stricter thresholds for cross-tenant comparisons and looser for intra-tenant intra-pipeline. Critically, it runs **on the conformed content** (post-§5.9), because that's what actually gets published — the conformance overlay (glossary, brand voice, regional variant) is part of what differentiates one client's output from another's, so the uniqueness check needs to see the final form. On fail, one regeneration attempt with a diversification hint passed back to the identity agent (§5.7b), then HITL escalation.

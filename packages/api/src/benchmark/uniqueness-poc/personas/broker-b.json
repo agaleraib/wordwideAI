@@ -26,6 +26,15 @@
   "regionalVariant": "en-US",
   "brandPositioning": "Trade fast, trade smart. The broker built for traders who don't have time for fluff. Fast execution, tight spreads, real-time alerts.",
   "jurisdictions": ["US", "Canada", "Australia"],
+  "companyBackground": [
+    "Launched in 2019, built by ex-traders from Citadel and Jump Trading",
+    "22 employees, fully remote team across New York, Austin, and Miami",
+    "50,000+ active traders in the FastTrade Pro Telegram community",
+    "Average execution speed: 12ms — independently audited by FX Benchmark Ltd",
+    "Featured in TechCrunch, Business Insider, and The Block as 'the Robinhood of FX'",
+    "Co-founder Jake Morales runs a popular trading podcast (200K+ subscribers)",
+    "Zero-commission model funded by spread markup, no hidden fees"
+  ],
   "preferredAngles": ["trade-idea", "momentum-driven", "signal-extract"],
   "personalityTags": ["aggressive", "prescriptive", "high-conviction", "urgent", "energetic"]
 }

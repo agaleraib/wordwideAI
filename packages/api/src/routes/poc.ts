@@ -171,6 +171,8 @@ const CompareRunRequestSchema = z.object({
   enabledStages: z.array(z.number().int()).optional(),
   quickMode: z.enum(["off", "200", "700", "1500"]).optional(),
   tenants: z.array(TenantConfigSchema).min(2).max(6),
+  /** Run Style & Voice conformance pass on cross-tenant outputs before scoring. */
+  withConformancePass: z.boolean().optional(),
 });
 
 const SoloRunRequestSchema = z.object({
@@ -292,6 +294,7 @@ function startCompareRun(
           personas: tenantPersonas,
           tenantIdentityIds,
           tenantWordCountOverrides,
+          withConformancePass: req.withConformancePass,
         }
       : undefined;
 

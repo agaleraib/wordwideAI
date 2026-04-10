@@ -56,6 +56,12 @@ This split matters because:
 
 If we relied on verification alone, generation would loop until it stumbled into a different output, wasting tokens and time. If we relied on pre-allocation alone, we'd ship occasional collisions when two clients have unusually similar profiles. Both layers earn their keep.
 
+**Layer 1.5 — Brand voice conformance pass (added 2026-04-10, validated in PoC).** After the identity agent generates content and before the uniqueness gate, an optional brand voice enforcement pass rewrites each output to strictly match the tenant's persona profile — formality level, sentence length, hedging frequency, person preference, and company background facts. This is a post-generation style rewrite, not a full 13-metric conformance loop. It targets the structural-convergence problem: two outputs from the same identity sharing the same core analysis tend to follow the same narrative blueprint despite different persona overlays. The conformance pass pushes them apart by enforcing voice differences more aggressively than the identity agent does on its own.
+
+PoC validation (2026-04-10, `worktree-poc-conformance-layer` branch): same fixture, same identity (Beginner Blogger), two personas (Premium Capital Markets formality 5/5 vs FastTrade Pro formality 1/5). Without conformance: cosine 0.90, presentation 0.52. With conformance: cosine 0.79, presentation 0.32. Fidelity preserved at 0.95. The pass uses the translation engine's `callAgentWithUsage` infrastructure but a dedicated brand-voice prompt — not the translation-specific `correctStyle` specialist.
+
+Only the **Style & Voice** category of the translation engine's specialist taxonomy is brought into the content pipeline. Terminology (glossary) is per-language and not the divergence driver at this stage. Structural and Linguistic specialists are translation-specific and do not apply. See the content-pipeline spec §5.9 for the full architectural rationale.
+
 ---
 
 ## 4. `ContentPersona` shape
@@ -86,6 +92,13 @@ type ContentPersona = {
   forbiddenClaims: string[];         // "guaranteed returns", "risk-free", etc.
   jurisdictions: string[];           // ISO codes — passed to the compliance gate
   brandPositioning: string;          // 1-2 sentence brand voice statement
+
+  // ─────────── Company background (added 2026-04-10) ───────────
+  companyBackground?: string[];      // factual company claims the writer can weave in:
+                                     // founding year, team size, sponsorships, proprietary tools,
+                                     // community stats, awards, track record. Drives uniqueness by
+                                     // construction — two companies' facts can never converge.
+                                     // Populated during onboarding (scrape + questionnaire).
 };
 
 type CTAEntry = {

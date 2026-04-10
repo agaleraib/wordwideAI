@@ -167,6 +167,21 @@ The glossary metric is updated **in place** after the patcher runs — no Opus r
 
 Profiles persist via `profiles/store.ts` (file-backed, used by the dev `InMemoryProfileStore` wrapper).
 
+### Uniqueness PoC — `src/benchmark/uniqueness-poc/`
+
+PoC harness for cross-tenant content uniqueness. Stages 1-7 test whether different broker personas produce genuinely distinct content from the same source event. Key subsystems:
+
+| File | Purpose |
+|---|---|
+| `runner.ts` | Orchestration: core analysis → identity adaptation → embeddings → similarity → judge |
+| `conformance-pass.ts` | Brand voice enforcement pass (Style & Voice from translation engine, dedicated prompt). Opt-in via `withConformancePass: true`. Drops presentation similarity ~0.20 (validated 2026-04-10) |
+| `llm-judge.ts` | Two-axis judge (fidelity × presentation → trinary verdict) |
+| `types.ts` | `ContentPersona` (incl. `companyBackground`), `IdentityOutput`, `CrossTenantMatrixResult` |
+| `personas/` | Broker persona fixtures (Premium, FastTrade, Helix, Northbridge) |
+| `prompts/identities/` | Identity agent system prompts (Beginner Blogger, Trading Desk, etc.) |
+
+**Content pipeline ↔ translation engine boundary.** The conformance pass reuses the translation engine's `callAgentWithUsage` infrastructure and `parseSpecialistResponse` parser but uses a dedicated brand-voice-enforcement prompt, NOT the translation-specific `correctStyle` specialist. Only the Style & Voice category crosses the boundary; Terminology, Structural, and Linguistic remain translation-only. See `docs/specs/2026-04-07-content-pipeline.md` §5.9 for the full scope decision.
+
 ### Benchmark suite — `src/benchmark/`
 
 First-class subsystem, not test code. Exists to **prove the value prop** (consistency at scale) and produce CSV deliverables.

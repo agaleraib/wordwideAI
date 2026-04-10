@@ -1314,18 +1314,41 @@ Integrate the existing production glossary-patcher as a post-LLM conformance sta
 - Spec estimate: −0.05 to −0.10 presentation similarity
 - The playground becomes a faithful production simulator, not just an identity-agent tester
 
-#### Priority ranking across §20 (updated 2026-04-09)
+#### §20.5 Part C — brand voice conformance pass (implemented 2026-04-10)
 
-1. **§20.3 — Stop run button** (~1.5h) — saves money + time every session, unblocks iteration, independent
-2. **§20.5 Part A — section labels + termMap in ContentPersona** (~3–4h) — directly addresses the user's current pain point, high visible impact, no new infrastructure
-3. **§20.4 polish items** (~1.5h total for all 4) — small UX follow-ups on the already-shipped activity log
-4. **§20.5 Part B — glossary patcher integration** (~4–6h) — production-correct architecture, biggest long-term win
-5. **§20.1 + §20.2 — stages selector refactor** (~20m for Option A or ~1–2h for Option B) — mental model cleanup, lowest urgency
+**Status: IMPLEMENTED** on branch `worktree-poc-conformance-layer`, pending merge to `workstream-b-playground`.
 
-Part A of §20.5 is the biggest leverage-for-effort ratio in the current queue. The user has flagged they want to discuss implementation order separately — this ranking is a proposal, not a decision.
+The conformance pass was built and validated as a direct response to the structural-convergence problem observed in the 2026-04-10 test run (two Beginner Blogger outputs for Premium vs FastTrade had presentation similarity 0.52 — same narrative blueprint, same analogies, same section order despite different persona overlays).
+
+**What was built:**
+- `conformance-pass.ts` — dedicated brand voice enforcement specialist (Sonnet, not the translation-specific `correctStyle`). Rewrites each cross-tenant output to strictly match the persona's formality level, sentence length, hedging frequency, person preference, company background, and CTAs.
+- `companyBackground` field on `ContentPersona` — array of factual company claims injected at both generation time (identity agent user message) and conformance time. Two shots at unique material that can never converge.
+- Opt-in via `withConformancePass: true` on the compare run request. Default off.
+
+**PoC results:**
+| Metric | Without | With | Delta |
+|---|---|---|---|
+| Cosine | 0.9003 | 0.7916 | -0.1087 |
+| Presentation | 0.52 | 0.32 | -0.20 |
+| Fidelity | 0.95 | 0.95 | 0 |
+
+**Relationship to Parts A and B:**
+- Part A (section labels + termMap) is still relevant — structural formatting divergence is orthogonal to voice divergence.
+- Part B (glossary patcher) is still relevant for per-tenant terminology substitution, which adds deterministic divergence on top of the LLM-driven voice divergence.
+- Part C (this) addresses the voice/tone/style layer, which Parts A and B don't touch.
+- All three stack: A (structural labels) + B (terminology) + C (brand voice) = three independent divergence layers.
+
+#### Priority ranking across §20 (updated 2026-04-10)
+
+1. ~~**§20.5 Part C — brand voice conformance pass**~~ — **DONE** (2026-04-10, pending merge)
+2. **§20.3 — Stop run button** (~1.5h) — saves money + time every session
+3. **§20.5 Part A — section labels + termMap in ContentPersona** (~3–4h) — structural formatting divergence
+4. **§20.4 polish items** (~1.5h total for all 4) — small UX follow-ups
+5. **§20.5 Part B — glossary patcher integration** (~4–6h) — deterministic terminology divergence
+6. **§20.1 + §20.2 — stages selector refactor** — lowest urgency
 
 ---
 
 **End of spec.**
 
-*Generated 2026-04-08 by Claude (Opus 4.6) at the end of an extended discovery session with Albert. Captures the design decisions for a uniqueness PoC playground GUI, sub-phased v1.0 / v1.1 / v1.2 to ship value continuously. Implementation has landed as commits 540a9b0 (v1.0) / 8058f48 (SSE fix) / 337c0b8 (v1.1) / 14e9b47 (v1.2) / 005d85a (port fix) on `workstream-b-playground`. §20 added 2026-04-09 to track known issues discovered after implementation. §20.4 (activity log) shipped inline 2026-04-09. §20.5 (format labels + glossary) observed 2026-04-09 and queued; implementation order TBD.*
+*Generated 2026-04-08 by Claude (Opus 4.6) at the end of an extended discovery session with Albert. Captures the design decisions for a uniqueness PoC playground GUI, sub-phased v1.0 / v1.1 / v1.2 to ship value continuously. Implementation has landed as commits 540a9b0 (v1.0) / 8058f48 (SSE fix) / 337c0b8 (v1.1) / 14e9b47 (v1.2) / 005d85a (port fix) on `workstream-b-playground`. §20 added 2026-04-09 to track known issues discovered after implementation. §20.4 (activity log) shipped inline 2026-04-09. §20.5 (format labels + glossary) observed 2026-04-09 and queued. §20.5 Part C (brand voice conformance pass) implemented 2026-04-10 on `worktree-poc-conformance-layer` branch, pending merge — PoC validated (presentation 0.52 → 0.32). Updated 2026-04-10.*
