@@ -22,6 +22,10 @@ export interface ContentPersona {
   jurisdictions: string[];
   preferredAngles: string[];
   personalityTags: string[];
+  ctaPolicy?: string;
+  ctaLibrary?: string[];
+  forbiddenClaims?: string[];
+  companyBackground?: string[];
 }
 
 export interface NewsEvent {

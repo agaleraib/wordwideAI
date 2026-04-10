@@ -321,7 +321,13 @@ const SSE_EVENT_TYPES: ReadonlyArray<PocSseEvent["type"]> = [
 
 const FIXTURES_WITH_CONTINUATION: ReadonlySet<string> = new Set(["iran-strike"]);
 
-export default function PlaygroundUniqueness() {
+import type { PageId } from "../App";
+
+interface PlaygroundUniquenessProps {
+  onNavigate: (page: PageId) => void;
+}
+
+export default function PlaygroundUniqueness({ onNavigate }: PlaygroundUniquenessProps) {
   const [fixtures, setFixtures] = useState<NewsEvent[] | null>(null);
   const [personas, setPersonas] = useState<ContentPersona[] | null>(null);
   const [identities, setIdentities] = useState<IdentityDefinition[] | null>(null);
@@ -518,7 +524,7 @@ export default function PlaygroundUniqueness() {
     (isSolo ? state.tenants.length < 1 : state.tenants.length < 2);
 
   return (
-    <AppShell costUsd={state.costUsd} runStatus={state.runStatus}>
+    <AppShell costUsd={state.costUsd} runStatus={state.runStatus} activePage="playground" onNavigate={onNavigate}>
       <div className="flex items-end justify-between fade-up" style={{ marginBottom: 24 }}>
         <div>
           <h1 className="page-title">Uniqueness Playground</h1>

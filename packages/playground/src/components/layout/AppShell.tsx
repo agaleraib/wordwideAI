@@ -6,20 +6,23 @@
 import type { ReactNode } from "react";
 import Topbar from "./Topbar";
 import Sidebar from "./Sidebar";
+import type { PageId } from "../../App";
 
 interface Props {
   children: ReactNode;
   costUsd: number | null;
   runStatus: "idle" | "running" | "complete" | "error";
+  activePage: PageId;
+  onNavigate: (page: PageId) => void;
 }
 
-export default function AppShell({ children, costUsd, runStatus }: Props) {
+export default function AppShell({ children, costUsd, runStatus, activePage, onNavigate }: Props) {
   return (
     <div className="app-shell min-h-screen">
       <div style={{ gridColumn: "1 / -1" }}>
         <Topbar costUsd={costUsd} runStatus={runStatus} />
       </div>
-      <Sidebar />
+      <Sidebar activePage={activePage} onNavigate={onNavigate} />
       <main
         style={{
           padding: "var(--sp-6)",

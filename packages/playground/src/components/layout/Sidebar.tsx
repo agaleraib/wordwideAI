@@ -17,6 +17,7 @@ import {
   Radio,
   BarChart3,
   Globe,
+  Users,
   Sun,
   Moon,
   PanelLeftClose,
@@ -24,11 +25,12 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useTheme } from "../../hooks/useTheme";
+import type { PageId } from "../../App";
 
 interface NavItem {
   icon: LucideIcon;
   label: string;
-  active?: boolean;
+  pageId?: PageId;
   disabled?: boolean;
 }
 
@@ -41,7 +43,8 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: "WORKSTREAMS",
     items: [
-      { icon: FlaskConical, label: "Uniqueness Playground", active: true },
+      { icon: FlaskConical, label: "Uniqueness Playground", pageId: "playground" },
+      { icon: Users, label: "Personas", pageId: "personas" },
       { icon: Newspaper, label: "Sources", disabled: true },
       { icon: Settings, label: "Content Pipeline", disabled: true },
       { icon: Radio, label: "Publishers", disabled: true },
@@ -56,7 +59,12 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  activePage: PageId;
+  onNavigate: (page: PageId) => void;
+}
+
+export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { theme, toggle } = useTheme();
 
@@ -70,23 +78,27 @@ export default function Sidebar() {
         {NAV_SECTIONS.map((section) => (
           <div key={section.label} style={{ marginBottom: "var(--sp-6)" }}>
             {!collapsed && <div className="sidebar-label">{section.label}</div>}
-            {section.items.map((item) => (
+            {section.items.map((item) => {
+              const isActive = item.pageId === activePage;
+              return (
               <div
                 key={item.label}
-                className={`sidebar-item${item.active ? " active" : ""}`}
+                className={`sidebar-item${isActive ? " active" : ""}`}
                 style={
                   item.disabled
                     ? { opacity: 0.4, cursor: "default" }
-                    : undefined
+                    : { cursor: "pointer" }
                 }
                 title={collapsed ? item.label : undefined}
+                onClick={item.pageId && !item.disabled ? () => onNavigate(item.pageId!) : undefined}
               >
                 <span className="sidebar-icon">
                   <item.icon size={16} />
                 </span>
                 {!collapsed && <span>{item.label}</span>}
               </div>
-            ))}
+              );
+            })}
           </div>
         ))}
       </div>
