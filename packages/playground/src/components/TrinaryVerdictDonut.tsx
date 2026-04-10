@@ -1,15 +1,10 @@
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import type { SimilarityResult, TrinaryVerdict } from "../lib/types";
+import { useThemeColors } from "../hooks/useThemeColors";
 
 interface Props {
   pairs: SimilarityResult[];
 }
-
-const COLOR: Record<TrinaryVerdict, string> = {
-  distinct_products: "#4a9a6a",
-  reskinned_same_article: "#c9a85b",
-  fabrication_risk: "#c96b6b",
-};
 
 const LABEL: Record<TrinaryVerdict, string> = {
   distinct_products: "Distinct",
@@ -18,6 +13,14 @@ const LABEL: Record<TrinaryVerdict, string> = {
 };
 
 export default function TrinaryVerdictDonut({ pairs }: Props) {
+  const c = useThemeColors();
+
+  const verdictColor: Record<TrinaryVerdict, string> = {
+    distinct_products: c.distinct,
+    reskinned_same_article: c.reskinned,
+    fabrication_risk: c.fabrication,
+  };
+
   const counts: Record<TrinaryVerdict, number> = {
     distinct_products: 0,
     reskinned_same_article: 0,
@@ -35,7 +38,7 @@ export default function TrinaryVerdictDonut({ pairs }: Props) {
     return (
       <div
         className="flex h-[260px] items-center justify-center text-sm"
-        style={{ color: "#8a8a8e" }}
+        style={{ color: c.textMuted }}
       >
         Donut populates after the judge runs.
       </div>
@@ -56,22 +59,22 @@ export default function TrinaryVerdictDonut({ pairs }: Props) {
             nameKey="name"
             innerRadius={60}
             outerRadius={95}
-            stroke="#0a0a0f"
+            stroke={c.bgApp}
             strokeWidth={2}
             startAngle={90}
             endAngle={-270}
             animationDuration={800}
           >
             {data.map((entry) => (
-              <Cell key={entry.verdict} fill={COLOR[entry.verdict]} />
+              <Cell key={entry.verdict} fill={verdictColor[entry.verdict]} />
             ))}
           </Pie>
           <Tooltip
             contentStyle={{
-              background: "#14141a",
-              border: "1px solid rgba(255,255,255,0.15)",
+              background: c.bgRaised,
+              border: `1px solid ${c.borderFocus}`,
               borderRadius: 6,
-              color: "#e8e6e3",
+              color: c.textPrimary,
               fontSize: 12,
             }}
           />
@@ -82,7 +85,7 @@ export default function TrinaryVerdictDonut({ pairs }: Props) {
           style={{
             fontSize: 26,
             fontWeight: 500,
-            color: "#e8e6e3",
+            color: c.textPrimary,
             fontFamily: "var(--font-mono)",
           }}
         >
@@ -91,7 +94,7 @@ export default function TrinaryVerdictDonut({ pairs }: Props) {
         <div
           style={{
             fontSize: 11,
-            color: "#4a4a50",
+            color: c.textMuted,
             textTransform: "uppercase",
             letterSpacing: 1,
             marginTop: 4,

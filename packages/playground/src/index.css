@@ -97,6 +97,14 @@
   --purple: #9b8ac9;
   --purple-subtle: rgba(155, 138, 201, 0.12);
 
+  /* Trinary verdict aliases — used by chart components */
+  --distinct: #4a9a6a;
+  --reskinned: #c9a85b;
+  --fabrication: #c96b6b;
+
+  /* Accent border — used by .btn-accent */
+  --accent-border: rgba(91, 168, 160, 0.2);
+
   --font-serif: "Playfair Display", Georgia, serif;
   --font-sans: "Inter", -apple-system, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", monospace;
@@ -170,6 +178,8 @@
   --distinct: #2d7a4a;
   --reskinned: #a88a3a;
   --fabrication: #b55252;
+
+  --accent-border: rgba(61, 140, 132, 0.2);
 }
 
 /* Light mode scrollbars */
@@ -243,7 +253,7 @@ body,
 .ambient-grid {
   position: fixed;
   top: 0;
-  left: var(--sidebar-width);
+  left: 0;
   right: 0;
   bottom: 0;
   pointer-events: none;
@@ -294,7 +304,7 @@ body,
     box-shadow: 0 0 0 4px var(--accent-glow);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(91, 168, 160, 0.05);
+    box-shadow: 0 0 0 8px var(--accent-subtle);
   }
 }
 
@@ -361,7 +371,7 @@ body,
   padding: var(--sp-2) var(--sp-4);
   background: var(--accent-subtle);
   color: var(--accent);
-  border: 1px solid rgba(91, 168, 160, 0.2);
+  border: 1px solid var(--accent-border);
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
   font-size: 12px;
@@ -466,7 +476,7 @@ select.input {
   color: var(--danger);
 }
 .status-pill.idle {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--border-light);
   color: var(--text-muted);
 }
 .status-pill .dot {
