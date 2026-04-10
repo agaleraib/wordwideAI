@@ -1,35 +1,37 @@
 /**
- * Conformance pass — runs the translation engine's Style & Voice specialist
- * on each cross-tenant output to enforce persona-specific brand voice.
+ * Conformance pass — enforces persona-specific brand voice on each
+ * cross-tenant output to drive structural divergence.
  *
- * This is the bridge between the content pipeline (which generates content
- * from a shared core analysis) and the translation engine's per-tenant
- * quality enforcement. The goal is NOT language quality — it's brand voice
- * divergence. Two outputs from the same identity agent tend to converge
- * structurally; running each through a Style & Voice pass tuned to the
- * broker's specific brand rules pushes them apart organically.
+ * Uses a dedicated brand-voice enforcement prompt (not the translation
+ * engine's Style & Voice specialist) because the content pipeline's job
+ * is different: rewrite a draft article to sound like a specific brand,
+ * not fix a translation against a source document.
  *
  * What runs:
- *   - Style & Voice specialist (formality, sentence structure, brand adherence)
+ *   - Brand voice enforcement (formality, sentence structure, hedging,
+ *     person preference, company background, CTAs, forbidden claims)
  *
  * What does NOT run (by design — see session discussion 2026-04-10):
- *   - Terminology / glossary (per-language concern; English glossary could be
- *     added later but is not the divergence driver)
- *   - Structural specialist (designed for source-vs-translation comparison,
- *     no source document in content generation)
+ *   - Terminology / glossary (per-language concern, not the divergence
+ *     driver at this stage)
+ *   - Structural specialist (source-vs-translation, doesn't apply)
  *   - Linguistic specialist (translation quality only)
  *   - Full 13-metric scoring loop (overkill, mixes concerns)
  */
 
-import type { ContentPersona } from "./types.js";
-import type { IdentityOutput } from "./types.js";
-import type { LanguageProfile, ToneProfile } from "../../profiles/types.js";
-import type { FailedMetricData } from "../../agents/specialists/shared.js";
-import { LanguageProfileSchema } from "../../profiles/types.js";
-import { correctStyle } from "../../agents/specialists/style.js";
+import type { ContentPersona, IdentityOutput } from "./types.js";
+import type { ToneProfile } from "../../profiles/types.js";
+import { callAgentWithUsage } from "../../lib/anthropic.js";
+import { parseSpecialistResponse } from "../../agents/specialists/shared.js";
+import { computeCostUsd } from "./pricing.js";
+import { modelForTier } from "./pricing.js";
+
+// ───────────────────────────────────────────────────────────────────
+// Types
+// ───────────────────────────────────────────────────────────────────
 
 export interface ConformanceResult {
-  /** The rewritten body after the Style & Voice pass. */
+  /** The rewritten body after the brand voice pass. */
   body: string;
   /** The specialist's reasoning for what it changed. */
   reasoning: string;
@@ -37,44 +39,121 @@ export interface ConformanceResult {
   usage: { inputTokens: number; outputTokens: number };
   /** Whether the specialist actually changed anything. */
   changed: boolean;
+  /** Cost of this specialist call. */
+  costUsd: number;
+}
+
+// ───────────────────────────────────────────────────────────────────
+// Dedicated conformance prompt (fix #1 — no more source=translation)
+// ───────────────────────────────────────────────────────────────────
+
+const CONFORMANCE_SYSTEM_PROMPT = `You are a brand voice enforcement specialist for financial content.
+
+You receive a draft article and a target brand profile. Your job is to rewrite the article so it sounds like it was written BY that brand, FOR that brand's audience. You are adjusting voice and weaving in brand context, while preserving all facts.
+
+YOUR SCOPE:
+- Formality level (match the target exactly)
+- Sentence length and rhythm (match the target range)
+- Hedging frequency (strip or add hedging per the target)
+- Person preference (first/second/third as specified)
+- Brand rule compliance (enforce every rule listed)
+- Company references (weave in company background facts naturally where they add credibility or context — do not force every fact into every piece)
+- CTA compliance (include or exclude calls-to-action per the policy)
+- Forbidden claims (remove any that appear)
+
+YOU MUST NOT:
+- Change the factual claims, numbers, percentages, or analytical conclusions
+- Add or remove analytical sections or change the document's topical coverage
+- Change the meaning of any statement
+- Invent financial data, price targets, or probabilities not in the draft
+
+Your output must be the COMPLETE rewritten article.
+After the article, add a line "---REASONING---" followed by a brief list of what you changed and why.`;
+
+function buildConformancePrompt(
+  body: string,
+  persona: ContentPersona,
+  tone: InferredTone,
+): string {
+  const lines: string[] = [];
+
+  lines.push("Rewrite this draft article to match the target brand profile.\n");
+
+  lines.push("DRAFT ARTICLE:");
+  lines.push("---");
+  lines.push(body);
+  lines.push("---\n");
+
+  lines.push("TARGET BRAND PROFILE:");
+  lines.push(`- Brand: ${persona.name}`);
+  lines.push(`- Voice: ${persona.brandVoice}`);
+  lines.push(`- Target audience: ${persona.audienceProfile}`);
+  lines.push(`- Brand positioning: ${persona.brandPositioning}`);
+  lines.push(`- Formality level: ${tone.formalityLevel}/5`);
+  lines.push(`- Target avg sentence length: ${tone.avgSentenceLength} words (±6)`);
+  lines.push(`- Person preference: ${tone.personPreference} person`);
+  lines.push(`- Hedging frequency: ${tone.hedgingFrequency}`);
+  lines.push(`- Regional variant: ${persona.regionalVariant}`);
+
+  if (persona.companyBackground && persona.companyBackground.length > 0) {
+    lines.push(`\nCOMPANY BACKGROUND (weave naturally where relevant):`);
+    for (const fact of persona.companyBackground) {
+      lines.push(`  - ${fact}`);
+    }
+  }
+
+  if (persona.forbiddenClaims.length > 0) {
+    lines.push(`\nFORBIDDEN CLAIMS (must not appear):`);
+    for (const claim of persona.forbiddenClaims) {
+      lines.push(`  - "${claim}"`);
+    }
+  }
+
+  if (persona.ctaPolicy === "always" && persona.ctaLibrary.length > 0) {
+    lines.push(`\nCTA POLICY: Must include at least one call-to-action from:`);
+    for (const cta of persona.ctaLibrary) {
+      lines.push(`  - "${cta.text}"`);
+    }
+  } else if (persona.ctaPolicy === "never") {
+    lines.push(`\nCTA POLICY: Must NOT include any call-to-action or sales language.`);
+  } else if (persona.ctaPolicy === "when-relevant") {
+    lines.push(`\nCTA POLICY: Include a call-to-action only if it fits naturally. Available:`);
+    for (const cta of persona.ctaLibrary) {
+      lines.push(`  - "${cta.text}"`);
+    }
+  }
+
+  lines.push(`\nInstructions:`);
+  lines.push(`1. Rewrite the draft to match formality level ${tone.formalityLevel}/5.`);
+  lines.push(`2. Adjust sentence length toward ~${tone.avgSentenceLength} words average.`);
+  lines.push(`3. ${tone.hedgingFrequency === "low" ? "Strip hedging language — be direct and high-conviction." : tone.hedgingFrequency === "high" ? "Add appropriate hedging — measured, calibrated, acknowledging uncertainty." : "Use moderate hedging where appropriate."}`);
+  lines.push(`4. Use ${tone.personPreference} person throughout.`);
+  lines.push(`5. Preserve ALL factual claims, numbers, and analytical conclusions exactly.`);
+  lines.push(`6. Return the COMPLETE rewritten article.`);
+
+  return lines.join("\n");
+}
+
+// ───────────────────────────────────────────────────────────────────
+// Tone inference (unchanged from before)
+// ───────────────────────────────────────────────────────────────────
+
+interface InferredTone {
+  formalityLevel: number;
+  avgSentenceLength: number;
+  personPreference: "first" | "second" | "third";
+  hedgingFrequency: "low" | "moderate" | "high";
 }
 
 /**
- * Map a ContentPersona's brand voice description into a LanguageProfile
- * that the Style & Voice specialist can consume.
- *
- * The mapping is interpretive — ContentPersona has free-text brand voice
- * while LanguageProfile has structured tone fields. We extract what we
- * can and pass the rest as brandRules.
+ * Infer structured tone fields from the persona's brandVoice and
+ * personalityTags. Conservative defaults.
  */
-export function personaToLanguageProfile(persona: ContentPersona): LanguageProfile {
-  const tone = inferToneFromPersona(persona);
-  const brandRules = buildBrandRules(persona);
-
-  return LanguageProfileSchema.parse({
-    regionalVariant: persona.regionalVariant,
-    tone,
-    brandRules,
-    // No glossary in the content pipeline (English-only, not translation).
-    // No compliancePatterns (jurisdiction-level, not style-level).
-  });
-}
-
-/**
- * Infer structured ToneProfile fields from the persona's free-text
- * brandVoice description. Conservative defaults — better to under-specify
- * and let the specialist work from brandRules than to hallucinate a
- * formality level.
- */
-function inferToneFromPersona(persona: ContentPersona): Partial<ToneProfile> {
-  // Scan both brandVoice and personalityTags for tone markers — tags
-  // like "high-conviction" and "aggressive" are as relevant as brandVoice
-  // text but live in a different field.
+export function inferToneFromPersona(persona: ContentPersona): InferredTone {
   const tagText = persona.personalityTags?.join(" ").toLowerCase() ?? "";
   const bv = persona.brandVoice.toLowerCase() + " " + tagText;
 
-  // Formality: scan for explicit markers
-  let formalityLevel = 3; // neutral default
+  let formalityLevel = 3;
   if (
     bv.includes("institutional") ||
     bv.includes("conservative") ||
@@ -83,10 +162,7 @@ function inferToneFromPersona(persona: ContentPersona): Partial<ToneProfile> {
     bv.includes("authoritative")
   ) {
     formalityLevel = 5;
-  } else if (
-    bv.includes("professional") ||
-    bv.includes("serious")
-  ) {
+  } else if (bv.includes("professional") || bv.includes("serious")) {
     formalityLevel = 4;
   } else if (
     bv.includes("conversational") ||
@@ -103,12 +179,10 @@ function inferToneFromPersona(persona: ContentPersona): Partial<ToneProfile> {
     formalityLevel = 1;
   }
 
-  // Sentence length: energetic/punchy = short, institutional = long
   let avgSentenceLength = 20;
   if (formalityLevel >= 4) avgSentenceLength = 26;
   if (formalityLevel <= 2) avgSentenceLength = 14;
 
-  // Hedging: conservative = high, action-oriented = low
   let hedgingFrequency: "low" | "moderate" | "high" = "moderate";
   if (bv.includes("high-conviction") || bv.includes("direct") || bv.includes("urgent")) {
     hedgingFrequency = "low";
@@ -116,120 +190,54 @@ function inferToneFromPersona(persona: ContentPersona): Partial<ToneProfile> {
     hedgingFrequency = "high";
   }
 
-  // Person preference
   let personPreference: "first" | "second" | "third" = "third";
   if (bv.includes("conversational") || bv.includes("peer")) {
     personPreference = "second";
   }
 
-  return {
-    formalityLevel,
-    description: persona.brandVoice.slice(0, 200),
-    avgSentenceLength,
-    sentenceLengthStddev: 6,
-    personPreference,
-    hedgingFrequency,
-  };
+  return { formalityLevel, avgSentenceLength, personPreference, hedgingFrequency };
 }
 
-/**
- * Build brandRules array from persona fields. These are the constraints
- * the Style & Voice specialist checks against. Each rule is a single
- * actionable directive.
- */
-function buildBrandRules(persona: ContentPersona): string[] {
-  const rules: string[] = [];
+// ───────────────────────────────────────────────────────────────────
+// Runner
+// ───────────────────────────────────────────────────────────────────
 
-  // Brand voice as the primary style directive
-  rules.push(`Brand voice: ${persona.brandVoice}`);
-
-  // Audience framing
-  if (persona.audienceProfile) {
-    rules.push(`Target audience: ${persona.audienceProfile}`);
-  }
-
-  // Brand positioning
-  if (persona.brandPositioning) {
-    rules.push(`Brand positioning: ${persona.brandPositioning}`);
-  }
-
-  // Company background — available facts the writer should weave in
-  if (persona.companyBackground && persona.companyBackground.length > 0) {
-    rules.push(
-      `Company background (weave naturally where relevant, don't force every fact): ${persona.companyBackground.join("; ")}`,
-    );
-  }
-
-  // Forbidden claims
-  for (const claim of persona.forbiddenClaims) {
-    rules.push(`FORBIDDEN: must not use the phrase "${claim}" or equivalent`);
-  }
-
-  // CTA policy
-  if (persona.ctaPolicy === "always" && persona.ctaLibrary.length > 0) {
-    rules.push(
-      `Must include at least one call-to-action from: ${persona.ctaLibrary.map((c) => `"${c.text}"`).join(", ")}`,
-    );
-  } else if (persona.ctaPolicy === "never") {
-    rules.push("Must NOT include any call-to-action or sales language");
-  }
-
-  return rules;
-}
+const CONFORMANCE_MODEL_TIER = "sonnet" as const;
 
 /**
- * Run the Style & Voice specialist on a single output, using the
- * persona's brand rules as the enforcement target.
- *
- * The "source text" parameter (which the specialist normally uses to
- * compare against the original) receives the identity output itself —
- * we don't want structural comparison, we want the specialist to
- * rewrite the output to match the brand voice profile. Passing the
- * same text as both source and translation signals "the content is
- * correct, just adjust the style."
+ * Run the brand voice enforcement specialist on a single output.
  */
 export async function runConformancePass(
   output: IdentityOutput,
   persona: ContentPersona,
 ): Promise<ConformanceResult> {
-  const langProfile = personaToLanguageProfile(persona);
+  const tone = inferToneFromPersona(persona);
+  const prompt = buildConformancePrompt(output.body, persona, tone);
+  const model = modelForTier(CONFORMANCE_MODEL_TIER);
 
-  // The failed metrics signal tells the specialist what to focus on.
-  // We flag brand_voice_adherence as the primary concern since that's
-  // the divergence driver.
-  const failedMetrics: Record<string, FailedMetricData> = {
-    brand_voice_adherence: {
-      score: 70, // synthetic low score to trigger enforcement
-      threshold: 95,
-      details: `Enforce ${persona.name} brand voice: ${persona.brandVoice.slice(0, 150)}`,
-      evidence: [
-        `Target brand: ${persona.name}`,
-        `Voice: ${persona.brandVoice.slice(0, 100)}`,
-      ],
-    },
-  };
-
-  const result = await correctStyle(
-    output.body, // "source" = the generated content itself
-    output.body, // "translation" = same content, to be rewritten for style
-    langProfile,
-    failedMetrics,
+  const result = await callAgentWithUsage(
+    CONFORMANCE_MODEL_TIER,
+    CONFORMANCE_SYSTEM_PROMPT,
+    prompt,
+    8192,
   );
 
-  const changed = result.correctedText.trim() !== output.body.trim();
+  const [correctedText, reasoning] = parseSpecialistResponse(result.text);
+  const changed = correctedText.trim() !== output.body.trim();
+  const costUsd = computeCostUsd(model, result.usage.inputTokens, result.usage.outputTokens);
 
   return {
-    body: result.correctedText,
-    reasoning: result.reasoning,
-    usage: result.usage ?? { inputTokens: 0, outputTokens: 0 },
+    body: correctedText,
+    reasoning,
+    usage: result.usage,
     changed,
+    costUsd,
   };
 }
 
 /**
  * Run conformance on all cross-tenant outputs in parallel.
- * Returns the outputs with their bodies replaced by the specialist's
- * rewritten versions.
+ * Returns the outputs with bodies replaced + total conformance cost.
  */
 export async function runConformancePassAll(
   outputs: IdentityOutput[],
@@ -238,6 +246,7 @@ export async function runConformancePassAll(
 ): Promise<{
   outputs: IdentityOutput[];
   conformanceResults: ConformanceResult[];
+  totalCostUsd: number;
 }> {
   const results = await Promise.all(
     outputs.map(async (output, i) => {
@@ -250,11 +259,13 @@ export async function runConformancePassAll(
   const conformedOutputs = outputs.map((output, i) => ({
     ...output,
     body: results[i]!.body,
-    // Keep original token counts — the conformance pass is a separate cost line
   }));
+
+  const totalCostUsd = results.reduce((sum, r) => sum + r.costUsd, 0);
 
   return {
     outputs: conformedOutputs,
     conformanceResults: results,
+    totalCostUsd,
   };
 }

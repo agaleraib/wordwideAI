@@ -184,6 +184,13 @@ export async function runIdentity(
     userMessage += `\n\n# WORD-COUNT OVERRIDE — HARD CONSTRAINT\n\nTarget word count: ${options.targetWordCount} words. This is a hard limit, not a guideline. It overrides any word count range specified in your system prompt. Allowed band: ±10%.`;
   }
 
+  // Inject company background facts so the writer can reference them
+  // naturally during generation (two shots: here at generation time,
+  // and again in the conformance pass if enabled).
+  if (persona?.companyBackground && persona.companyBackground.length > 0) {
+    userMessage += `\n\n# COMPANY CONTEXT\n\nYou are writing for ${persona.name}. Weave these facts in naturally where they add credibility or context — do not force every fact into the piece:\n${persona.companyBackground.map((f) => `- ${f}`).join("\n")}`;
+  }
+
   if (isClaudeCliEnabled()) {
     const cli = await callClaudeCli({
       model,
@@ -533,20 +540,27 @@ async function runCrossTenantMatrix(
   // the two specialists that drive divergence (Style & Voice) without
   // pulling in the full 13-metric loop.
   let conformedOutputs = outputs;
+  let conformanceCostUsd = 0;
   if (withConformancePass) {
-    const { runConformancePassAll } = await import("./conformance-pass.js");
-    console.log(`[runner] Stage 6 — conformance pass: enforcing brand voice on ${outputs.length} outputs...`);
-    const conformanceResult = await runConformancePassAll(
-      outputs,
-      personas,
-      (index, changed) => {
-        const p = personas[index]!;
-        console.log(`[runner]   ${changed ? "✓" : "○"} ${p.name}: ${changed ? "rewritten for brand voice" : "no changes needed"}`);
-      },
-    );
-    conformedOutputs = conformanceResult.outputs;
-    const changedCount = conformanceResult.conformanceResults.filter((r) => r.changed).length;
-    console.log(`[runner]   Conformance pass complete: ${changedCount}/${outputs.length} outputs rewritten`);
+    try {
+      const { runConformancePassAll } = await import("./conformance-pass.js");
+      console.log(`[runner] Stage 6 — conformance pass: enforcing brand voice on ${outputs.length} outputs...`);
+      const conformanceResult = await runConformancePassAll(
+        outputs,
+        personas,
+        (index, changed) => {
+          const p = personas[index]!;
+          console.log(`[runner]   ${changed ? "✓" : "○"} ${p.name}: ${changed ? "rewritten for brand voice" : "no changes needed"}`);
+        },
+      );
+      conformedOutputs = conformanceResult.outputs;
+      conformanceCostUsd = conformanceResult.totalCostUsd;
+      const changedCount = conformanceResult.conformanceResults.filter((r) => r.changed).length;
+      console.log(`[runner]   Conformance pass complete: ${changedCount}/${outputs.length} outputs rewritten, cost $${conformanceCostUsd.toFixed(4)}`);
+    } catch (err) {
+      console.error(`[runner]   ⚠ Conformance pass failed, using raw outputs:`, err instanceof Error ? err.message : err);
+      // Fall through with original outputs — don't lose the generation work
+    }
   }
 
   // Embed all outputs
@@ -668,6 +682,7 @@ async function runCrossTenantMatrix(
     verdict,
     verdictReasoning,
     judgeFailures: crossTenantJudgeFailures,
+    conformanceCostUsd: conformanceCostUsd > 0 ? conformanceCostUsd : undefined,
   };
 }
 

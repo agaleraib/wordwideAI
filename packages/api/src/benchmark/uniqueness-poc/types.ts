@@ -356,6 +356,8 @@ export interface CrossTenantMatrixResult {
    * computed over a subset — consumers should surface a warning.
    */
   judgeFailures: JudgeFailureRecord[];
+  /** Cost of the optional conformance pass (0 when not enabled). */
+  conformanceCostUsd?: number;
 }
 
 export interface RunResult {
