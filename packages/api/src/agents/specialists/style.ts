@@ -3,12 +3,15 @@
  * and brand voice adherence.
  *
  * Ported from finflow/agents/style_specialist.py.
+ * Migrated from callAgentWithUsage + text parsing to runAgentStructured (tool_use).
+ * Downgraded from Opus to Sonnet — 77% cost reduction with comparable quality.
  */
 
-import { callAgentWithUsage } from "../../lib/anthropic.js";
+import { runAgentStructured } from "../../lib/anthropic.js";
+import type { AgentConfig } from "../../lib/types.js";
 import type { LanguageProfile } from "../../profiles/types.js";
 import type { FailedMetricData, SpecialistResult } from "./shared.js";
-import { buildEvidenceText, parseSpecialistResponse } from "./shared.js";
+import { buildEvidenceText } from "./shared.js";
 
 const SYSTEM_PROMPT = `You are a style and voice correction specialist for financial translations.
 
@@ -26,6 +29,33 @@ YOU MUST NOT:
 
 When rewriting for style, you are adjusting HOW something is said, not WHAT is said.
 Your output must be the COMPLETE corrected translation.`;
+
+const STYLE_CORRECTION_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    correctedText: {
+      type: "string" as const,
+      description:
+        "The COMPLETE corrected translation with only style/voice fixes applied.",
+    },
+    reasoning: {
+      type: "string" as const,
+      description:
+        "Brief list of what you changed and why (formality adjustments, sentence restructuring, brand rule fixes).",
+    },
+  },
+  required: ["correctedText", "reasoning"] as const,
+};
+
+function parseStyleResult(input: Record<string, unknown>): {
+  correctedText: string;
+  reasoning: string;
+} {
+  return {
+    correctedText: String(input.correctedText ?? ""),
+    reasoning: String(input.reasoning ?? ""),
+  };
+}
 
 export async function correctStyle(
   sourceText: string,
@@ -70,11 +100,30 @@ Instructions:
 3. Fix any brand rule violations.
 4. PRESERVE all glossary terms exactly as they appear.
 5. PRESERVE all numbers, formatting, and paragraph structure.
-6. Return the COMPLETE corrected translation.
+6. Return the COMPLETE corrected translation.`;
 
-After the translation, add a line "---REASONING---" followed by a brief list of what you changed and why.`;
+  const config: AgentConfig = {
+    name: "style-specialist",
+    systemPrompt: SYSTEM_PROMPT,
+    model: "sonnet",
+    maxTokens: 8192,
+  };
 
-  const result = await callAgentWithUsage("opus", SYSTEM_PROMPT, prompt, 8192);
-  const [correctedText, reasoning] = parseSpecialistResponse(result.text);
-  return { correctedText, reasoning, usage: result.usage };
+  const { result, usage } = await runAgentStructured(
+    config,
+    prompt,
+    "style_correction",
+    "Submit the style-corrected translation and reasoning.",
+    STYLE_CORRECTION_SCHEMA as unknown as Record<string, unknown>,
+    parseStyleResult,
+  );
+
+  return {
+    correctedText: result.correctedText,
+    reasoning: result.reasoning,
+    usage: {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    },
+  };
 }
