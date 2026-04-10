@@ -67,7 +67,11 @@ export function personaToLanguageProfile(persona: ContentPersona): LanguageProfi
  * formality level.
  */
 function inferToneFromPersona(persona: ContentPersona): Partial<ToneProfile> {
-  const bv = persona.brandVoice.toLowerCase();
+  // Scan both brandVoice and personalityTags for tone markers — tags
+  // like "high-conviction" and "aggressive" are as relevant as brandVoice
+  // text but live in a different field.
+  const tagText = persona.personalityTags?.join(" ").toLowerCase() ?? "";
+  const bv = persona.brandVoice.toLowerCase() + " " + tagText;
 
   // Formality: scan for explicit markers
   let formalityLevel = 3; // neutral default
