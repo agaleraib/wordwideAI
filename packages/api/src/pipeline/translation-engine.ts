@@ -23,6 +23,8 @@ import { scorecardToDict, scorecardSummary } from "../scoring/scorecard.js";
 import type { FailedMetricData, SpecialistResult } from "../agents/specialists/shared.js";
 import { emitEvent } from "./events.js";
 import { enforceGlossary, checkCompliance, applyDeterministicReplacements, applyAlternativesMap } from "./glossary-patcher.js";
+import { isPipelineLoopEnabled } from "../lib/advisor-config.js";
+import { runAdvisorLoop } from "./advisor-loop.js";
 
 // --- Types ---
 
@@ -216,6 +218,7 @@ export async function runTranslationEngine(
 
   // 5. Correction loop
   let previousScorecard: Scorecard | undefined;
+  const usePipelineLoop = isPipelineLoopEnabled();
 
   for (let roundNum = 1; roundNum <= maxRounds; roundNum++) {
     emitEvent(
@@ -224,6 +227,101 @@ export async function runTranslationEngine(
       "starting",
       `Correction round ${roundNum}/${maxRounds}. Failed categories: ${JSON.stringify(scorecard.failedCategories)}`,
     );
+
+    // --- Advisor pipeline loop (feature-flagged) ---
+    if (usePipelineLoop) {
+      const advisorStart = Date.now();
+      try {
+        const advisorResult = await runAdvisorLoop(
+          sourceText,
+          currentText,
+          profile as ClientProfile,
+          language,
+          scorecard,
+          onEvent,
+        );
+        const advisorMs = Date.now() - advisorStart;
+
+        currentText = advisorResult.correctedText;
+
+        // Safety net: deterministic glossary check after advisor session
+        if (glossaryPatchResult.replacements.length > 0) {
+          const postCheck = checkCompliance(sourceText, currentText, langProfile.glossary);
+          if (postCheck.missed.length > 0) {
+            for (const rep of glossaryPatchResult.replacements) {
+              if (!currentText.toLowerCase().includes(rep.replace.toLowerCase())) {
+                const escaped = rep.find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                const regex = new RegExp(escaped, "gi");
+                currentText = currentText.replace(regex, rep.replace);
+              }
+            }
+          }
+        }
+
+        audit.push({
+          stage: "advisor-loop",
+          agent: "AdvisorLoop (Sonnet)",
+          timestamp: now(),
+          durationMs: advisorMs,
+          tokens: {
+            input: advisorResult.usage.sonnetInputTokens + advisorResult.usage.haikuInputTokens,
+            output: advisorResult.usage.sonnetOutputTokens + advisorResult.usage.haikuOutputTokens,
+          },
+          inputHash: hash(sourceText),
+          outputHash: hash(currentText),
+          reasoning: `${advisorResult.reasoning.slice(0, 400)} | turns: ${advisorResult.turnCount}, tools: ${advisorResult.toolCallLog.length}, cache_read: ${advisorResult.usage.sonnetCacheReadTokens}, cache_create: ${advisorResult.usage.sonnetCacheCreationTokens}`,
+        });
+
+        // HITL escalation from advisor remaining issues
+        if (advisorResult.remainingIssues.length > 0) {
+          const critical = advisorResult.remainingIssues.some(
+            (i) => i.toLowerCase().includes("meaning") || i.toLowerCase().includes("preservation"),
+          );
+          if (critical) {
+            emitEvent(onEvent, "hitl", "escalated", `Advisor flagged critical issues: ${advisorResult.remainingIssues.join(", ")}`);
+            const result = buildResult(clientId, language, sourceText, currentText, scorecard, false, roundNum, true, audit);
+            await persist(translationStore, result);
+            return result;
+          }
+        }
+      } catch (err) {
+        console.warn(`[pipeline-loop] Advisor loop failed, falling back to specialist pipeline: ${err}`);
+        // Fall through to the specialist path below
+      }
+
+      // Final authoritative Opus re-score
+      emitEvent(onEvent, "scoring", "re-scoring", `Final re-score (Opus) after round ${roundNum}...`);
+      previousScorecard = scorecard;
+      const reScoringStart = Date.now();
+      scoringResult = await scoreTranslationWithUsage(sourceText, currentText, profile as ClientProfile, language);
+      const reScoringMs = Date.now() - reScoringStart;
+      scorecard = scoringResult.scorecard;
+
+      audit.push({
+        stage: "scoring",
+        agent: "ScoringAgent (Opus)",
+        timestamp: now(),
+        durationMs: reScoringMs,
+        tokens: scoringResult.usage
+          ? { input: scoringResult.usage.inputTokens, output: scoringResult.usage.outputTokens }
+          : undefined,
+        scores: scorecardToDict(scorecard),
+        reasoning: `Round ${roundNum} final re-score. Aggregate: ${scorecard.aggregateScore.toFixed(1)}. Failed: ${JSON.stringify(scorecard.failedMetrics)}`,
+      });
+
+      emitEvent(onEvent, "scoring", "complete", `Round ${roundNum}: ${scorecard.aggregateScore.toFixed(1)}/${scorecard.aggregateThreshold}`);
+
+      if (scorecard.passed) {
+        emitEvent(onEvent, "gate", "passed", `All metrics pass after ${roundNum} correction round(s).`);
+        const result = buildResult(clientId, language, sourceText, currentText, scorecard, true, roundNum, false, audit);
+        await persist(translationStore, result);
+        return result;
+      }
+
+      continue; // next outer-loop round
+    }
+
+    // --- Current specialist pipeline (default) ---
 
     // Arbiter decides
     emitEvent(
