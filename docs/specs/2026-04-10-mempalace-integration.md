@@ -369,6 +369,43 @@ sessions and are queryable before the next iteration.
    --room tester_feedback` → surfaces every tester observation about
    that pattern.
 
+**UI placement:** The feedback form and any future review/management
+pages live in `packages/playground` — not a separate backoffice project.
+The playground is the internal workbench for building, testing, and
+evaluating; `packages/web` is the client-facing product. Two apps, two
+audiences, no need for a third.
+
+As Phase 4 ships and more internal-facing pages accumulate, reorganize
+the sidebar into role-oriented sections:
+
+```
+WORKSTREAMS                        ← build/test
+  Uniqueness Playground
+  Content Pipeline (future)
+
+EVALUATE                           ← testers work here
+  Personas
+  Run History / Inspector (future)
+  Feedback
+
+OPERATIONS                         ← admin/backoffice
+  Fixtures (add/edit news events, future)
+  Cost Dashboard (future)
+  MemPalace Browser (future)
+```
+
+Same app, same deploy, same auth. The sections are sidebar labels —
+zero architectural overhead. Testers find their tools under Evaluate;
+Alex finds admin tools under Operations.
+
+**When to split into a separate project (not now):** two signals would
+trigger extracting `packages/backoffice` from `packages/playground`:
+(1) different auth requirements (role-based access — Bel can see
+Evaluate but not Operations), or (2) different deploy cadence (backoffice
+changes shouldn't force a playground rebuild). Neither signal is present
+today. When one shows up, the sidebar sections tell you exactly which
+pages move.
+
 **Validation:**
 - Submit feedback from comparison.html on the live LXC
 - Query MemPalace from the Mac Studio → feedback appears
