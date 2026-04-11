@@ -1,0 +1,70 @@
+wing: wordwideai
+rooms:
+- name: research
+  description: Files from research/
+  keywords:
+  - research
+  - research
+- name: finflow
+  description: Files from finflow/
+  keywords:
+  - finflow
+  - finflow
+- name: uniqueness_poc_runs
+  description: Files from uniqueness-poc-runs/
+  keywords:
+  - uniqueness_poc_runs
+  - uniqueness-poc-runs
+- name: configuration
+  description: Files from deploy/
+  keywords:
+  - configuration
+  - deploy
+- name: charts
+  description: Files from charts/
+  keywords:
+  - charts
+  - charts
+- name: documentation
+  description: Files from docs/
+  keywords:
+  - documentation
+  - docs
+- name: packages
+  description: Files from packages/
+  keywords:
+  - packages
+  - packages
+- name: mockup
+  description: Files from mockup/
+  keywords:
+  - mockup
+  - mockup
+- name: criteria
+  description: Files from criteria/
+  keywords:
+  - criteria
+  - criteria
+- name: presentation
+  description: Files from presentation/
+  keywords:
+  - presentation
+  - presentation
+- name: reports
+  description: Files from reports/
+  keywords:
+  - reports
+  - reports
+- name: planning
+  description: Files from specs/
+  keywords:
+  - planning
+  - specs
+- name: backend
+  description: Files from api/
+  keywords:
+  - backend
+  - api
+- name: general
+  description: Files that don't fit other rooms
+  keywords: []
