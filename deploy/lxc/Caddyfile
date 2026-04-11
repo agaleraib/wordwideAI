@@ -1,0 +1,94 @@
+{
+    # Global options — use Caddy's internal CA for self-signed certs on LAN
+    auto_https disable_redirects
+    local_certs
+}
+
+# Main site — serve the playground and proxy the api
+#
+# IMPORTANT: do NOT add `uri strip_prefix /poc` inside the `handle /poc/*`
+# block. The FinFlow api mounts its Hono routes *at* `/poc` (see
+# packages/api/src/index.ts → `app.route("/poc", createPocRoutes())`),
+# so stripping the prefix results in the api returning 404 for every
+# dropdown data endpoint, which surfaces in the playground UI as "tags
+# not loading / dropdowns don't open". We hit this once (2026-04-09)
+# during the initial LXC setup when a config generator pattern-matched
+# to the common "strip mount prefix before forwarding" convention.
+10.1.10.225:443 {
+    tls internal
+
+    # ─────────────────────────────────────────────────────────────
+    # BASIC AUTH — DO NOT cp THIS FILE VERBATIM TO THE LXC
+    # ─────────────────────────────────────────────────────────────
+    # The per-tester bcrypt hashes below are placeholders. The running
+    # LXC copy at /etc/caddy/Caddyfile contains the real hashes and is
+    # NOT in sync with this block — that's intentional: the hashes are
+    # secrets and must not be committed to git.
+    #
+    # If you ever need to reconcile this file to the LXC (e.g. after
+    # editing any OTHER block in this Caddyfile), the safe workflow is:
+    #
+    #   ssh playground
+    #   # preserve the real basic_auth block first
+    #   sed -n '/basic_auth \* {/,/^    }/p' /etc/caddy/Caddyfile > /tmp/auth.snippet
+    #   # then apply the repo version
+    #   cp /srv/playground/app/deploy/lxc/Caddyfile /etc/caddy/Caddyfile
+    #   # and merge the real block back in (or edit manually)
+    #   # FINALLY:
+    #   caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+    #   systemctl reload caddy
+    #
+    # Future improvement (not yet wired up): move hashes to env vars via
+    # a caddy.service systemd drop-in loading EnvironmentFile, and use
+    # Caddy's {env.VAR} placeholders here. Requires testing on a throw-
+    # away Caddy instance first to confirm the placeholder expands
+    # cleanly inside `basic_auth` — there are some known edge cases
+    # with `$` characters in bcrypt hashes interacting with other
+    # interpolators. Left as a TODO; see deploy/lxc/README.md §Auth.
+    #
+    # To add a tester today, edit /etc/caddy/Caddyfile ON THE LXC
+    # directly and systemctl reload caddy. Do not add real hashes here.
+    basic_auth * {
+        # alex <bcrypt-hash-lives-only-on-lxc>
+        # bel  <bcrypt-hash-lives-only-on-lxc>
+    }
+
+    # Reverse-proxy the api (Hono) for /poc/* — no strip_prefix, see above.
+    handle /poc/* {
+        reverse_proxy 127.0.0.1:3098 {
+            # SSE-friendly timeouts. The api's idleTimeout is 255s (see
+            # packages/api/src/index.ts) — match it here so Caddy doesn't
+            # close streaming connections while a Stage 1 Opus call is
+            # still generating.
+            flush_interval -1
+            transport http {
+                read_timeout 300s
+                write_timeout 300s
+                dial_timeout 10s
+            }
+        }
+    }
+
+    # Everything else is the built playground static bundle.
+    handle {
+        root * /srv/playground/app/packages/playground/dist
+        try_files {path} /index.html
+        file_server
+        encode gzip
+    }
+
+    # Access logs — useful for debugging auth, routing, and per-tester
+    # activity. Grep by "user_id" to filter by tester.
+    log {
+        output file /var/log/caddy/playground-access.log {
+            roll_size 50mb
+            roll_keep 5
+        }
+        format console
+    }
+}
+
+# Redirect plain http (port 80) to https
+http://10.1.10.225 {
+    redir https://{host}{uri} permanent
+}

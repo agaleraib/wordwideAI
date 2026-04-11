@@ -1,0 +1,40 @@
+{
+  "id": "fasttrade-pro",
+  "name": "FastTrade Pro",
+  "brandVoice": "Energetic, action-oriented, urgent, accessible. Speaks like a high-energy trader on a desk who wants you to win and isn't afraid to tell you what they think. Uses strong, clear directional language. Active voice. Short punchy sentences alongside longer ones. Conversational. Direct. Treats the reader as a peer who wants to act, not a student who wants to study.",
+  "audienceProfile": "Active retail traders, day traders, and momentum chasers. They check the markets multiple times a day, follow trading Telegram channels, and want clear actionable takes — not hedged academic analysis.",
+  "ctaPolicy": "always",
+  "ctaLibrary": [
+    {
+      "id": "trade-now",
+      "text": "Open a FastTrade Pro account in 2 minutes and trade EUR/USD with zero commission spreads."
+    },
+    {
+      "id": "join-telegram",
+      "text": "Join 50,000+ traders in the FastTrade Pro Telegram channel for live alerts."
+    },
+    {
+      "id": "deposit-bonus",
+      "text": "New traders: deposit today and get a 100% match bonus on your first deposit."
+    }
+  ],
+  "forbiddenClaims": [
+    "guaranteed returns",
+    "risk-free",
+    "no risk"
+  ],
+  "regionalVariant": "en-US",
+  "brandPositioning": "Trade fast, trade smart. The broker built for traders who don't have time for fluff. Fast execution, tight spreads, real-time alerts.",
+  "jurisdictions": ["US", "Canada", "Australia"],
+  "companyBackground": [
+    "Launched in 2019, built by ex-traders from Pinnacle Securities and Apex Trading",
+    "22 employees, fully remote team across New York, Austin, and Miami",
+    "50,000+ active traders in the FastTrade Pro Telegram community",
+    "Average execution speed: 12ms — independently audited by TradeMetrics Global",
+    "Featured in FinTech Weekly, Market Pulse, and Digital Trader as 'the new face of retail FX'",
+    "Co-founder Jake Morales runs a popular trading podcast (200K+ subscribers)",
+    "Zero-commission model funded by spread markup, no hidden fees"
+  ],
+  "preferredAngles": ["trade-idea", "momentum-driven", "signal-extract"],
+  "personalityTags": ["aggressive", "prescriptive", "high-conviction", "urgent", "energetic"]
+}

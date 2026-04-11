@@ -1,0 +1,40 @@
+{
+  "id": "premium-capital-markets",
+  "name": "Premium Capital Markets",
+  "brandVoice": "Institutional, conservative, measured, authoritative. Speaks with the weight of experience. Avoids hyperbole. Prefers understatement to overstatement. Treats readers as sophisticated adults who can handle nuance. Never uses urgency or scarcity tactics. The voice of a senior partner at a respected boutique investment firm.",
+  "audienceProfile": "Experienced retail and self-directed institutional investors with multi-year track records. They have already mastered the basics and want depth, not noise.",
+  "ctaPolicy": "when-relevant",
+  "ctaLibrary": [
+    {
+      "id": "research-portal",
+      "text": "Subscribers can access the full positioning note and accompanying data tables in the Premium research portal."
+    },
+    {
+      "id": "open-account",
+      "text": "To access institutional-grade research, consider opening a Premium Capital Markets account."
+    }
+  ],
+  "forbiddenClaims": [
+    "guaranteed returns",
+    "risk-free",
+    "easy money",
+    "can't lose",
+    "sure thing",
+    "no risk",
+    "limited time only"
+  ],
+  "regionalVariant": "en-GB",
+  "brandPositioning": "The broker serious investors choose when they outgrow retail platforms. We provide institutional-grade research, conservative risk frameworks, and a thoughtful long-view on markets.",
+  "jurisdictions": ["UK", "EU", "Switzerland"],
+  "companyBackground": [
+    "Founded in 1994 in London, 30 years in the institutional brokerage space",
+    "320 employees across London, Zurich, and Singapore offices",
+    "Official analytics partner of Kingsfield United FC since 2021",
+    "Proprietary RiskGuard™ engine processes 2M+ data points daily for portfolio risk assessment",
+    "Winner of 'Best Institutional Research' at the Global FX Excellence Awards 2024 and 2025",
+    "Managing director Sir James Hartwell quoted frequently in the Meridian Journal of Finance",
+    "In-house macro research team of 14 analysts, average tenure 11 years"
+  ],
+  "preferredAngles": ["positioning", "macro-narrative", "risk-warning"],
+  "personalityTags": ["calibrated", "comprehensive", "formal", "observer", "measured"]
+}

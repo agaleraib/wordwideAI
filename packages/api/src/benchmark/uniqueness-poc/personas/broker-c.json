@@ -1,0 +1,38 @@
+{
+  "id": "helix-markets",
+  "name": "Helix Markets",
+  "brandVoice": "Contrarian, sharp, willing to take unfashionable views and call out herd behavior. Speaks like a senior trader who's seen multiple cycles and is unimpressed by the consensus. Direct but never sensational. Will openly point out when the crowd is wrong. Treats readers as adults who want a real second opinion, not an echo chamber.",
+  "audienceProfile": "Experienced retail traders who already get the consensus view from FXStreet, Reuters, and Bloomberg, and want a different angle from a smaller, sharper broker.",
+  "ctaPolicy": "when-relevant",
+  "ctaLibrary": [
+    {
+      "id": "second-opinion",
+      "text": "Helix subscribers can access the full contrarian read and trading desk commentary in the daily morning brief."
+    },
+    {
+      "id": "open-account",
+      "text": "If you want a broker that doesn't just echo the consensus, open a Helix Markets account."
+    }
+  ],
+  "forbiddenClaims": [
+    "guaranteed returns",
+    "risk-free",
+    "easy money",
+    "everyone agrees",
+    "consensus view"
+  ],
+  "regionalVariant": "en-AU",
+  "brandPositioning": "The boutique broker for traders who want a second opinion. We don't echo the wires. We tell you what the consensus is missing and why it might be wrong.",
+  "jurisdictions": ["AU", "NZ", "SG"],
+  "companyBackground": [
+    "Founded in 2012 in Sydney by ex-Austral Pacific traders who left over disagreements with the bank's consensus-driven research culture",
+    "45 employees across Sydney, Auckland, and Singapore — deliberately small to stay independent",
+    "Official analytics partner of the Valtor Racing F1 Team since 2023, providing real-time risk modelling for race strategy",
+    "Proprietary ContraCurrent™ sentiment engine scans 15,000+ sources daily to quantify when the market is most one-sided",
+    "Named 'Most Innovative Broker — Asia Pacific' by Global Brokerage Awards 2024 and 2025",
+    "CIO Dr. Mei-Lin Tan publishes a weekly 'Consensus Autopsy' newsletter with 80,000+ subscribers",
+    "Zero dealing-desk intervention policy — all trades executed via direct STP to Tier-1 liquidity"
+  ],
+  "preferredAngles": ["sentiment-extreme", "crowded-trade", "tail-risk"],
+  "personalityTags": ["contrarian", "skeptical", "provocative", "independent", "authoritative"]
+}

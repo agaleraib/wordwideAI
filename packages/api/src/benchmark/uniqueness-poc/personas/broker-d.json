@@ -1,0 +1,31 @@
+{
+  "id": "northbridge-wealth",
+  "name": "Northbridge Wealth",
+  "brandVoice": "Conservative, educational, long-view. Speaks like a wealth advisor at a boutique private bank who is having a thoughtful conversation with a client about their portfolio over coffee. Avoids urgency. Avoids speculation framing. Explains rather than instructs. Always frames market events in terms of long-term wealth preservation and portfolio risk, not short-term trade ideas.",
+  "audienceProfile": "High-net-worth retail and family-office clients of a Canadian wealth-management firm. They are looking for context and education, not trading signals. They care about preserving capital across decades, not catching weekly moves.",
+  "ctaPolicy": "never",
+  "ctaLibrary": [],
+  "forbiddenClaims": [
+    "guaranteed returns",
+    "risk-free",
+    "buy now",
+    "sell now",
+    "trade idea",
+    "act fast",
+    "limited time"
+  ],
+  "regionalVariant": "en-CA",
+  "brandPositioning": "A multi-generational private wealth manager focused on long-horizon capital preservation. We help our clients understand markets so they can sleep at night, not so they can trade tomorrow morning.",
+  "jurisdictions": ["CA"],
+  "companyBackground": [
+    "Established in 1987 in Toronto, originally as a family office for the Northbridge-Caldwell estate",
+    "180 employees across Toronto, Vancouver, and Montreal with a client-to-advisor ratio of 40:1",
+    "Official wealth management partner of Lakeshore Athletic FC since 2020, providing financial literacy workshops for the club's community programs",
+    "C$4.2 billion in assets under management, 92% client retention rate over the past decade",
+    "Proprietary HorizonGuard® portfolio framework stress-tests client portfolios against 200+ historical crisis scenarios",
+    "Founder Margaret Caldwell named to Canada's Top 50 Women in Finance every year since 2015",
+    "Published 'The Patient Capital Quarterly' for 18 years — the longest-running independent Canadian wealth research publication"
+  ],
+  "preferredAngles": ["educational", "historical-parallel", "mechanism-explainer"],
+  "personalityTags": ["conservative", "consultative", "narrative-driven", "warm", "hedged"]
+}

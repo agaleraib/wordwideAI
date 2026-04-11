@@ -14,14 +14,16 @@ bun run dev                       # Vite dev server
 - **Runtime/API:** Bun + Hono + Zod (strict TypeScript, no `any`)
 - **LLM:** Anthropic Claude via `@anthropic-ai/sdk`, structured output via `tool_use` (no JSON-in-text parsing)
 - **Web:** React 19 + Vite 8 + Tailwind v4 + framer-motion + react-router 7
+- **Playground:** React 19 + Vite 6 + Tailwind v4 + Recharts + Radix UI + lucide-react (icons). Light/dark theme via `data-theme="light"` on `<html>`, CSS variable swap in `index.css`.
 - **Storage:** Repository pattern over interfaces in `lib/types.ts`; in-memory impls today (`InMemoryProfileStore`, `InMemoryTranslationStore`). Real DB deferred (Convex vs Supabase TBD).
 - **Document ingest:** `mammoth` for `.docx`
 
 ## Monorepo Layout
 ```
 packages/
-  api/    @finflow/api    — translation engine + benchmark suite
-  web/    finflow-web     — React UI (login, dashboard, pipeline monitor)
+  api/        @finflow/api    — translation engine + benchmark suite
+  playground/ finflow-playground — uniqueness PoC playground (Vite + React)
+  web/        finflow-web     — React UI (login, dashboard, pipeline monitor)
 finflow/                  — legacy Python prototype (reference only, partially deleted)
 docs/                     — architecture, specs, metrics reference
 ```
@@ -36,6 +38,9 @@ See `docs/architecture.md` for the full architecture description.
 - `GET /health`
 
 ## Translation Engine
+
+**Conceptually a *client-conformance engine* that optionally translates.** Of the 13 metrics it enforces, 12 apply to any content regardless of language (glossary, brand voice, formality, regional variant, fluency, meaning preservation, etc.). When `sourceLanguage === targetLanguage`, the `TranslationAgent` step is a pass-through and the rest of the pipeline still runs to enforce the client's editorial standard. The function name and file path stay as-is for now to minimize churn — the reframe is conceptual. See `docs/specs/2026-04-07-content-pipeline.md` §5.9 and `docs/architecture.md` theme #9.
+
 Multi-agent quality pipeline (`packages/api/src/pipeline/translation-engine.ts`):
 ```
 load profile → translate (Opus) → score (13 metrics)

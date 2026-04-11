@@ -30,6 +30,10 @@ packages/api/approach3-*/
 packages/api/benchmark-validation/
 packages/api/cost-estimation/
 
+# Uniqueness PoC harness output (large, generated, never tracked)
+uniqueness-poc-runs/
+packages/api/uniqueness-poc-state/
+
 # Local databases / caches
 finflow/data/translation_engine.db
 finflow/data/cache/*.csv
@@ -40,3 +44,6 @@ finflow/data/cache/*.csv
 .vscode/
 .idea/
 *.swp
+
+# Claude harness session state
+.harness-state/

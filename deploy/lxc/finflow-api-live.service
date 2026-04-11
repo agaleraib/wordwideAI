@@ -1,0 +1,42 @@
+[Unit]
+Description=FinFlow API (live/tester environment)
+Documentation=https://github.com/agaleraib/finflow-deck
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=playground
+Group=playground
+WorkingDirectory=/srv/playground/app/packages/api
+EnvironmentFile=/srv/playground/app/.env.live
+
+# Bun lives in the playground user's home, not on PATH by default for systemd
+ExecStart=/home/playground/.bun/bin/bun run src/index.ts
+
+# Restart policy — keep the service alive through transient crashes, but back off
+# hard on fast-fail loops so we don't spam Anthropic if something is fundamentally broken
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Logs go to journald — tail with `journalctl -u finflow-api-live -f`
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=finflow-api-live
+
+# Hardening — the service only needs to read its code and write to the runs dir
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/srv/playground/runs
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
