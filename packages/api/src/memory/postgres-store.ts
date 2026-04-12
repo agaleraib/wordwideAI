@@ -120,10 +120,7 @@ export class PostgresEditorialMemoryStore implements EditorialMemoryStore {
     queryHints?: string[];
     maxTokens?: number;
   }): Promise<EditorialMemoryContext> {
-    const t0 = Date.now();
-    console.log(`[pg-store] getContext(${args.tenantId}, ${args.topicId}) — start`);
     let activeFacts = await this.listActiveFacts(args.tenantId, args.topicId);
-    console.log(`[pg-store] getContext(${args.tenantId}, ${args.topicId}) — ${activeFacts.length} active facts (${Date.now() - t0}ms)`);
     let usedVectorSearch = false;
 
     // Vector search: if we have embeddings and query hints, use pgvector <=>
@@ -183,16 +180,12 @@ export class PostgresEditorialMemoryStore implements EditorialMemoryStore {
     // Run contradiction detection (once per tenant+topic per session)
     const detectionKey = ttKey(args.tenantId, args.topicId);
     if (!this.contradictionDetectionRan.has(detectionKey)) {
-      console.log(`[pg-store] getContext(${args.tenantId}) — running contradiction detection (${Date.now() - t0}ms)`);
       await this.detectContradictions({
         tenantId: args.tenantId,
         topicId: args.topicId,
         coreAnalysis: args.coreAnalysis,
       });
       this.contradictionDetectionRan.add(detectionKey);
-      console.log(`[pg-store] getContext(${args.tenantId}) — contradiction detection done (${Date.now() - t0}ms)`);
-    } else {
-      console.log(`[pg-store] getContext(${args.tenantId}) — contradiction detection skipped (already ran) (${Date.now() - t0}ms)`);
     }
 
     // Get all pending contradictions
@@ -200,7 +193,6 @@ export class PostgresEditorialMemoryStore implements EditorialMemoryStore {
       args.tenantId,
       args.topicId,
     );
-    console.log(`[pg-store] getContext(${args.tenantId}) — ${pendingContradictions.length} pending contradictions, assembling context (${Date.now() - t0}ms)`);
 
     return assembleEditorialContext({
       tenantId: args.tenantId,
@@ -378,18 +370,11 @@ export class PostgresEditorialMemoryStore implements EditorialMemoryStore {
     topicId: string;
     coreAnalysis: string;
   }): Promise<EditorialContradiction[]> {
-    const t0 = Date.now();
     const activeFacts = await this.listActiveFacts(args.tenantId, args.topicId);
-    const checkable = activeFacts.filter(
-      (f) => f.factType === "position" || f.factType === "level",
-    );
-    console.log(`[pg-store] detectContradictions(${args.tenantId}) — ${activeFacts.length} active facts, ${checkable.length} checkable (${Date.now() - t0}ms)`);
-    console.log(`[pg-store] detectContradictions(${args.tenantId}) — calling Haiku...`);
     const detection = await detectContradictionsLLM(
       activeFacts,
       args.coreAnalysis,
     );
-    console.log(`[pg-store] detectContradictions(${args.tenantId}) — Haiku returned ${detection.contradictions.length} contradictions (${Date.now() - t0}ms)`);
 
     const factIdSet = new Set(activeFacts.map((f) => f.id));
 
