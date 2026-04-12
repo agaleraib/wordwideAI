@@ -1,7 +1,7 @@
 # FinFlow Content Uniqueness Gate
 
 **Date:** 2026-04-07
-**Status:** Draft (decision spec — no code yet)
+**Status:** Design (two-axis judge: fidelity × presentation)
 **Branch:** `workstream-b-sources-spec`
 **Owners:** Albert Galera (decisions), Claude (drafting)
 **Companion specs:**

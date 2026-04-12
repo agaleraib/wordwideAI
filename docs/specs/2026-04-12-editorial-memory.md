@@ -1,7 +1,7 @@
 # Editorial Memory System — Native Temporal Knowledge Graph for FinFlow Content Pipeline
 
 **Date:** 2026-04-12
-**Status:** Draft (decision spec)
+**Status:** Phase 1+2 Complete (draft updated for Phase 2, Phase 3 pending)
 **Branch:** TBD (new branch from `master`)
 **Owners:** Albert Galera (decisions), Claude (drafting + implementation)
 **Supersedes:** `2026-04-10-mempalace-integration.md` (philosophy adopted, Python dependency rejected)
@@ -745,35 +745,35 @@ Build the core `EditorialMemoryStore` with extraction and retrieval, without con
 #### Editorial Memory Store (in-memory implementation)
 
 **Acceptance criteria:**
-- [ ] `InMemoryEditorialMemoryStore` implements the `EditorialMemoryStore` interface
-- [ ] `recordArticle({ tenantId: "premium", topicId: "eurusd", ... })` extracts 3-10 facts via Haiku `tool_use` and returns them with correct `factType`, `content`, `confidence` fields
-- [ ] `getContext({ tenantId: "premium", topicId: "eurusd", coreAnalysis: "..." })` returns an `EditorialMemoryContext` with `renderedBlock` containing the prior coverage section, and `tokenCount <= 600`
-- [ ] `getContext` for a tenant with no prior memory returns `{ renderedBlock: "", tokenCount: 0, includedFacts: [], contradictions: [], usedVectorSearch: false }`
-- [ ] `getHouseView("premium", "eurusd")` returns the most recent active `position` fact, or null if none exists
-- [ ] `clearMemory("premium", "eurusd")` sets `valid_to = now` on all facts for that pair and deletes pending contradictions
-- [ ] `invalidateFact(factId, supersededById)` sets `valid_to = now` and `superseded_by = supersededById` on the target fact
-- [ ] Error case: Haiku extraction call fails -> `recordArticle` throws with descriptive error including the piece_id
-- [ ] Edge case: article with no discernible position (e.g., a pure data dump) -> extraction returns `directionalView: "neutral"` with `confidence: "low"` and minimal facts
-- [ ] Edge case: article references levels from a prior piece but reverses the position -> extracted `position` fact has the new direction, old position fact's `valid_to` is not set (that's contradiction detection's job, Phase 2)
+- [x] `InMemoryEditorialMemoryStore` implements the `EditorialMemoryStore` interface (5797f96)
+- [x] `recordArticle({ tenantId: "premium", topicId: "eurusd", ... })` extracts 3-10 facts via Haiku `tool_use` and returns them with correct `factType`, `content`, `confidence` fields (5797f96)
+- [x] `getContext({ tenantId: "premium", topicId: "eurusd", coreAnalysis: "..." })` returns an `EditorialMemoryContext` with `renderedBlock` containing the prior coverage section, and `tokenCount <= 600` (5797f96)
+- [x] `getContext` for a tenant with no prior memory returns `{ renderedBlock: "", tokenCount: 0, includedFacts: [], contradictions: [], usedVectorSearch: false }` (5797f96)
+- [x] `getHouseView("premium", "eurusd")` returns the most recent active `position` fact, or null if none exists (5797f96)
+- [x] `clearMemory("premium", "eurusd")` sets `valid_to = now` on all facts for that pair and deletes pending contradictions (75aaa8b)
+- [x] `invalidateFact(factId, supersededById)` sets `valid_to = now` and `superseded_by = supersededById` on the target fact (5797f96)
+- [x] Error case: Haiku extraction call fails -> `recordArticle` throws with descriptive error including the piece_id (5797f96)
+- [x] Edge case: article with no discernible position (e.g., a pure data dump) -> extraction returns `directionalView: "neutral"` with `confidence: "low"` and minimal facts (0f69454)
+- [x] Edge case: article references levels from a prior piece but reverses the position -> extracted `position` fact has the new direction, old position fact's `valid_to` is not set (that's contradiction detection's job, Phase 2) (0f69454)
 
 #### Embedding Service
 
 **Acceptance criteria:**
-- [ ] `OpenAIEmbeddingService.embed("bullish EUR/USD thesis")` returns a `number[]` of length 1536 when `OPENAI_API_KEY` is set
-- [ ] `OpenAIEmbeddingService.embed(...)` returns `null` when the API is unreachable (no throw, no hang, timeout < 5000ms)
-- [ ] `embedBatch(["text1", "text2"])` returns an array of same length as input
-- [ ] In-memory store: when embeddings are available, `getContext` with `queryHints` returns facts ranked by cosine similarity to the query (1536d vectors). When embeddings are null, facts are returned by `validFrom DESC`
-- [ ] Two different `queryHints` for the same `(tenantId, topicId)` with 10+ stored facts return at least one different fact in their top-3 results (the divergence mechanism)
+- [x] `OpenAIEmbeddingService.embed("bullish EUR/USD thesis")` returns a `number[]` of length 1536 when `OPENAI_API_KEY` is set (5797f96)
+- [x] `OpenAIEmbeddingService.embed(...)` returns `null` when the API is unreachable (no throw, no hang, timeout < 5000ms) (5797f96)
+- [x] `embedBatch(["text1", "text2"])` returns an array of same length as input (5797f96)
+- [x] In-memory store: when embeddings are available, `getContext` with `queryHints` returns facts ranked by cosine similarity to the query (1536d vectors). When embeddings are null, facts are returned by `validFrom DESC` (5797f96)
+- [x] Two different `queryHints` for the same `(tenantId, topicId)` with 10+ stored facts return at least one different fact in their top-3 results (the divergence mechanism) (5797f96)
 
 #### PoC Harness Integration
 
 **Acceptance criteria:**
-- [ ] `runner.ts` accepts an optional `editorialMemory: EditorialMemoryStore` in its options
-- [ ] When `editorialMemory` is provided, Stage 6 and Stage 7 identity calls receive the `EditorialMemoryContext.renderedBlock` in the user message (same injection point as `renderNarrativeStateDirective`)
-- [ ] When `editorialMemory` is provided, post-processing after identity calls (Stage 6 + Stage 7) calls `recordArticle` for each completed piece
-- [ ] When `editorialMemory` is not provided, behavior is identical to the current codebase (no regression)
-- [ ] The existing `NarrativeStateStore` and `renderNarrativeStateDirective` continue to work unchanged (they are not modified or deleted)
-- [ ] `bun run typecheck` passes with zero errors
+- [x] `runner.ts` accepts an optional `editorialMemory: EditorialMemoryStore` in its options (0f69454)
+- [x] When `editorialMemory` is provided, Stage 6 and Stage 7 identity calls receive the `EditorialMemoryContext.renderedBlock` in the user message (same injection point as `renderNarrativeStateDirective`) (0f69454)
+- [x] When `editorialMemory` is provided, post-processing after identity calls (Stage 6 + Stage 7) calls `recordArticle` for each completed piece (0f69454)
+- [x] When `editorialMemory` is not provided, behavior is identical to the current codebase (no regression) (0f69454)
+- [x] The existing `NarrativeStateStore` and `renderNarrativeStateDirective` continue to work unchanged (they are not modified or deleted) (0f69454)
+- [x] `bun run typecheck` passes with zero errors (0f69454)
 
 ### Phase 2: Contradiction Detection
 
@@ -782,17 +782,17 @@ Add the contradiction detector and wire it into `getContext`.
 #### Contradiction Detector
 
 **Acceptance criteria:**
-- [ ] `detectContradictions({ tenantId, topicId, coreAnalysis })` calls Haiku with prior active position/level facts and returns 0+ `EditorialContradiction` objects
-- [ ] Detected contradictions are stored with `resolution = 'pending'`
-- [ ] Each contradiction has a valid `tensionType` from the enum and a non-empty `explanation`
-- [ ] `resolveContradiction(id, pieceId)` sets `resolution = 'acknowledged'` and `resolved_at = now`
-- [ ] `getContext` includes pending contradictions in the rendered block under "Contradiction alerts"
-- [ ] The rendered block includes explicit guidelines when contradictions exist: "Acknowledge the shift — do not silently change positions"
-- [ ] Error case: Haiku contradiction call fails -> `detectContradictions` returns empty array (no crash), logs warning
-- [ ] Edge case: no active position facts exist -> `detectContradictions` returns empty array without calling Haiku (saves cost)
-- [ ] Edge case: prior position is reinforced (not contradicted) -> returns empty contradictions array, and `getContext` includes "Your thesis has been validated" language in the rendered block
-- [ ] After `recordArticle` runs, any pending contradictions for that `(tenantId, topicId)` are checked against the new article text for resolution signals (heuristic: presence of phrases like "our prior view", "we previously", "as we noted")
-- [ ] Cost per contradiction detection call: < $0.005 (Haiku, ~200 input tokens of facts + ~300 tokens of core analysis)
+- [x] `detectContradictions({ tenantId, topicId, coreAnalysis })` calls Haiku with prior active position/level facts and returns 0+ `EditorialContradiction` objects (75aaa8b)
+- [x] Detected contradictions are stored with `resolution = 'pending'` (75aaa8b)
+- [x] Each contradiction has a valid `tensionType` from the enum and a non-empty `explanation` (75aaa8b)
+- [x] `resolveContradiction(id, pieceId)` sets `resolution = 'acknowledged'` and `resolved_at = now` (75aaa8b)
+- [x] `getContext` includes pending contradictions in the rendered block under "Contradiction alerts" (75aaa8b)
+- [x] The rendered block includes explicit guidelines when contradictions exist: "Acknowledge the shift — do not silently change positions" (75aaa8b)
+- [x] Error case: Haiku contradiction call fails -> `detectContradictions` returns empty array (no crash), logs warning (75aaa8b)
+- [x] Edge case: no active position facts exist -> `detectContradictions` returns empty array without calling Haiku (saves cost) (75aaa8b)
+- [x] Edge case: prior position is reinforced (not contradicted) -> returns empty contradictions array, and `getContext` includes "Your thesis has been validated" language in the rendered block (75aaa8b)
+- [x] After `recordArticle` runs, any pending contradictions for that `(tenantId, topicId)` are checked against the new article text for resolution signals (heuristic: presence of phrases like "our prior view", "we previously", "as we noted") (75aaa8b)
+- [x] Cost per contradiction detection call: < $0.005 (Haiku, ~200 input tokens of facts + ~300 tokens of core analysis) (75aaa8b)
 
 ### Phase 3: Postgres Implementation + Production Wiring
 

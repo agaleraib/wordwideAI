@@ -1,7 +1,7 @@
 # `@wfx/publishers` — Universal Output Publishing Package
 
 **Date:** 2026-04-07
-**Status:** Draft (spec only — no code yet)
+**Status:** Planned (Workstream D — first adapter scoping waits on C reaching first-tenant-shipping)
 **Branch:** `workstream-b-sources-spec`
 **Owners:** Albert Galera (architecture), Claude (drafting)
 **Companion specs:**

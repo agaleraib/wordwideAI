@@ -1,7 +1,7 @@
 # FinFlow Content Pipeline (Workstream C)
 
 **Date:** 2026-04-07
-**Status:** Draft (decision spec — no code yet)
+**Status:** Active (current focus — advisor loop validation + editorial memory system)
 **Branch:** `workstream-b-sources-spec`
 **Owners:** Albert Galera (decisions), Claude (drafting)
 **Companion specs:**

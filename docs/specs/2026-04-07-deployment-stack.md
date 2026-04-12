@@ -1,7 +1,7 @@
 # FinFlow Deployment Stack & LLM Provider Abstraction
 
 **Date:** 2026-04-07
-**Status:** Draft (decision spec — no code yet)
+**Status:** Foundation (locked stack: Ubuntu/Caddy/Bun/Postgres+pgvector/Drizzle/Vercel AI SDK)
 **Branch:** `workstream-b-sources-spec`
 **Owners:** Albert Galera (decisions), Claude (drafting)
 **Supersedes:** ad-hoc stack notes in `CLAUDE.md` and `docs/architecture.md`

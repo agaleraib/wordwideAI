@@ -1,7 +1,7 @@
 # MemPalace × FinFlow Integration Plan
 
 **Date:** 2026-04-10
-**Status:** Draft — not yet started
+**Status:** Superseded — Philosophy adopted by Editorial Memory System (2026-04-12-editorial-memory.md), Python dependency rejected
 **Branch:** `workstream-b-mempalace` (worktree, branched from `workstream-b-playground`)
 **Owners:** Albert Galera (decisions), Claude (drafting + implementation)
 **Dependency:** [MemPalace](https://github.com/milla-jovovich/mempalace) — local memory system with ChromaDB + temporal knowledge graph + MCP tools

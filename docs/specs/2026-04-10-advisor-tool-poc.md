@@ -1,5 +1,8 @@
 # Advisor Tool PoC — Downgrade Specialists from Opus to Sonnet+Opus Advisor
 
+**Date:** 2026-04-10
+**Status:** Active (design + implementation in packages/api/src/pipeline/)
+
 ## Overview
 
 Specialists currently run on Opus, which is the most expensive model tier. The Anthropic **Advisor Tool** (beta: `advisor-tool-2026-03-01`) lets a cheaper **executor** model (Sonnet) consult a more capable **advisor** model (Opus) mid-generation within a single API call. The advisor sees the full transcript, produces a short plan (~400-700 tokens), and the executor continues — all server-side, no extra round-trips.

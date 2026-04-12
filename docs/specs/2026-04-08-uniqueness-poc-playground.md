@@ -1,7 +1,7 @@
 # Uniqueness PoC Playground — Interactive GUI for Tag/Persona Iteration
 
 **Date:** 2026-04-08
-**Status:** Draft (decision spec — no code yet)
+**Status:** Stabilizing (architecture in target zone after 2026-04-08 revision)
 **Branch:** `workstream-b-sources-spec`
 **Owners:** Albert Galera (decisions), Claude (drafting)
 

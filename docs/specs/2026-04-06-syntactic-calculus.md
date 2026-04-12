@@ -1,7 +1,7 @@
 # Syntactic Calculus Metric
 
 **Date:** 2026-04-06
-**Status:** Draft
+**Status:** Pending (design complete, implementation queued)
 **Branch:** feat/translation-engine
 
 ## Problem

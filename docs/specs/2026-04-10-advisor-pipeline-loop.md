@@ -1,5 +1,7 @@
 # Advisor Pipeline Loop — Replace TypeScript-Orchestrated Specialist Loop with Sonnet Agentic Loop
 
+**Status:** Implemented (default-on in master, commit a44fdca)
+
 ## Overview
 
 The current translation pipeline orchestrates corrections via TypeScript: the quality arbiter (Haiku) picks which of 4 specialists to run, each specialist (Sonnet) runs sequentially, a glossary guard re-applies terms after each specialist, then Opus re-scores all 7 LLM-judge metrics. This works, but it is structurally expensive: each specialist receives the full context (source + translation + profile) independently, and re-scoring uses Opus for what is essentially a progress check.

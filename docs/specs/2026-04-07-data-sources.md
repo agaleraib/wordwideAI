@@ -1,7 +1,7 @@
 # `@wfx/ingest` — Universal Data Ingest Package
 
 **Date:** 2026-04-07
-**Status:** Draft (spec only — no code yet)
+**Status:** Paused (Workstream B — resume by scaffolding packages/sources/ once C unblocks)
 **Branch:** `workstream-b-sources-spec`
 **Owners:** Albert Galera (architecture), Claude (drafting)
 **SB tracking:** #100 (this spec) → #102–#117 (implementation)

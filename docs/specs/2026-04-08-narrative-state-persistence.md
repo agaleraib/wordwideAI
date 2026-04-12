@@ -1,7 +1,7 @@
 # Narrative State Persistence — Between-Runs Memory for the Uniqueness PoC
 
 **Date:** 2026-04-08
-**Status:** Draft (decision spec — no code yet)
+**Status:** Implemented — coexists with editorial memory system during transition
 **Branch:** `workstream-b-sources-spec`
 **Owners:** Albert Galera (decisions), Claude (drafting)
 
