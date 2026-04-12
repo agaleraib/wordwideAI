@@ -36,6 +36,10 @@ export interface AssemblerInput {
   contradictions: EditorialContradiction[];
   maxTokens?: number;
   usedVectorSearch: boolean;
+  /** Whether contradiction detection has been run for this context.
+   *  When false, reinforcement language is suppressed (can't confirm
+   *  reinforcement without having checked for contradictions). */
+  contradictionDetectionRan?: boolean;
 }
 
 /**
@@ -77,7 +81,7 @@ export function assembleEditorialContext(
     );
   }
 
-  // Contradiction alerts
+  // Contradiction alerts or reinforcement signal
   const pending = input.contradictions.filter(
     (c) => c.resolution === "pending",
   );
@@ -86,6 +90,16 @@ export function assembleEditorialContext(
     for (const c of pending) {
       sections.push(`- ${c.explanation}`);
     }
+  } else if (
+    latestPosition &&
+    input.recentPieces.length > 0 &&
+    input.contradictionDetectionRan === true
+  ) {
+    // Detection ran and found no contradictions — prior position is reinforced
+    sections.push(
+      `### What happened since your last piece`,
+      `Your thesis has been validated by new market evidence. Lean in and say so explicitly.`,
+    );
   }
 
   // Prior coverage (most recent first, max 3)
@@ -125,6 +139,14 @@ export function assembleEditorialContext(
   if (pending.length > 0) {
     guidelines.push(
       "Acknowledge the shift — do not silently change positions",
+    );
+  } else if (
+    latestPosition &&
+    input.recentPieces.length > 0 &&
+    input.contradictionDetectionRan === true
+  ) {
+    guidelines.push(
+      "Lean in and say so explicitly — your prior view has been validated",
     );
   }
 

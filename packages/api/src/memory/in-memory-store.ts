@@ -19,6 +19,10 @@ import type { EditorialMemoryStore } from "./store.js";
 import type { EmbeddingService } from "./embeddings.js";
 import { extractEditorialFacts } from "./fact-extractor.js";
 import { assembleEditorialContext } from "./context-assembler.js";
+import {
+  detectContradictions as detectContradictionsLLM,
+  containsAcknowledgmentLanguage,
+} from "./contradiction-detector.js";
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -49,6 +53,9 @@ export class InMemoryEditorialMemoryStore implements EditorialMemoryStore {
   private contradictions: Map<string, EditorialContradiction> = new Map();
   private pieceLogs: Map<string, EditorialPieceLog> = new Map();
   private readonly embeddings: EmbeddingService | null;
+  /** Tracks which (tenant::topic) pairs have already had contradiction detection
+   *  run in this session, to avoid duplicate Haiku calls from getContext. */
+  private contradictionDetectionRan: Set<string> = new Set();
 
   constructor(opts?: { embeddings?: EmbeddingService }) {
     this.embeddings = opts?.embeddings ?? null;
@@ -100,7 +107,19 @@ export class InMemoryEditorialMemoryStore implements EditorialMemoryStore {
     // Get recent piece logs
     const recentPieces = this.getPieceLogs(args.tenantId, args.topicId);
 
-    // Get pending contradictions
+    // Run contradiction detection against the new core analysis (once per
+    // tenant+topic per session — dedup avoids duplicate Haiku calls on retries).
+    const detectionKey = ttKey(args.tenantId, args.topicId);
+    if (!this.contradictionDetectionRan.has(detectionKey)) {
+      await this.detectContradictions({
+        tenantId: args.tenantId,
+        topicId: args.topicId,
+        coreAnalysis: args.coreAnalysis,
+      });
+      this.contradictionDetectionRan.add(detectionKey);
+    }
+
+    // Get all pending contradictions (including any just detected)
     const pendingContradictions = this.getPendingContradictions(
       args.tenantId,
       args.topicId,
@@ -114,6 +133,7 @@ export class InMemoryEditorialMemoryStore implements EditorialMemoryStore {
       contradictions: pendingContradictions,
       maxTokens: args.maxTokens,
       usedVectorSearch,
+      contradictionDetectionRan: this.contradictionDetectionRan.has(detectionKey),
     });
   }
 
@@ -180,6 +200,43 @@ export class InMemoryEditorialMemoryStore implements EditorialMemoryStore {
     };
     this.pieceLogs.set(pieceLog.pieceId, pieceLog);
 
+    // Auto-resolve pending contradictions if the article acknowledges
+    // prior position shifts. Only resolve contradictions where the article
+    // contains acknowledgment language AND references the contradiction's
+    // subject (via the prior fact's content or the contradiction explanation).
+    const pendingContradictions = this.getPendingContradictions(
+      args.tenantId,
+      args.topicId,
+    );
+    if (
+      pendingContradictions.length > 0 &&
+      containsAcknowledgmentLanguage(args.articleBody)
+    ) {
+      const bodyLower = args.articleBody.toLowerCase();
+      let resolved = 0;
+      for (const c of pendingContradictions) {
+        // Check if the article references this specific contradiction's
+        // subject matter (prior fact content or key terms from the explanation)
+        const priorFact = this.facts.get(c.priorFactId);
+        const priorKeyTerms = priorFact
+          ? priorFact.content.toLowerCase().split(/\s+/).filter((w) => w.length > 4)
+          : [];
+        const explanationTerms = c.explanation.toLowerCase().split(/\s+/).filter((w) => w.length > 4);
+        const allTerms = [...priorKeyTerms, ...explanationTerms];
+
+        // Require at least 2 key terms from the contradiction to appear
+        // in the article body to consider it addressed
+        const termHits = allTerms.filter((t) => bodyLower.includes(t)).length;
+        if (termHits >= 2) {
+          c.resolution = "acknowledged";
+          c.resolvedInPieceId = args.pieceId;
+          c.resolvedAt = new Date();
+          resolved++;
+        }
+      }
+      pieceLog.contradictionsSurfaced = resolved;
+    }
+
     return {
       facts: editorialFacts,
       pieceLog,
@@ -187,13 +244,46 @@ export class InMemoryEditorialMemoryStore implements EditorialMemoryStore {
     };
   }
 
-  async detectContradictions(_args: {
+  async detectContradictions(args: {
     tenantId: string;
     topicId: string;
     coreAnalysis: string;
   }): Promise<EditorialContradiction[]> {
-    // Phase 2 — not implemented in Phase 1
-    return [];
+    const activeFacts = await this.listActiveFacts(args.tenantId, args.topicId);
+    const detection = await detectContradictionsLLM(activeFacts, args.coreAnalysis);
+
+    // Build a set of valid fact IDs for validation
+    const factIdSet = new Set(activeFacts.map((f) => f.id));
+
+    const contradictions: EditorialContradiction[] = detection.contradictions.map(
+      (c) => {
+        // Use the ID Haiku returned; fall back to content-based search if
+        // Haiku hallucinated an ID that doesn't exist in our fact set.
+        const priorFactId = factIdSet.has(c.priorFactId)
+          ? c.priorFactId
+          : activeFacts.find((f) => f.content.includes(c.priorFactContent.slice(0, 40)))?.id ?? "unknown";
+        const contradiction: EditorialContradiction = {
+          id: generateId(),
+          tenantId: args.tenantId,
+          topicId: args.topicId,
+          priorFactId,
+          newEvidence: c.newEvidence,
+          tensionType: c.tensionType,
+          explanation: c.explanation,
+          // Always start as 'pending' per spec — Haiku's suggestedResolution
+          // is informational only. Resolution happens after the identity agent
+          // produces a piece that addresses the contradiction.
+          resolution: "pending",
+          resolvedInPieceId: null,
+          detectedAt: new Date(),
+          resolvedAt: null,
+        };
+        this.contradictions.set(contradiction.id, contradiction);
+        return contradiction;
+      },
+    );
+
+    return contradictions;
   }
 
   async resolveContradiction(
@@ -276,6 +366,9 @@ export class InMemoryEditorialMemoryStore implements EditorialMemoryStore {
         this.contradictions.delete(id);
       }
     }
+
+    // Reset contradiction detection dedup so next getContext re-checks
+    this.contradictionDetectionRan.delete(key);
   }
 
   // ---- Internal helpers ----
