@@ -15,6 +15,7 @@ export { OpenAIEmbeddingService } from "./openai-embeddings.js";
 export { extractEditorialFacts } from "./fact-extractor.js";
 export { assembleEditorialContext } from "./context-assembler.js";
 export { InMemoryEditorialMemoryStore } from "./in-memory-store.js";
+export { PostgresEditorialMemoryStore } from "./postgres-store.js";
 export {
   detectContradictions,
   containsAcknowledgmentLanguage,
