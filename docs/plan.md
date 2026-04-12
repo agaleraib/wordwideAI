@@ -39,7 +39,7 @@
 
 - **A — next action:** resolve the open naming question below (realign `.harness-profile` or keep as-is); continue Python deletion in `finflow/`.
 - **B — next action:** none (paused). Resume by scaffolding `packages/sources/` once C unblocks.
-- **C — next action:** run full corpus validation for advisor loop (blocker — see `feedback_unified_pass_risk.md`). Then implement editorial memory system (spec: `2026-04-12-editorial-memory.md`, 3-phase build).
+- **C — next action:** run full corpus validation for advisor loop (blocker — see `feedback_unified_pass_risk.md`). ~~Implement editorial memory Phase 1~~ (done in 5797f96 + 0f69454). Next: Phase 2 — contradiction detection.
 - **D — next action:** none (planned). First adapter scoping waits on C reaching first-tenant-shipping milestone.
 
 ## Active-now focus (Workstream C)
@@ -47,7 +47,7 @@
 **This week:** advisor loop validation + editorial memory system (supersedes MemPalace integration).
 
 **Active C specs:**
-- `docs/specs/2026-04-12-editorial-memory.md` — **freshest active thread**; native TS editorial memory system (Postgres + pgvector + OpenAI embeddings, contradiction detection). Supersedes `2026-04-10-mempalace-integration.md`
+- `docs/specs/2026-04-12-editorial-memory.md` — **Phase 1 complete** (0f69454); Phase 2 next (contradiction detection). Native TS editorial memory (Postgres + pgvector + OpenAI embeddings). Supersedes `2026-04-10-mempalace-integration.md`
 - `docs/specs/2026-04-10-advisor-pipeline-loop.md` — implemented, default-on in master (commit `a44fdca`); pending full corpus validation
 - `docs/specs/2026-04-10-advisor-tool-poc.md` — active design + implementation in `packages/api/src/pipeline/`
 - `docs/specs/2026-04-08-uniqueness-poc-playground.md` — stabilizing (architecture in target zone after 2026-04-08 revision)
