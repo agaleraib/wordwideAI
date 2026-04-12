@@ -43,7 +43,7 @@ Changes: Nothing. This spec provides the Postgres instance that Phase 3 requires
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
-| **LXC ID** | 102 | Next sequential after CT 101 (playground). Leaves 103+ for future containers |
+| **LXC ID** | 230 | Matches IP .230 for easy identification. CT 102 was already in use |
 | **Hostname** | `pg-finflow` | Clear purpose, matches internal convention |
 | **OS template** | Ubuntu 24.04 LTS (`ubuntu-24.04-standard_24.04-2_amd64.tar.zst`) | Per deployment stack spec |
 | **CPU** | 2 cores | Sufficient for Postgres 16 with low-concurrency workloads (single dev + one app server). pgvector HNSW builds are CPU-bound but infrequent |
@@ -90,7 +90,7 @@ Changes: Nothing. This spec provides the Postgres instance that Phase 3 requires
 
 Port 5432 is accessible only from trusted hosts. No public internet exposure.
 
-**Inbound to CT 102 (10.1.10.230):**
+**Inbound to CT 230 (10.1.10.230):**
 
 | Source | Port | Protocol | Action |
 |--------|------|----------|--------|
@@ -99,7 +99,7 @@ Port 5432 is accessible only from trusted hosts. No public internet exposure.
 | 192.168.3.0/24 (WireGuard VPN) | 5432 | TCP | Deny |
 | 0.0.0.0/0 | 5432 | TCP | Deny |
 
-**Outbound from CT 102:** Allow TCP 80/443 to any (apt updates only). No other outbound needed.
+**Outbound from CT 230:** Allow TCP 80/443 to any (apt updates only). No other outbound needed.
 
 Firewall is enforced at **two layers**:
 1. **UniFi firewall** — LAN rules restricting access to .230:5432
@@ -107,7 +107,7 @@ Firewall is enforced at **two layers**:
 
 ### WireGuard
 
-No direct VPN access to the database. Testers on the WireGuard VPN (`192.168.3.0/24`) access the FinFlow API on CT 101, which connects to Postgres on CT 102. The database is never directly reachable from the VPN.
+No direct VPN access to the database. Testers on the WireGuard VPN (`192.168.3.0/24`) access the FinFlow API on CT 101, which connects to Postgres on CT 230. The database is never directly reachable from the VPN.
 
 ### Internal hostname (optional)
 
@@ -182,7 +182,7 @@ GRANT ALL ON SCHEMA public TO finflow_migrate;
 Add to `gobot/.env` (or `packages/api/.env` if the project gets its own env file):
 
 ```env
-# Postgres — CT 102 (pg-finflow / 10.1.10.230)
+# Postgres — CT 230 (pg-finflow / 10.1.10.230)
 DATABASE_URL_DEV=postgresql://finflow_dev:PASSWORD@10.1.10.230:5432/finflow_dev
 DATABASE_URL=postgresql://finflow_app:PASSWORD@10.1.10.230:5432/finflow_prod
 DATABASE_URL_MIGRATE=postgresql://finflow_migrate:PASSWORD@10.1.10.230:5432/finflow_prod
@@ -256,13 +256,13 @@ host    all             all              0.0.0.0/0            reject
 ### 6.1 ZFS datasets
 
 ```
-rpool/data/ct102-rootfs          16 GB   → LXC root filesystem
-rpool/data/ct102-pgdata          32 GB   → /var/lib/postgresql/16/main
+rpool/data/ct230-rootfs          16 GB   → LXC root filesystem
+rpool/data/ct230-pgdata          32 GB   → /var/lib/postgresql/16/main
 ```
 
 **Option A — ZFS dataset as bind mount:** Create a ZFS dataset on node0, bind-mount into the LXC at `/var/lib/postgresql/16/main`. This gives node0-level snapshot control without requiring ZFS inside the unprivileged LXC.
 
-**Option B — LXC root on ZFS (simpler):** If CT 102's root is already on `local-zfs`, then `/var/lib/postgresql/16/main` is automatically on ZFS. Separate dataset is optional but recommended for independent snapshot/quota control.
+**Option B — LXC root on ZFS (simpler):** If CT 230's root is already on `local-zfs`, then `/var/lib/postgresql/16/main` is automatically on ZFS. Separate dataset is optional but recommended for independent snapshot/quota control.
 
 **Recommendation:** Option A. A separate dataset allows:
 - Independent snapshots of the data directory without snapshotting the OS
@@ -273,14 +273,14 @@ rpool/data/ct102-pgdata          32 GB   → /var/lib/postgresql/16/main
 
 | Trigger | Dataset | Retention | Purpose |
 |---------|---------|-----------|---------|
-| Before every migration | `ct102-pgdata` | Keep last 5 | Rollback point if migration breaks |
-| Nightly (cron, 02:00) | `ct102-pgdata` | Keep last 7 | Point-in-time recovery |
-| Manual (before risky ops) | `ct102-pgdata` | Manual cleanup | Safety net |
+| Before every migration | `ct230-pgdata` | Keep last 5 | Rollback point if migration breaks |
+| Nightly (cron, 02:00) | `ct230-pgdata` | Keep last 7 | Point-in-time recovery |
+| Manual (before risky ops) | `ct230-pgdata` | Manual cleanup | Safety net |
 
 Snapshots are taken from **node0** (the Proxmox host), not from inside the LXC:
 ```bash
 # From node0
-zfs snapshot rpool/data/ct102-pgdata@pre-migration-$(date +%Y%m%d-%H%M%S)
+zfs snapshot rpool/data/ct230-pgdata@pre-migration-$(date +%Y%m%d-%H%M%S)
 ```
 
 ### 6.3 Separate WAL partition
@@ -300,13 +300,13 @@ Not warranted at this scale. WAL stays on the same dataset as table data. The 32
 
 ### 7.2 Backup destination
 
-Dumps are stored locally on CT 102 at `/var/backups/finflow/` (7-day retention). Optionally pulled to the Mac Studio (path TBD — see open question #3) or S3-compatible storage. Pulls are preferred over pushes to avoid giving the database container write access to the backup host.
+Dumps are stored locally on CT 230 at `/var/backups/finflow/` (7-day retention). Optionally pulled to the Mac Studio (path TBD — see open question #3) or S3-compatible storage. Pulls are preferred over pushes to avoid giving the database container write access to the backup host.
 
 Alternative (future): S3-compatible storage (Backblaze B2, Hetzner Object Storage). Not needed until cloud deployment.
 
 ### 7.3 Backup script
 
-Runs inside CT 102 via systemd timer:
+Runs inside CT 230 via systemd timer:
 
 ```bash
 #!/bin/bash
@@ -328,7 +328,7 @@ ls -1t "${BACKUP_DIR}"/finflow_prod_*.dump | tail -n +8 | xargs -r rm --
 echo "Backup complete: ${DUMP_FILE} ($(du -h "$DUMP_FILE" | cut -f1))"
 ```
 
-Optionally, a separate rsync timer on the Mac Studio pulls `/var/backups/finflow/` from CT 102 nightly at 03:30 (destination path TBD — see open question #3).
+Optionally, a separate rsync timer on the Mac Studio pulls `/var/backups/finflow/` from CT 230 nightly at 03:30 (destination path TBD — see open question #3).
 
 ### 7.4 Systemd timer
 
@@ -421,10 +421,10 @@ Deferred. Install during implementation if it proves useful during the editorial
 
 **Acceptance criteria:**
 
-- [ ] CT 102 exists on Proxmox node0 with hostname `pg-finflow`, Ubuntu 24.04 LTS, 2 cores, 4 GB RAM, 1 GB swap
-- [ ] CT 102 has static IP `10.1.10.230` on `vmbr0` (or confirmed alternative if .230 is taken)
-- [ ] CT 102 starts on boot (`onboot: 1`)
-- [ ] `apt update && apt upgrade` completes without errors from inside CT 102
+- [ ] CT 230 exists on Proxmox node0 with hostname `pg-finflow`, Ubuntu 24.04 LTS, 2 cores, 4 GB RAM, 1 GB swap
+- [ ] CT 230 has static IP `10.1.10.230` on `vmbr0` (or confirmed alternative if .230 is taken)
+- [ ] CT 230 starts on boot (`onboot: 1`)
+- [ ] `apt update && apt upgrade` completes without errors from inside CT 230
 - [ ] ZFS dataset for pgdata exists as a separate dataset or bind mount at `/var/lib/postgresql/16/main`
 
 ### Phase 2: Postgres + pgvector Installation
@@ -454,11 +454,11 @@ Deferred. Install during implementation if it proves useful during the editorial
 
 **Acceptance criteria:**
 
-- [ ] `/usr/local/bin/finflow-backup.sh` exists and is executable on CT 102
+- [ ] `/usr/local/bin/finflow-backup.sh` exists and is executable on CT 230
 - [ ] `finflow-backup.timer` is enabled and active (`systemctl is-active finflow-backup.timer`)
 - [ ] Manual run of `finflow-backup.sh` produces a dump file in `/var/backups/finflow/`
 - [ ] Dump file restores cleanly: `pg_restore -U finflow_admin -d finflow_dev --clean --if-exists <dump>` succeeds
-- [ ] ZFS snapshot of pgdata dataset can be created from node0: `zfs snapshot rpool/data/ct102-pgdata@test` succeeds
+- [ ] ZFS snapshot of pgdata dataset can be created from node0: `zfs snapshot rpool/data/ct230-pgdata@test` succeeds
 - [ ] Pruning logic works: create 10 dummy dumps, run backup, verify only 7 remain
 
 ### Phase 5: Smoke Test — Editorial Memory Migration
@@ -478,7 +478,7 @@ Deferred. Install during implementation if it proves useful during the editorial
 
 ### Phase 1: LXC Creation
 
-- [ ] **Task 1:** Create CT 102 on Proxmox node0
+- [ ] **Task 1:** Create CT 230 on Proxmox node0
   - **Files:** N/A (Proxmox CLI / web UI)
   - **Depends on:** Nothing
   - **Steps:**
@@ -487,7 +487,7 @@ Deferred. Install during implementation if it proves useful during the editorial
     3. Download Ubuntu 24.04 template if not cached: `pveam download local ubuntu-24.04-standard_24.04-2_amd64.tar.zst`
     4. Create container:
        ```bash
-       pct create 102 local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst \
+       pct create 230 local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst \
          --hostname pg-finflow \
          --cores 2 \
          --memory 4096 \
@@ -500,32 +500,32 @@ Deferred. Install during implementation if it proves useful during the editorial
        ```
     5. Create separate ZFS dataset for pgdata:
        ```bash
-       zfs create -o mountpoint=none rpool/data/ct102-pgdata
-       # Add as bind mount to CT 102 config
-       pct set 102 -mp0 /rpool/data/ct102-pgdata,mp=/var/lib/postgresql
+       zfs create -o mountpoint=none rpool/data/ct230-pgdata
+       # Add as bind mount to CT 230 config
+       pct set 230 -mp0 /rpool/data/ct230-pgdata,mp=/var/lib/postgresql
        ```
-    6. Start CT 102: `pct start 102`
-    7. Enter CT 102: `pct enter 102`
+    6. Start CT 230: `pct start 230`
+    7. Enter CT 230: `pct enter 230`
     8. Run `apt update && apt upgrade -y`
-  - **Verify:** `pct status 102` shows `running`. `pct exec 102 -- hostname` returns `pg-finflow`. `pct exec 102 -- ip addr show eth0` shows `10.1.10.230/24`.
+  - **Verify:** `pct status 230` shows `running`. `pct exec 230 -- hostname` returns `pg-finflow`. `pct exec 230 -- ip addr show eth0` shows `10.1.10.230/24`.
 
 - [ ] **Task 2:** Configure ZFS dataset and verify mount
   - **Files:** N/A (Proxmox host)
   - **Depends on:** Task 1
   - **Steps:**
-    1. From node0, verify dataset: `zfs list | grep ct102`
-    2. Inside CT 102: `df -h /var/lib/postgresql` shows the mount
-    3. Test snapshot from node0: `zfs snapshot rpool/data/ct102-pgdata@initial`
-    4. Verify snapshot: `zfs list -t snapshot | grep ct102`
-  - **Verify:** ZFS dataset exists, is mounted inside CT 102 at `/var/lib/postgresql`, and a snapshot can be created from node0.
+    1. From node0, verify dataset: `zfs list | grep ct230`
+    2. Inside CT 230: `df -h /var/lib/postgresql` shows the mount
+    3. Test snapshot from node0: `zfs snapshot rpool/data/ct230-pgdata@initial`
+    4. Verify snapshot: `zfs list -t snapshot | grep ct230`
+  - **Verify:** ZFS dataset exists, is mounted inside CT 230 at `/var/lib/postgresql`, and a snapshot can be created from node0.
 
 ### Phase 2: Postgres + pgvector
 
 - [ ] **Task 3:** Install PostgreSQL 16 from PGDG repository
-  - **Files:** N/A (inside CT 102)
+  - **Files:** N/A (inside CT 230)
   - **Depends on:** Task 1
   - **Steps:**
-    1. Inside CT 102:
+    1. Inside CT 230:
        ```bash
        apt install -y curl ca-certificates gnupg
        curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
@@ -538,7 +538,7 @@ Deferred. Install during implementation if it proves useful during the editorial
   - **Verify:** `psql -U postgres -c 'SELECT version()'` returns PostgreSQL 16.x.
 
 - [ ] **Task 4:** Install pgvector extension
-  - **Files:** N/A (inside CT 102)
+  - **Files:** N/A (inside CT 230)
   - **Depends on:** Task 3
   - **Steps:**
     1. Install build deps and pgvector:
@@ -604,7 +604,7 @@ Deferred. Install during implementation if it proves useful during the editorial
 ### Phase 4: Backup
 
 - [ ] **Task 9:** Set up backup script and systemd timer
-  - **Files:** `/usr/local/bin/finflow-backup.sh`, `/etc/systemd/system/finflow-backup.service`, `/etc/systemd/system/finflow-backup.timer` (all on CT 102)
+  - **Files:** `/usr/local/bin/finflow-backup.sh`, `/etc/systemd/system/finflow-backup.service`, `/etc/systemd/system/finflow-backup.timer` (all on CT 230)
   - **Depends on:** Task 6
   - **Steps:**
     1. Create backup directory: `mkdir -p /var/backups/finflow && chown postgres:postgres /var/backups/finflow`
@@ -623,7 +623,7 @@ Deferred. Install during implementation if it proves useful during the editorial
     1. Create cron file on node0:
        ```
        # /etc/cron.d/finflow-zfs-snapshots
-       0 2 * * * root zfs snapshot rpool/data/ct102-pgdata@nightly-$(date +\%Y\%m\%d) && zfs list -t snapshot -o name -s creation | grep 'ct102-pgdata@nightly-' | head -n -7 | xargs -r -n1 zfs destroy
+       0 2 * * * root zfs snapshot rpool/data/ct230-pgdata@nightly-$(date +\%Y\%m\%d) && zfs list -t snapshot -o name -s creation | grep 'ct230-pgdata@nightly-' | head -n -7 | xargs -r -n1 zfs destroy
        ```
     2. Test: run the command manually, verify snapshot appears in `zfs list -t snapshot`
   - **Verify:** Nightly snapshot cron exists. Manual run creates a snapshot. Old snapshots (beyond 7) are pruned.

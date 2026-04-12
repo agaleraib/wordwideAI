@@ -280,7 +280,7 @@ config/clients/{client-slug}/
 | Layer | Technology |
 |---|---|
 | Runtime | Bun (GoBot's existing runtime) |
-| Database | Postgres 16 + pgvector (self-managed, LXC 102 on Proxmox node0) |
+| Database | Postgres 16 + pgvector (self-managed, LXC 230 on Proxmox node0) |
 | Queue | BullMQ + Redis (proper job queues for multi-tenant) |
 | LLM Primary | Anthropic Claude (Opus/Sonnet/Haiku) |
 | LLM Secondary | OpenAI GPT-4o/4.1/4o-mini, Google Gemini 2.5 Pro/2.0 Flash |
