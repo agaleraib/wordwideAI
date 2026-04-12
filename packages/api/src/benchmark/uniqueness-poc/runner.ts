@@ -43,6 +43,7 @@ import { IDENTITY_REGISTRY, getIdentityById } from "./prompts/identities/index.j
 import { computeCostUsd, modelForTier } from "./pricing.js";
 import { embedText, scorePair, cosineSimilarity, rougeLF1 } from "./similarity.js";
 import { judgePairUniqueness, type JudgeVerdict } from "./llm-judge.js";
+import type { EditorialMemoryStore } from "../../memory/store.js";
 
 /**
  * Copy a two-axis judge verdict onto a SimilarityResult. Used at every
@@ -161,6 +162,12 @@ export async function runIdentity(
      * to hit this exact target instead of the identity's baked-in range.
      */
     targetWordCount?: number;
+    /**
+     * Pre-rendered editorial memory block (from EditorialMemoryStore.getContext).
+     * Injected into the user message after the core analysis, before persona
+     * directives. Works for all identities — not identity-specific.
+     */
+    editorialMemoryBlock?: string;
   },
 ): Promise<IdentityOutput> {
   const registered = getIdentityById(identityId);
@@ -189,6 +196,13 @@ export async function runIdentity(
   // and again in the conformance pass if enabled).
   if (persona?.companyBackground && persona.companyBackground.length > 0) {
     userMessage += `\n\n# COMPANY CONTEXT\n\nYou are writing for ${persona.name}. Weave these facts in naturally where they add credibility or context — do not force every fact into the piece:\n${persona.companyBackground.map((f) => `- ${f}`).join("\n")}`;
+  }
+
+  // Inject editorial memory block (from EditorialMemoryStore) — works for all
+  // identities. Placed after company background, before the LLM call, at the
+  // same conceptual injection point as renderNarrativeStateDirective but generic.
+  if (options?.editorialMemoryBlock && options.editorialMemoryBlock.length > 0) {
+    userMessage += `\n\n${options.editorialMemoryBlock}`;
   }
 
   if (isClaudeCliEnabled()) {
@@ -490,6 +504,17 @@ async function runCrossTenantMatrix(
    * outputs that share the same identity agent.
    */
   withConformancePass?: boolean,
+  /**
+   * Optional editorial memory store. When provided, each persona's identity
+   * call gets the store's rendered context block injected into the user message.
+   */
+  editorialMemory?: EditorialMemoryStore,
+  /** Core analysis body passed to editorial memory getContext for query hints. */
+  editorialMemoryCoreAnalysis?: string,
+  /** Topic ID for editorial memory keying (one per persona = tenantId). */
+  editorialMemoryTopicId?: string,
+  /** Event ID for editorial memory recordArticle. */
+  editorialMemoryEventId?: string,
 ): Promise<CrossTenantMatrixResult> {
   if (personas.length < 2) {
     throw new Error(
@@ -502,6 +527,34 @@ async function runCrossTenantMatrix(
     throw new Error(`Unknown identity: ${identityId}`);
   }
 
+  // Pre-fetch editorial memory context per persona (if store provided).
+  // Each persona is keyed by its id as the tenantId.
+  let editorialMemoryBlocks: Array<string | undefined> | undefined;
+  if (editorialMemory && editorialMemoryTopicId && editorialMemoryCoreAnalysis) {
+    editorialMemoryBlocks = await Promise.all(
+      personas.map(async (persona) => {
+        try {
+          const ctx = await editorialMemory.getContext({
+            tenantId: persona.id,
+            topicId: editorialMemoryTopicId,
+            coreAnalysis: editorialMemoryCoreAnalysis,
+          });
+          return ctx.renderedBlock || undefined;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[runner]   ⚠ editorial memory getContext failed for ${persona.id}: ${msg.slice(0, 200)}`);
+          return undefined;
+        }
+      }),
+    );
+    const hits = editorialMemoryBlocks.filter((b) => b !== undefined).length;
+    if (hits > 0) {
+      console.log(
+        `[runner]   ✓ injected editorial memory context for ${hits}/${personas.length} personas`,
+      );
+    }
+  }
+
   // Run the same identity once per persona, in parallel.
   // Emit per-tenant lifecycle callbacks so the playground UI can populate
   // each card progressively as its identity call resolves.
@@ -510,11 +563,13 @@ async function runCrossTenantMatrix(
       callbacks?.onTenantStarted?.(index, persona.id);
       const narrativeState = narrativeStates?.[index] ?? undefined;
       const wordCountOverride = tenantWordCountOverrides?.[index] ?? undefined;
+      const editorialBlock = editorialMemoryBlocks?.[index];
       const identityOptions =
-        narrativeState || wordCountOverride
+        narrativeState || wordCountOverride || editorialBlock
           ? {
               ...(narrativeState ? { narrativeState, topicName: narrativeTopicName } : {}),
               ...(wordCountOverride ? { targetWordCount: wordCountOverride } : {}),
+              ...(editorialBlock ? { editorialMemoryBlock: editorialBlock } : {}),
             }
           : undefined;
       const perTenantIdentity = tenantIdentityIds?.[index];
@@ -826,7 +881,11 @@ async function runNarrativeStateTest(args: {
   store?: NarrativeStateStore;
   /** Fixture namespace for store lookups; required if `store` is set. */
   fixtureId?: string;
-}): Promise<{ result: NarrativeStateTestResult; judgeFailures: JudgeFailureRecord[] }> {
+  /** Optional editorial memory store for context injection + recordArticle. */
+  editorialMemory?: EditorialMemoryStore;
+  /** Run ID for generating unique piece IDs in recordArticle. */
+  runId?: string;
+}): Promise<{ result: NarrativeStateTestResult; judgeFailures: JudgeFailureRecord[]; editorialMemoryCost: number }> {
   const registered = getIdentityById(args.identityId);
   if (!registered) {
     throw new Error(`Unknown identity: ${args.identityId}`);
@@ -877,17 +936,73 @@ async function runNarrativeStateTest(args: {
   }
 
   // STEP 4 — Generate TREATMENT group (WITH narrative state) on second event
+  // If editorial memory is provided, also inject its rendered context block.
+  let stage7EditorialBlocks: Array<string | undefined> | undefined;
+  const editorialMemStore = args.editorialMemory;
+  if (editorialMemStore) {
+    stage7EditorialBlocks = await Promise.all(
+      args.personas.map(async (persona) => {
+        try {
+          const ctx = await editorialMemStore.getContext({
+            tenantId: persona.id,
+            topicId: args.secondEvent.topicId,
+            coreAnalysis: secondCoreAnalysis.body,
+          });
+          return ctx.renderedBlock || undefined;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[runner]     ⚠ editorial memory getContext failed for ${persona.id}: ${msg.slice(0, 200)}`);
+          return undefined;
+        }
+      }),
+    );
+    const hits = stage7EditorialBlocks.filter((b) => b !== undefined).length;
+    if (hits > 0) {
+      console.log(
+        `[runner]     ✓ injected editorial memory context for ${hits}/${args.personas.length} treatment personas`,
+      );
+    }
+  }
+
   console.log(`[runner]   Stage 7.4 — treatment group: 4 journalist runs on second event WITH narrative state (parallel)...`);
   const treatmentOutputs = await Promise.all(
-    args.personas.map((persona, i) =>
-      runIdentity(args.identityId, secondCoreAnalysis.body, persona, {
+    args.personas.map((persona, i) => {
+      const editorialBlock = stage7EditorialBlocks?.[i];
+      return runIdentity(args.identityId, secondCoreAnalysis.body, persona, {
         narrativeState: narrativeStates[i]!.state,
         topicName: args.secondEvent.topicName,
-      }),
-    ),
+        ...(editorialBlock ? { editorialMemoryBlock: editorialBlock } : {}),
+      });
+    }),
   );
   for (const out of treatmentOutputs) {
     console.log(`[runner]     ✓ treatment[${out.identityId}]: ${out.wordCount} words, $${out.costUsd.toFixed(4)}`);
+  }
+
+  // Record Stage 7 treatment outputs to editorial memory (if provided).
+  let stage7EditorialMemoryCost = 0;
+  if (editorialMemStore) {
+    console.log(
+      `[runner]     ✓ recording ${treatmentOutputs.length} Stage 7 treatment output(s) to editorial memory...`,
+    );
+    for (let i = 0; i < treatmentOutputs.length; i++) {
+      const output = treatmentOutputs[i]!;
+      const persona = args.personas[i]!;
+      try {
+        const recorded = await editorialMemStore.recordArticle({
+          tenantId: persona.id,
+          topicId: args.secondEvent.topicId,
+          pieceId: `${persona.id}-stage7-${args.runId ?? "unknown"}`,
+          eventId: args.secondEvent.id,
+          articleBody: output.body,
+          publishedAt: new Date(args.secondEvent.publishedAt),
+        });
+        stage7EditorialMemoryCost += recorded.extractionCostUsd;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[runner]     ⚠ editorial memory recordArticle failed for ${persona.id}: ${msg.slice(0, 200)}`);
+      }
+    }
   }
 
   // STEP 5 — Build cross-tenant matrices for both groups
@@ -949,6 +1064,7 @@ async function runNarrativeStateTest(args: {
       treatmentVerdictReasoning,
     },
     judgeFailures: [...controlMatrix.judgeFailures, ...treatmentMatrix.judgeFailures],
+    editorialMemoryCost: stage7EditorialMemoryCost,
   };
 }
 
@@ -1101,6 +1217,19 @@ export interface RunOptions {
   fixtureId?: string;
   persistNarrativeState?: boolean;
   readNarrativeStateInCrossTenant?: boolean;
+  /**
+   * Optional editorial memory store. When provided:
+   * - Stage 6 + Stage 7 identity calls receive the store's rendered context
+   *   block in the user message (same injection point as narrative state).
+   * - Post-processing calls `recordArticle` for each completed piece.
+   * - Second-run identity calls include prior facts from the first run.
+   *
+   * When not provided, behavior is identical to the current codebase.
+   * The existing NarrativeStateStore is NOT modified or replaced.
+   *
+   * Spec: docs/specs/2026-04-12-editorial-memory.md §11, Task 6
+   */
+  editorialMemory?: EditorialMemoryStore;
 }
 
 /**
@@ -1214,6 +1343,7 @@ export async function runUniquenessPoc(
   let narrativeStateTest: NarrativeStateTestResult | undefined;
   let narrativeStateJudgeFailures: JudgeFailureRecord[] = [];
   let stage6PersistCost = 0;
+  let editorialMemoryCost = 0;
   if (opts.withCrossTenantMatrix) {
     console.log(`[runner] Stage 6 — CROSS-TENANT MATRIX (the load-bearing test): ${opts.withCrossTenantMatrix.identityId} × ${opts.withCrossTenantMatrix.personas.length} personas...`);
     callbacks?.onStageStarted?.("cross-tenant");
@@ -1254,12 +1384,48 @@ export async function runUniquenessPoc(
       opts.withCrossTenantMatrix.tenantIdentityIds,
       opts.withCrossTenantMatrix.tenantWordCountOverrides,
       opts.withCrossTenantMatrix.withConformancePass,
+      opts.editorialMemory,
+      coreAnalysis.body,
+      opts.event.topicId,
+      opts.event.id,
     );
     console.log(`[runner]   ✓ ${crossTenantMatrix.similarities.length} pairs`);
     console.log(`[runner]   ✓ cosine: mean=${crossTenantMatrix.meanCosine.toFixed(4)}, min=${crossTenantMatrix.minCosine.toFixed(4)}, max=${crossTenantMatrix.maxCosine.toFixed(4)}`);
     console.log(`[runner]   ✓ rougeL: mean=${crossTenantMatrix.meanRougeL.toFixed(4)}, min=${crossTenantMatrix.minRougeL.toFixed(4)}, max=${crossTenantMatrix.maxRougeL.toFixed(4)}`);
     console.log(`[runner]   ✓ CROSS-TENANT VERDICT: ${crossTenantMatrix.verdict}`);
     console.log(`[runner]     ${crossTenantMatrix.verdictReasoning}`);
+
+    // Editorial memory write-back: extract and store facts from each Stage 6
+    // output. Guarded by `opts.editorialMemory` — runs automatically when the
+    // store is provided, since extraction IS the core feature being tested.
+    if (opts.editorialMemory) {
+      console.log(
+        `[runner]   ✓ recording ${crossTenantMatrix.outputs.length} Stage 6 output(s) to editorial memory...`,
+      );
+      for (const output of crossTenantMatrix.outputs) {
+        if (!output.personaId) {
+          console.warn(`[runner]     ⚠ Stage 6 output missing personaId, skipping editorial memory recording`);
+          continue;
+        }
+        try {
+          const recorded = await opts.editorialMemory.recordArticle({
+            tenantId: output.personaId,
+            topicId: opts.event.topicId,
+            pieceId: `${output.personaId}-${runId}`,
+            eventId: opts.event.id,
+            articleBody: output.body,
+            publishedAt: new Date(opts.event.publishedAt),
+          });
+          editorialMemoryCost += recorded.extractionCostUsd;
+          console.log(
+            `[runner]     ${output.personaId}: ${recorded.facts.length} facts extracted ($${recorded.extractionCostUsd.toFixed(4)})`,
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[runner]     ⚠ editorial memory recordArticle failed for ${output.personaId}: ${msg.slice(0, 200)}`);
+        }
+      }
+    }
 
     // Stage 6 write-back: append each output to the store as a new entry.
     // Guarded by `opts.persistNarrativeState` so existing runs don't silently
@@ -1300,9 +1466,12 @@ export async function runUniquenessPoc(
         secondEvent: opts.withNarrativeStateTest.secondEvent,
         store: opts.store,
         fixtureId: opts.fixtureId,
+        editorialMemory: opts.editorialMemory,
+        runId,
       });
       narrativeStateTest = nstResult.result;
       narrativeStateJudgeFailures = nstResult.judgeFailures;
+      editorialMemoryCost += nstResult.editorialMemoryCost;
       console.log(`[runner]   ✓ TREATMENT VERDICT: ${narrativeStateTest.treatmentVerdict}`);
       console.log(`[runner]     ${narrativeStateTest.treatmentVerdictReasoning}`);
     }
@@ -1345,6 +1514,7 @@ export async function runUniquenessPoc(
     crossTenantCost +
     narrativeStateCost +
     stage6PersistCost +
+    editorialMemoryCost +
     (personaDifferentiation
       ? personaDifferentiation.outputA.costUsd + personaDifferentiation.outputB.costUsd
       : 0);
