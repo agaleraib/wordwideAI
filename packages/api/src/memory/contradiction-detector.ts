@@ -157,6 +157,8 @@ export async function detectContradictions(
 
   try {
     const client = getClient();
+    const t0 = Date.now();
+    console.log(`[contradiction-detector] calling Haiku (${DETECTOR_MODEL}), ${checkableFacts.length} facts, ~${factsBlock.length + coreAnalysis.length} chars input`);
     const response = await client.messages.create({
       model: DETECTOR_MODEL,
       max_tokens: 1024,
@@ -176,6 +178,7 @@ ${coreAnalysis}`,
         },
       ],
     });
+    console.log(`[contradiction-detector] Haiku responded in ${Date.now() - t0}ms, ${response.usage.input_tokens}in/${response.usage.output_tokens}out`);
 
     const toolUse = response.content.find((b) => b.type === "tool_use");
     if (!toolUse || toolUse.type !== "tool_use") {

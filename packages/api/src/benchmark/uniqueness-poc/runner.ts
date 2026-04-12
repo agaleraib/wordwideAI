@@ -531,22 +531,29 @@ async function runCrossTenantMatrix(
   // Each persona is keyed by its id as the tenantId.
   let editorialMemoryBlocks: Array<string | undefined> | undefined;
   if (editorialMemory && editorialMemoryTopicId && editorialMemoryCoreAnalysis) {
-    editorialMemoryBlocks = await Promise.all(
-      personas.map(async (persona) => {
-        try {
-          const ctx = await editorialMemory.getContext({
-            tenantId: persona.id,
-            topicId: editorialMemoryTopicId,
-            coreAnalysis: editorialMemoryCoreAnalysis,
-          });
-          return ctx.renderedBlock || undefined;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`[runner]   ⚠ editorial memory getContext failed for ${persona.id}: ${msg.slice(0, 200)}`);
-          return undefined;
-        }
-      }),
-    );
+    // Sequential getContext per persona — avoids Bun event loop deadlock when
+    // concurrent postgres driver + Anthropic SDK calls resolve in Promise.all.
+    // See parking_lot.md 2026-04-12 for investigation notes.
+    console.log(`[runner]   editorial memory: fetching context for ${personas.length} personas (sequential)...`);
+    const emT0 = Date.now();
+    editorialMemoryBlocks = [];
+    for (const persona of personas) {
+      try {
+        console.log(`[runner]     editorial memory: getContext(${persona.id}) — start`);
+        const ctx = await editorialMemory.getContext({
+          tenantId: persona.id,
+          topicId: editorialMemoryTopicId,
+          coreAnalysis: editorialMemoryCoreAnalysis,
+        });
+        console.log(`[runner]     editorial memory: getContext(${persona.id}) — done (${ctx.renderedBlock.length} chars, ${ctx.includedFacts.length} facts, ${ctx.contradictions.length} contradictions)`);
+        editorialMemoryBlocks.push(ctx.renderedBlock || undefined);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[runner]   ⚠ editorial memory getContext failed for ${persona.id}: ${msg.slice(0, 200)}`);
+        editorialMemoryBlocks.push(undefined);
+      }
+    }
+    console.log(`[runner]   editorial memory: all ${personas.length} personas done in ${Date.now() - emT0}ms`);
     const hits = editorialMemoryBlocks.filter((b) => b !== undefined).length;
     if (hits > 0) {
       console.log(
@@ -940,22 +947,22 @@ async function runNarrativeStateTest(args: {
   let stage7EditorialBlocks: Array<string | undefined> | undefined;
   const editorialMemStore = args.editorialMemory;
   if (editorialMemStore) {
-    stage7EditorialBlocks = await Promise.all(
-      args.personas.map(async (persona) => {
-        try {
-          const ctx = await editorialMemStore.getContext({
-            tenantId: persona.id,
-            topicId: args.secondEvent.topicId,
-            coreAnalysis: secondCoreAnalysis.body,
-          });
-          return ctx.renderedBlock || undefined;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`[runner]     ⚠ editorial memory getContext failed for ${persona.id}: ${msg.slice(0, 200)}`);
-          return undefined;
-        }
-      }),
-    );
+    // Sequential — same Bun deadlock workaround as Stage 6
+    stage7EditorialBlocks = [];
+    for (const persona of args.personas) {
+      try {
+        const ctx = await editorialMemStore.getContext({
+          tenantId: persona.id,
+          topicId: args.secondEvent.topicId,
+          coreAnalysis: secondCoreAnalysis.body,
+        });
+        stage7EditorialBlocks.push(ctx.renderedBlock || undefined);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[runner]     ⚠ editorial memory getContext failed for ${persona.id}: ${msg.slice(0, 200)}`);
+        stage7EditorialBlocks.push(undefined);
+      }
+    }
     const hits = stage7EditorialBlocks.filter((b) => b !== undefined).length;
     if (hits > 0) {
       console.log(
