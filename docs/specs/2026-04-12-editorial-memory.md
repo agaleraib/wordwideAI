@@ -1,7 +1,7 @@
 # Editorial Memory System — Native Temporal Knowledge Graph for FinFlow Content Pipeline
 
 **Date:** 2026-04-12
-**Status:** Phase 3 In Progress (Task 10 done in 1141dd8, Tasks 11-12 pending)
+**Status:** Phase 3 In Progress (Tasks 10-11 done, Task 12 pending)
 **Branch:** TBD (new branch from `master`)
 **Owners:** Albert Galera (decisions), Claude (drafting + implementation)
 **Supersedes:** `2026-04-10-mempalace-integration.md` (philosophy adopted, Python dependency rejected)
@@ -879,7 +879,7 @@ Replace the in-memory store with Postgres + pgvector. Wire into the content pipe
   - **Depends on:** Task 1
   - **Verify:** `bun run drizzle:generate` produces migration. Migration applies cleanly to a fresh Postgres + pgvector database. Down migration drops all tables. `bun run typecheck` passes.
 
-- [ ] **Task 11:** Postgres editorial memory store
+- [x] **Task 11:** Postgres editorial memory store (done in ef147c4)
   - **Files:** `packages/api/src/memory/postgres-store.ts`
   - **Depends on:** Tasks 4, 10
   - **Verify:** All acceptance criteria from the in-memory store also pass against the Postgres implementation. Vector search uses pgvector `<=>` operator. `bun run typecheck` passes.

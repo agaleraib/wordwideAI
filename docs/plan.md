@@ -39,7 +39,7 @@
 
 - **A — next action:** resolve the open naming question below (realign `.harness-profile` or keep as-is); continue Python deletion in `finflow/`.
 - **B — next action:** none (paused). Resume by scaffolding `packages/sources/` once C unblocks.
-- **C — next action:** run full corpus validation for advisor loop (blocker — see `feedback_unified_pass_risk.md`). ~~Implement editorial memory Phase 1~~ (done in 5797f96 + 0f69454). ~~Phase 2 — contradiction detection~~ (done in 75aaa8b). Phase 3 in progress — ~~Task 10: Drizzle schema~~ (done in 1141dd8), Tasks 11-12 blocked on CT 230 provisioning.
+- **C — next action:** run full corpus validation for advisor loop (blocker — see `feedback_unified_pass_risk.md`). ~~Implement editorial memory Phase 1~~ (done in 5797f96 + 0f69454). ~~Phase 2 — contradiction detection~~ (done in 75aaa8b). Phase 3 in progress — ~~Task 10: Drizzle schema~~ (done in 1141dd8), ~~Task 11: Postgres store~~ (done in ef147c4), Task 12 remaining.
 - **D — next action:** none (planned). First adapter scoping waits on C reaching first-tenant-shipping milestone.
 
 ## Active-now focus (Workstream C)
@@ -47,7 +47,7 @@
 **This week:** advisor loop validation + editorial memory system (supersedes MemPalace integration).
 
 **Active C specs:**
-- `docs/specs/2026-04-12-editorial-memory.md` — **Phase 3 in progress** (Task 10 done in 1141dd8; Tasks 11-12 blocked on Postgres LXC). Native TS editorial memory with contradiction detection. Supersedes `2026-04-10-mempalace-integration.md`
+- `docs/specs/2026-04-12-editorial-memory.md` — **Phase 3 in progress** (Tasks 10-11 done; Task 12 remaining: pipeline integration). Native TS editorial memory with contradiction detection. Supersedes `2026-04-10-mempalace-integration.md`
 - `docs/specs/2026-04-12-postgres-lxc.md` — **Draft** (20efffd). CT 230 (`pg-finflow`) on Proxmox node0 — Postgres 16 + pgvector, dual databases, 4 roles. Blocks editorial memory Tasks 11-12
 - `docs/specs/2026-04-10-advisor-pipeline-loop.md` — implemented, default-on in master (commit `a44fdca`); pending full corpus validation
 - `docs/specs/2026-04-10-advisor-tool-poc.md` — active design + implementation in `packages/api/src/pipeline/`
