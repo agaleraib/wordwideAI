@@ -170,6 +170,10 @@ export function renderReport(result: RunResult): string {
   if (m.sequenceId) {
     lines.push(`**Sequence:** ${m.sequenceId} (step ${m.sequenceStep}/${m.sequenceStepCount})`);
   }
+  if (m.promptHashes) {
+    const hashes = Object.entries(m.promptHashes).map(([id, h]) => `\`${id}:${h}\``).join(" ");
+    lines.push(`**Prompt hashes:** ${hashes}`);
+  }
   lines.push("");
   lines.push("---");
   lines.push("");

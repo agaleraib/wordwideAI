@@ -24,6 +24,7 @@ import { Hono } from "hono";
 import { streamSSE, type SSEStreamingApi } from "hono/streaming";
 import { z } from "zod";
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -326,6 +327,12 @@ function startCompareRun(
     sequenceId: null,
     sequenceStep: null,
     sequenceStepCount: null,
+    promptHashes: Object.fromEntries(
+      IDENTITY_REGISTRY.map((r) => [
+        r.definition.id,
+        createHash("sha256").update(r.definition.systemPrompt).digest("hex").slice(0, 8),
+      ]),
+    ),
   };
 
   const entry: RunEntry = {

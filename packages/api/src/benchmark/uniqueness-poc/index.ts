@@ -40,6 +40,7 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import type {
   NewsEvent,
   ContentPersona,
@@ -49,6 +50,7 @@ import type {
 } from "./types.js";
 import { runUniquenessPoc } from "./runner.js";
 import { persistRun, RUNS_OUTPUT_ROOT } from "./persist.js";
+import { IDENTITY_REGISTRY } from "./prompts/identities/index.js";
 import { mkdirSync } from "node:fs";
 import {
   FileSystemNarrativeStateStore,
@@ -184,6 +186,15 @@ function detectRuntime(): { name: string; version: string } {
   return { name: isBun ? "bun" : "node", version: process.version };
 }
 
+function computePromptHashes(): Record<string, string> {
+  const hashes: Record<string, string> = {};
+  for (const reg of IDENTITY_REGISTRY) {
+    const hash = createHash("sha256").update(reg.definition.systemPrompt).digest("hex").slice(0, 8);
+    hashes[reg.definition.id] = hash;
+  }
+  return hashes;
+}
+
 function buildManifest(opts: {
   source: "cli" | "dashboard";
   memoryBackend: RunManifest["memoryBackend"];
@@ -215,6 +226,7 @@ function buildManifest(opts: {
     sequenceId: opts.sequenceId ?? null,
     sequenceStep: opts.sequenceStep ?? null,
     sequenceStepCount: opts.sequenceStepCount ?? null,
+    promptHashes: computePromptHashes(),
   };
 }
 

@@ -53,6 +53,8 @@ export const RunManifestSchema = z.object({
   sequenceId: z.string().nullable(),
   sequenceStep: z.number().nullable(),
   sequenceStepCount: z.number().nullable(),
+  /** Short hash (first 8 chars of SHA-256) of each identity's system prompt at run time. */
+  promptHashes: z.record(z.string(), z.string()).nullable(),
 });
 
 export type RunManifest = z.infer<typeof RunManifestSchema>;

@@ -126,6 +126,10 @@ function renderExecutiveSummary(r: RunResult): string {
     lines.push(`| Stages | ${stages} |`);
     lines.push(`| Personas | ${m.personaIds.join(", ") || "none"} |`);
     if (m.cliFlags.length > 0) lines.push(`| CLI flags | \`${m.cliFlags.join(" ")}\` |`);
+    if (m.promptHashes) {
+      const hashes = Object.entries(m.promptHashes).map(([id, h]) => `${id}:\`${h}\``).join(", ");
+      lines.push(`| Prompt hashes | ${hashes} |`);
+    }
     lines.push("");
   } else {
     lines.push(`> *No manifest — run predates manifest feature.*`);
