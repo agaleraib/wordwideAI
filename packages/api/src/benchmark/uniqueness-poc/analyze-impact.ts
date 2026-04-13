@@ -239,26 +239,207 @@ function renderImpactReport(r: RunResult): string {
   return lines.join("\n");
 }
 
-// ─── CLI ──────────────────────────────────────────────────────
+// ─── Cross-Run Per-Tenant Comparison ──────────────────────────
 
-function main(): void {
-  const args = process.argv.slice(2);
+interface TenantOutput {
+  personaId: string;
+  personaName: string;
+  body: string;
+  wordCount: number;
+  model: string;
+  costUsd: number;
+  durationMs: number;
+}
 
-  if (args.length === 0 || args[0] === "--help") {
-    console.log(`Usage: poc:analyze:impact <runDir>`);
-    console.log(`Produces editorial-memory-impact.md — focused on whether editorial memory improved cross-tenant divergence.`);
-    process.exit(0);
+function extractTenantOutputs(r: RunResult): Map<string, TenantOutput> {
+  const map = new Map<string, TenantOutput>();
+  // Prefer Stage 6 cross-tenant outputs (the load-bearing test)
+  if (r.crossTenantMatrix) {
+    for (let i = 0; i < r.crossTenantMatrix.outputs.length; i++) {
+      const out = r.crossTenantMatrix.outputs[i]!;
+      const persona = r.crossTenantMatrix.personas[i];
+      if (out.personaId) {
+        map.set(out.personaId, {
+          personaId: out.personaId,
+          personaName: persona?.name ?? out.personaId,
+          body: out.body,
+          wordCount: out.wordCount,
+          model: out.model,
+          costUsd: out.costUsd,
+          durationMs: out.durationMs,
+        });
+      }
+    }
+  }
+  return map;
+}
+
+function renderCrossRunReport(runA: RunResult, runB: RunResult): string {
+  const lines: string[] = [];
+
+  lines.push(`# Editorial Memory Impact — Cross-Run Per-Tenant Comparison`);
+  lines.push("");
+  lines.push(`> **Question:** For each tenant, how did their output change between Run A and Run B?`);
+  lines.push("");
+
+  // Manifest info
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const mA: RunManifest | undefined = runA.manifest ?? undefined;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const mB: RunManifest | undefined = runB.manifest ?? undefined;
+
+  lines.push(`| | Run A | Run B |`);
+  lines.push(`|---|-------|-------|`);
+  lines.push(`| Run ID | \`${runA.runId}\` | \`${runB.runId}\` |`);
+  lines.push(`| Event | ${runA.event.title.slice(0, 60)} | ${runB.event.title.slice(0, 60)} |`);
+  if (mA || mB) {
+    lines.push(`| Memory backend | ${mA?.memoryBackend ?? "unknown"} | ${mB?.memoryBackend ?? "unknown"} |`);
+    lines.push(`| Runtime | ${mA ? `${mA.runtime.name} ${mA.runtime.version}` : "unknown"} | ${mB ? `${mB.runtime.name} ${mB.runtime.version}` : "unknown"} |`);
+    lines.push(`| Git | \`${mA?.gitCommitHash ?? "?"}\` | \`${mB?.gitCommitHash ?? "?"}\` |`);
+    lines.push(`| CLI flags | ${mA?.cliFlags.join(" ") || "—"} | ${mB?.cliFlags.join(" ") || "—"} |`);
+  }
+  lines.push("");
+
+  // Cross-tenant verdict comparison
+  if (runA.crossTenantMatrix && runB.crossTenantMatrix) {
+    const ctA = runA.crossTenantMatrix;
+    const ctB = runB.crossTenantMatrix;
+    lines.push(`## Cross-Tenant Verdict Comparison`);
+    lines.push("");
+    lines.push(`| Metric | Run A | Run B | Delta |`);
+    lines.push(`|--------|-------|-------|-------|`);
+    const cosineDelta = ctA.meanCosine - ctB.meanCosine;
+    lines.push(`| Cosine mean | ${fmt(ctA.meanCosine)} | ${fmt(ctB.meanCosine)} | ${cosineDelta > 0 ? "↓" : "↑"} ${fmt(Math.abs(cosineDelta))} ${cosineDelta > 0 ? "✅ B more unique" : "❌ A more unique"} |`);
+    lines.push(`| ROUGE-L mean | ${fmt(ctA.meanRougeL)} | ${fmt(ctB.meanRougeL)} | ${fmt(Math.abs(ctA.meanRougeL - ctB.meanRougeL))} |`);
+    lines.push(`| Verdict | ${ctA.verdict} | ${ctB.verdict} | ${ctA.verdict === ctB.verdict ? "unchanged" : "**changed**"} |`);
+    lines.push("");
   }
 
-  const dir = resolve(args[0]!);
+  // Per-tenant output comparison
+  const tenantsA = extractTenantOutputs(runA);
+  const tenantsB = extractTenantOutputs(runB);
+
+  const allTenantIds = [...new Set([...tenantsA.keys(), ...tenantsB.keys()])];
+
+  if (allTenantIds.length === 0) {
+    lines.push(`> No cross-tenant outputs found in either run. Both runs need Stage 6 to compare per-tenant.`);
+    return lines.join("\n");
+  }
+
+  lines.push(`## Per-Tenant Output Comparison`);
+  lines.push("");
+  lines.push(`*Same tenant across two runs. Shows how the output changed between configurations.*`);
+  lines.push("");
+
+  for (const tenantId of allTenantIds) {
+    const a = tenantsA.get(tenantId);
+    const b = tenantsB.get(tenantId);
+
+    const name = b?.personaName ?? a?.personaName ?? tenantId;
+    lines.push(`### ${name}`);
+    lines.push("");
+
+    if (!a) {
+      lines.push(`> *Not present in Run A.*`);
+      lines.push("");
+      continue;
+    }
+    if (!b) {
+      lines.push(`> *Not present in Run B.*`);
+      lines.push("");
+      continue;
+    }
+
+    lines.push(`| | Run A | Run B |`);
+    lines.push(`|---|-------|-------|`);
+    lines.push(`| Words | ${a.wordCount} | ${b.wordCount} |`);
+    lines.push(`| Model | ${a.model} | ${b.model} |`);
+    lines.push(`| Cost | ${fmtUsd(a.costUsd)} | ${fmtUsd(b.costUsd)} |`);
+    lines.push(`| Duration | ${(a.durationMs / 1000).toFixed(1)}s | ${(b.durationMs / 1000).toFixed(1)}s |`);
+    lines.push("");
+
+    // Opening preview
+    const aPreview = a.body.replace(/\n/g, " ").slice(0, 300).trim();
+    const bPreview = b.body.replace(/\n/g, " ").slice(0, 300).trim();
+    lines.push(`**Run A opening:**`);
+    lines.push(`> ${aPreview}...`);
+    lines.push("");
+    lines.push(`**Run B opening:**`);
+    lines.push(`> ${bPreview}...`);
+    lines.push("");
+  }
+
+  // Stage 7 comparison if both runs have it
+  if (runA.narrativeStateTest && runB.narrativeStateTest) {
+    const nsA = runA.narrativeStateTest;
+    const nsB = runB.narrativeStateTest;
+    lines.push(`## Stage 7 Comparison`);
+    lines.push("");
+    lines.push(`| Metric | Run A | Run B | Delta |`);
+    lines.push(`|--------|-------|-------|-------|`);
+    lines.push(`| Control cosine mean | ${fmt(nsA.controlMeanCosine)} | ${fmt(nsB.controlMeanCosine)} | ${fmt(Math.abs(nsA.controlMeanCosine - nsB.controlMeanCosine))} |`);
+    lines.push(`| Treatment cosine mean | ${fmt(nsA.treatmentMeanCosine)} | ${fmt(nsB.treatmentMeanCosine)} | ${fmt(Math.abs(nsA.treatmentMeanCosine - nsB.treatmentMeanCosine))} |`);
+    lines.push(`| Improvement (A) | ${fmt(nsA.cosineImprovement)} | — | ${nsA.cosineImprovement > 0 ? "✅" : "❌"} |`);
+    lines.push(`| Improvement (B) | — | ${fmt(nsB.cosineImprovement)} | ${nsB.cosineImprovement > 0 ? "✅" : "❌"} |`);
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
+// ─── CLI ──────────────────────────────────────────────────────
+
+function loadResult(dir: string): RunResult {
   const rawPath = join(dir, "raw-data.json");
   if (!existsSync(rawPath)) {
     console.error(`ERROR: raw-data.json not found in ${dir}`);
     process.exit(1);
   }
+  return JSON.parse(readFileSync(rawPath, "utf-8")) as RunResult;
+}
 
-  console.log(`[impact] Loading ${rawPath}...`);
-  const result = JSON.parse(readFileSync(rawPath, "utf-8")) as RunResult;
+function main(): void {
+  const args = process.argv.slice(2);
+
+  if (args.length === 0 || args[0] === "--help") {
+    console.log(`Usage:`);
+    console.log(`  poc:analyze:impact <runDir>                 Single run — editorial memory vs narrative state`);
+    console.log(`  poc:analyze:impact <runDirA> --vs <runDirB>  Cross-run — per-tenant comparison between two runs`);
+    process.exit(0);
+  }
+
+  const vsIndex = args.indexOf("--vs");
+
+  if (vsIndex >= 0) {
+    // Cross-run mode
+    const dirAArg = args[0];
+    const dirBArg = args[vsIndex + 1];
+    if (!dirAArg || !dirBArg) {
+      console.error("ERROR: --vs requires two run directories: <runDirA> --vs <runDirB>");
+      process.exit(1);
+    }
+    const dirA = resolve(dirAArg);
+    const dirB = resolve(dirBArg);
+    console.log(`[impact] Cross-run mode`);
+    console.log(`[impact]   Run A: ${dirA}`);
+    console.log(`[impact]   Run B: ${dirB}`);
+
+    const resultA = loadResult(dirA);
+    const resultB = loadResult(dirB);
+    const report = renderCrossRunReport(resultA, resultB);
+
+    const outPath = join(dirB, "editorial-memory-impact-vs.md");
+    writeFileSync(outPath, report);
+    console.log(`[impact] Written: ${outPath}`);
+    console.log("");
+    console.log(report);
+    return;
+  }
+
+  // Single run mode
+  const dir = resolve(args[0]!);
+  console.log(`[impact] Loading ${join(dir, "raw-data.json")}...`);
+  const result = loadResult(dir);
   const report = renderImpactReport(result);
 
   const outPath = join(dir, "editorial-memory-impact.md");
