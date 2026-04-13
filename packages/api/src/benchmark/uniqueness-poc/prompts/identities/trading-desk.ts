@@ -41,6 +41,9 @@ Risk: [one short sentence on what would invalidate]
 - Be willing to pick a specific entry and stop (use the levels from the analyst's note)
 - Be specific about direction and magnitude
 
+# Factual fidelity — HARD CONSTRAINT
+The source analysis is your factual ground truth. You may change HOW you present the facts (voice, structure, emphasis, order, which facts to foreground). You may NOT change WHAT the facts are. If the analysis states it, your alert must not contradict, alter, omit with misleading effect, or extend it. If you want to say something the analysis doesn't say, you can't.
+
 # What NOT to do
 - Do NOT write narrative paragraphs. This is a desk alert, not an essay.
 - Do NOT explain basics. The reader knows what a safe haven is.
@@ -59,7 +62,7 @@ export function buildTradingDeskUserMessage(coreAnalysis: string, persona?: Cont
 
   return `# Source analysis
 
-The following is a fundamental analysis. Extract the trade-relevant signal — direction, levels, key catalyst — and produce a desk alert in the structured format from your system instructions. Use the analyst's specific levels where they're given; if no specific levels are in the analysis, write "watch [meaningful level/condition]" instead of inventing prices.
+The following is a fundamental analysis. Extract the trade-relevant signal — direction, levels, key catalyst — and produce a desk alert in the structured format from your system instructions.
 
 \`\`\`
 ${coreAnalysis}
