@@ -204,7 +204,7 @@ This is what the user meant by "clearing questions" — the system doesn't need 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
 | id | UUID | PK | Unique identifier |
-| tenant_id | VARCHAR(64) | NOT NULL, INDEX | Persona/broker id (e.g., `premium`, `fasttrade`) |
+| tenant_id | VARCHAR(64) | NOT NULL, INDEX | Broker/client id (e.g., `premium-capital-markets`, `fasttrade-pro`). In production, this maps to the **tenant (broker)**, not the identity (journalist, newsletter, trading desk). All identities within the same broker share editorial memory — the memory represents the broker's accumulated editorial positions, not any single writer's voice. In the PoC, persona = tenant because each broker runs one identity. |
 | topic_id | VARCHAR(64) | NOT NULL, INDEX | Market topic (e.g., `eurusd`, `gold`, `sp500`) |
 | piece_id | VARCHAR(128) | NOT NULL | Id of the article that produced this fact |
 | fact_type | VARCHAR(32) | NOT NULL | One of: `position`, `level`, `thesis`, `analogy`, `structure`, `cta`, `data_point` |
@@ -369,7 +369,7 @@ export interface EditorialMemoryStore {
    * Combines temporal recency, vector similarity (if available), and
    * contradiction detection to build a rich context block.
    *
-   * @param tenantId - The persona writing
+   * @param tenantId - The broker/client whose editorial memory to retrieve (shared across all identities within that tenant)
    * @param topicId - The topic being covered
    * @param coreAnalysis - The new core analysis (used for contradiction detection)
    * @param queryHints - Optional semantic queries for vector retrieval
@@ -712,7 +712,7 @@ The context assembler produces a markdown block in this structure:
 
 The context block is injected into the identity agent's **user message**, after the core analysis and before the persona-specific instructions. This matches the existing `renderNarrativeStateDirective` injection point in `runner.ts`. In the PoC harness, this applies to both Stage 6 (cross-tenant matrix identity calls) and Stage 7 (narrative state test identity calls).
 
-In production (content pipeline stage 7b), the injection happens in the identity adaptation layer, between receiving the cached core analysis and calling the identity agent.
+In production (content pipeline stage 7b), the injection happens in the identity adaptation layer, between receiving the cached core analysis and calling the identity agent. The `tenantId` passed to `getContext` is the **broker/client ID**, not the identity ID. Multiple identities within the same tenant (journalist, newsletter, trading desk) all call `getContext` with the same `tenantId` and receive the same editorial memory. Similarly, `recordArticle` uses the broker's `tenantId` so that facts extracted from any identity's output feed back into the shared tenant memory pool.
 
 ---
 
@@ -726,7 +726,7 @@ These are explicit constraints to prevent common failure modes:
 
 3. **Never store the full article body.** Only extracted facts go into the knowledge graph. Storing full articles would bloat the database, inflate retrieval tokens, and leak cross-tenant content if the isolation boundary is ever breached.
 
-4. **Never share memory across tenants.** Each persona's memory is strictly isolated to `(tenant_id, topic_id)`. There is no "shared house view" or cross-persona memory. Isolation is the feature — it drives divergence.
+4. **Never share memory across tenants. Always share memory within a tenant.** Editorial memory is strictly isolated to `(tenant_id, topic_id)` — no cross-tenant access. But within a tenant, all identities (journalist, newsletter editor, trading desk) share the same editorial memory. The memory represents the broker's institutional positions and editorial history, not any single identity's voice. Each identity reads from the same memory but presents it through its own lens. This is by design: the journalist and the newsletter editor at Premium Capital Markets should reference the same prior positions because they represent the same broker.
 
 5. **Never silently drop contradictions.** If the contradiction detector finds tension, it MUST appear in the editorial memory block. The identity agent can choose how to address it, but the system cannot suppress it. Silent position flips are the specific failure mode this system prevents.
 
