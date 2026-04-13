@@ -3,6 +3,9 @@
  * enforces regional variant correctness.
  *
  * Ported from finflow/agents/linguistic_specialist.py.
+ *
+ * TODO: migrate from callAgentWithUsage + text parsing to runAgentStructured (tool_use).
+ *       See style.ts for the target pattern.
  */
 
 import { callAgentWithUsage } from "../../lib/anthropic.js";

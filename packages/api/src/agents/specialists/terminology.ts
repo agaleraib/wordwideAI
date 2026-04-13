@@ -4,6 +4,9 @@
  *
  * Ported from finflow/agents/terminology_specialist.py.
  * Narrow mandate: correct terminology only, preserve everything else.
+ *
+ * TODO: migrate from callAgentWithUsage + text parsing to runAgentStructured (tool_use).
+ *       See style.ts for the target pattern.
  */
 
 import { callAgentWithUsage } from "../../lib/anthropic.js";
