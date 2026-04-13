@@ -4,12 +4,14 @@
  *
  * Ported from finflow/agents/terminology_specialist.py.
  * Narrow mandate: correct terminology only, preserve everything else.
+ * Migrated from callAgentWithUsage + text parsing to runAgentStructured (tool_use).
  */
 
-import { callAgentWithUsage } from "../../lib/anthropic.js";
+import { runAgentStructured } from "../../lib/anthropic.js";
+import type { AgentConfig } from "../../lib/types.js";
 import type { LanguageProfile } from "../../profiles/types.js";
 import type { FailedMetricData, SpecialistResult } from "./shared.js";
-import { buildEvidenceText, parseSpecialistResponse } from "./shared.js";
+import { buildEvidenceText } from "./shared.js";
 
 const SYSTEM_PROMPT = `You are a terminology correction specialist for financial translations.
 
@@ -26,6 +28,33 @@ YOU MUST NOT:
 - Add or remove content
 
 Your output must be the COMPLETE corrected translation. Not a diff, not a summary — the full text with only terminology fixes applied.`;
+
+const TERMINOLOGY_CORRECTION_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    correctedText: {
+      type: "string" as const,
+      description:
+        "The COMPLETE corrected translation with only terminology fixes applied.",
+    },
+    reasoning: {
+      type: "string" as const,
+      description:
+        "Brief list of what you changed and why (glossary replacements, consistency fixes, untranslated terms).",
+    },
+  },
+  required: ["correctedText", "reasoning"] as const,
+};
+
+function parseTerminologyResult(input: Record<string, unknown>): {
+  correctedText: string;
+  reasoning: string;
+} {
+  return {
+    correctedText: String(input.correctedText ?? ""),
+    reasoning: String(input.reasoning ?? ""),
+  };
+}
 
 export async function correctTerminology(
   sourceText: string,
@@ -73,11 +102,30 @@ Instructions:
 2. Replace with the exact glossary translation.
 3. Ensure the same source term is translated the same way throughout.
 4. Do NOT change anything else — preserve tone, structure, formatting, sentence flow.
-5. Return the COMPLETE corrected translation.
+5. Return the COMPLETE corrected translation.`;
 
-After the translation, add a line "---REASONING---" followed by a brief list of what you changed and why.`;
+  const config: AgentConfig = {
+    name: "terminology-specialist",
+    systemPrompt: SYSTEM_PROMPT,
+    model: "sonnet",
+    maxTokens: 8192,
+  };
 
-  const result = await callAgentWithUsage("sonnet", SYSTEM_PROMPT, prompt, 8192);
-  const [correctedText, reasoning] = parseSpecialistResponse(result.text);
-  return { correctedText, reasoning, usage: result.usage };
+  const { result, usage } = await runAgentStructured(
+    config,
+    prompt,
+    "terminology_correction",
+    "Submit the terminology-corrected translation and reasoning.",
+    TERMINOLOGY_CORRECTION_SCHEMA as unknown as Record<string, unknown>,
+    parseTerminologyResult,
+  );
+
+  return {
+    correctedText: result.correctedText,
+    reasoning: result.reasoning,
+    usage: {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    },
+  };
 }

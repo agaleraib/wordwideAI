@@ -3,12 +3,14 @@
  * enforces regional variant correctness.
  *
  * Ported from finflow/agents/linguistic_specialist.py.
+ * Migrated from callAgentWithUsage + text parsing to runAgentStructured (tool_use).
  */
 
-import { callAgentWithUsage } from "../../lib/anthropic.js";
+import { runAgentStructured } from "../../lib/anthropic.js";
+import type { AgentConfig } from "../../lib/types.js";
 import type { LanguageProfile } from "../../profiles/types.js";
 import type { FailedMetricData, SpecialistResult } from "./shared.js";
-import { buildEvidenceText, parseSpecialistResponse } from "./shared.js";
+import { buildEvidenceText } from "./shared.js";
 
 const SYSTEM_PROMPT = `You are a linguistic quality specialist for financial translations. You are effectively a native-speaker editor performing the final polish.
 
@@ -26,6 +28,33 @@ YOU MUST NOT:
 Think of yourself as the final native-speaker review. The translation is already terminologically correct, properly styled, and structurally sound. You are making it READ like it was originally written in the target language.
 
 Your output must be the COMPLETE corrected translation.`;
+
+const LINGUISTIC_CORRECTION_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    correctedText: {
+      type: "string" as const,
+      description:
+        "The COMPLETE corrected translation with only linguistic/fluency fixes applied.",
+    },
+    reasoning: {
+      type: "string" as const,
+      description:
+        "Brief list of what you changed and why (fluency improvements, meaning fixes, regional variant corrections).",
+    },
+  },
+  required: ["correctedText", "reasoning"] as const,
+};
+
+function parseLinguisticResult(input: Record<string, unknown>): {
+  correctedText: string;
+  reasoning: string;
+} {
+  return {
+    correctedText: String(input.correctedText ?? ""),
+    reasoning: String(input.reasoning ?? ""),
+  };
+}
 
 const VARIANT_GUIDES: Record<string, string> = {
   "es-ES":
@@ -84,11 +113,30 @@ Instructions:
    - Spelling conventions must match the variant
 4. PRESERVE all glossary terms, brand-specific language, numbers, and formatting exactly as they appear.
 5. PRESERVE the current tone and formality level.
-6. Return the COMPLETE corrected translation.
+6. Return the COMPLETE corrected translation.`;
 
-After the translation, add a line "---REASONING---" followed by a brief list of what you changed and why.`;
+  const config: AgentConfig = {
+    name: "linguistic-specialist",
+    systemPrompt: SYSTEM_PROMPT,
+    model: "sonnet",
+    maxTokens: 8192,
+  };
 
-  const result = await callAgentWithUsage("sonnet", SYSTEM_PROMPT, prompt, 8192);
-  const [correctedText, reasoning] = parseSpecialistResponse(result.text);
-  return { correctedText, reasoning, usage: result.usage };
+  const { result, usage } = await runAgentStructured(
+    config,
+    prompt,
+    "linguistic_correction",
+    "Submit the linguistically-corrected translation and reasoning.",
+    LINGUISTIC_CORRECTION_SCHEMA as unknown as Record<string, unknown>,
+    parseLinguisticResult,
+  );
+
+  return {
+    correctedText: result.correctedText,
+    reasoning: result.reasoning,
+    usage: {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    },
+  };
 }
