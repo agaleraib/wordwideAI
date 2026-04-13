@@ -15,6 +15,7 @@
     "poc:node:full": "tsx src/benchmark/uniqueness-poc/index.ts --full",
     "poc:node:all": "tsx src/benchmark/uniqueness-poc/index.ts --all --full",
     "poc:node:sequence": "tsx src/benchmark/uniqueness-poc/index.ts --sequence",
+    "poc:analyze": "tsx src/benchmark/uniqueness-poc/analyze.ts",
     "drizzle:generate": "bunx drizzle-kit generate",
     "drizzle:migrate": "bunx drizzle-kit migrate"
   },
