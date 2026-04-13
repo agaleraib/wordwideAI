@@ -47,8 +47,8 @@
 **This week:** advisor loop validation + editorial memory system (supersedes MemPalace integration).
 
 **Active C specs:**
-- `docs/specs/2026-04-12-editorial-memory.md` — **Phase 3 near-complete** (Tasks 10-11 done; Task 12 blocked on workstream C identity adaptation layer). Native TS editorial memory with contradiction detection. Supersedes `2026-04-10-mempalace-integration.md`
-- `docs/specs/2026-04-12-postgres-lxc.md` — **Draft** (20efffd). CT 230 (`pg-finflow`) on Proxmox node0 — Postgres 16 + pgvector, dual databases, 4 roles. Blocks editorial memory Tasks 11-12
+- `docs/specs/2026-04-12-editorial-memory.md` — **Phase 3 near-complete** (Tasks 10-11 done; Task 12 blocked on workstream C production pipeline). PoC testable now via `--editorial-memory` flag against Postgres. Supersedes `2026-04-10-mempalace-integration.md`
+- `docs/specs/2026-04-12-postgres-lxc.md` — **Phases 1-2 Complete** (CT 230 live, Postgres 16.13 + pgvector 0.8.2). Phases 3-5 pending (firewall, backup, CT 101 connectivity)
 - `docs/specs/2026-04-10-advisor-pipeline-loop.md` — implemented, default-on in master (commit `a44fdca`); pending full corpus validation
 - `docs/specs/2026-04-10-advisor-tool-poc.md` — active design + implementation in `packages/api/src/pipeline/`
 - `docs/specs/2026-04-08-uniqueness-poc-playground.md` — stabilizing (architecture in target zone after 2026-04-08 revision)

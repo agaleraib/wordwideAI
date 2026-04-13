@@ -57,6 +57,7 @@ methodology:
   phase_gates: strict
   drift_detector: on
   drift_sensitivity: high
+  model_routing: on
   parking_lot_enabled: true
   exit_ritual_mode: prompted-and-advisory
   pivot_check_auto_days: 14
