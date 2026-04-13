@@ -178,6 +178,37 @@ function renderImpactReport(r: RunResult): string {
     lines.push("");
   }
 
+  // ─── Per-Tenant A vs B ───
+  lines.push(`## Per-Tenant: Control vs Treatment Output`);
+  lines.push("");
+  lines.push(`*Same tenant, same event, different memory system. We expect high similarity — the value is seeing what editorial memory changed in each tenant's output.*`);
+  lines.push("");
+
+  for (let i = 0; i < ns.narrativeStates.length; i++) {
+    const persona = ns.narrativeStates[i]!;
+    const ctrl = ns.controlOutputs[i]!;
+    const treat = ns.treatmentOutputs[i]!;
+
+    lines.push(`### ${persona.personaName}`);
+    lines.push("");
+    lines.push(`| | Control (narrative state) | Treatment (editorial memory) |`);
+    lines.push(`|---|--------------------------|------------------------------|`);
+    lines.push(`| Words | ${ctrl.wordCount} | ${treat.wordCount} |`);
+    lines.push(`| Duration | ${(ctrl.durationMs / 1000).toFixed(1)}s | ${(treat.durationMs / 1000).toFixed(1)}s |`);
+    lines.push(`| Cost | ${fmtUsd(ctrl.costUsd)} | ${fmtUsd(treat.costUsd)} |`);
+    lines.push("");
+
+    // Show first ~200 chars of each output as a preview of voice/framing
+    const ctrlPreview = ctrl.body.replace(/\n/g, " ").slice(0, 300).trim();
+    const treatPreview = treat.body.replace(/\n/g, " ").slice(0, 300).trim();
+    lines.push(`**Control opening:**`);
+    lines.push(`> ${ctrlPreview}...`);
+    lines.push("");
+    lines.push(`**Treatment opening:**`);
+    lines.push(`> ${treatPreview}...`);
+    lines.push("");
+  }
+
   // ─── Interpretation ───
   lines.push(`## Interpretation`);
   lines.push("");
