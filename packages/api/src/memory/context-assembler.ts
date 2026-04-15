@@ -182,11 +182,13 @@ export function assembleEditorialContext(
   const renderedBlock = sections.join("\n");
   const tokenCount = estimateTokens(renderedBlock);
 
-  // Truncate if over budget (drop oldest prior coverage entries)
+  // Truncate if over budget (drop oldest prior coverage entries one at a time).
+  // Must slice off a strictly smaller array each call — `slice(-2)` was a bug
+  // that stabilised at length 2 and recursed forever.
   if (tokenCount > maxTokens && input.recentPieces.length > 1) {
     return assembleEditorialContext({
       ...input,
-      recentPieces: input.recentPieces.slice(-2),
+      recentPieces: input.recentPieces.slice(1),
     });
   }
 
