@@ -701,22 +701,22 @@ function buildTAUserMessage(input: TAAgentInput): string {
 
 ### Phase 1: Foundation -- Types, Indicators, Fixtures
 
-- [ ] **Task 1: TA types and interfaces**
+- [x] **Task 1: TA types and interfaces** (done in 60a89bd)
   - **Files:** `packages/api/src/data/types.ts`, `packages/api/src/agents/ta-types.ts`
   - **Depends on:** Nothing
   - **Verify:** `bun run typecheck` passes. `MarketDataSnapshot`, `TAAgentOutput`, `TechnicalIndicators`, `MarketDataProvider` types are importable.
 
-- [ ] **Task 2: Technical indicator computation (pure TS)**
+- [x] **Task 2: Technical indicator computation (pure TS)** (done in 60a89bd)
   - **Files:** `packages/api/src/data/indicators.ts`
   - **Depends on:** Task 1
   - **Verify:** Unit tests pass: `computeRSI([known values])` returns expected RSI. `computeMACD`, `computeBollingerBands`, `computeStochastic`, `computeATR`, `computeSMA`, `computeEMA` all return correct values for known inputs. Edge case: arrays shorter than period return `null`. `bun run typecheck` passes.
 
-- [ ] **Task 3: Instrument catalog port**
+- [x] **Task 3: Instrument catalog port** (done in 60a89bd)
   - **Files:** `packages/api/src/data/instrument-catalog.ts`
   - **Depends on:** Task 1
   - **Verify:** `INSTRUMENT_CATALOG` exports at least 3 instruments (EURUSD, Gold, Oil) with correct field values matching the legacy Python. `InstrumentCatalogEntry` type aligns with content-pipeline spec section 6. `bun run typecheck` passes.
 
-- [ ] **Task 4: Fixture market data provider**
+- [x] **Task 4: Fixture market data provider** (done in 60a89bd)
   - **Files:** `packages/api/src/data/fixture-market-data.ts`, `packages/api/src/data/fixtures/*.json`
   - **Depends on:** Tasks 1, 2, 3
   - **Verify:** `FixtureMarketDataProvider.getSnapshot("eurusd", "daily")` returns a valid `MarketDataSnapshot` with non-null indicators. `getSnapshots("eurusd", ["daily", "weekly"])` returns both timeframes. `bun run typecheck` passes.
