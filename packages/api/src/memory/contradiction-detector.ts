@@ -69,7 +69,6 @@ const CONTRADICTION_DETECTOR_TOOL = {
         },
       },
     },
-    required: ["contradictions"],
   },
 };
 
@@ -93,7 +92,7 @@ const ContradictionItemSchema = z.object({
 });
 
 const DetectionResultSchema = z.object({
-  contradictions: z.array(ContradictionItemSchema),
+  contradictions: z.array(ContradictionItemSchema).default([]),
 });
 
 export type DetectedContradiction = z.infer<typeof ContradictionItemSchema>;
