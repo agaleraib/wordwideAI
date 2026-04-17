@@ -82,7 +82,7 @@ uniqueness-poc-runs/2026-04-07T15-30-00-000Z_iran-strike-2026-04-07/
 
 **Proves:**
 - Same core analysis → meaningfully different outputs across identities (the architectural premise)
-- Cross-identity similarity is below the cross-tenant uniqueness threshold (cosine ≥ 0.85)
+- Cross-identity similarity is below the cross-tenant uniqueness threshold (cosine ≥ 0.80)
 - The identity prompts produce genuinely different content shapes, not just different vocabulary
 - Each identity is reproducible across independent runs (`--full`)
 - The persona-overlay mechanism actually differentiates two clients picking the same identity (`--full`)

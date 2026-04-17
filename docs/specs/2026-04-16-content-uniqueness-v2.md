@@ -200,7 +200,7 @@ This is where the real differentiation lives. Two frameworks processing the same
 - **Different emphasis:** Conservative foregrounds macro context; Trader foregrounds levels; Educator foregrounds "what does this mean for you"; Contrarian foregrounds what the market is missing
 - **Different voice register:** Conservative is formal/hedged; Trader is terse/direct; Educator is warm/accessible; Contrarian is provocative/institutional
 
-**Expected cross-framework cosine:** 0.60-0.75 (well below the v1 cross-tenant threshold of 0.85). This is the hypothesis to validate.
+**Expected cross-framework cosine:** 0.60-0.75 (well below the v1 cross-tenant threshold of 0.80). This is the hypothesis to validate.
 
 ### 3.3 Same-framework uniqueness (the overlay gate)
 
@@ -240,7 +240,7 @@ The question is whether these overlays produce enough differentiation to pass th
 | Same-framework, cross-tenant | 0.92 | 0.55 | Deliberately generous -- overlay divergence is limited; SEO risk is lower because same-framework tenants are publishing to different audiences |
 | Intra-tenant, cross-pipeline | 0.92 | 0.50 | Same as v1 intra-tenant |
 
-**Key change from v1:** the same-framework cross-tenant threshold (0.92) is deliberately looser than v1's cross-tenant threshold (0.85). This reflects the architectural reality: same-framework tenants share a base article and differ only by overlay. The product claim shifts from "every piece is unique work" to "every piece is adapted to your brand from an authoritative shared analysis." This is a commercial decision as much as a technical one.
+**Key change from v1:** the same-framework cross-tenant threshold (0.92) is deliberately looser than v1's cross-tenant threshold (0.80). This reflects the architectural reality: same-framework tenants share a base article and differ only by overlay. The product claim shifts from "every piece is unique work" to "every piece is adapted to your brand from an authoritative shared analysis." This is a commercial decision as much as a technical one.
 
 ---
 

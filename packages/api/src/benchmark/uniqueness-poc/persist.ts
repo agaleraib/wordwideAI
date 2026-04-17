@@ -541,7 +541,7 @@ Identity: ${escHtml(identityName)} · Run: ${escHtml(result.runId.slice(0, 40))}
       const pres = sim.judgePresentationSimilarity ?? 0;
       const v = sim.judgeTrinaryVerdict ?? "no data";
       push(`<div class="scores">
-<div class="score-card"><div class="label">Cosine</div><div class="value ${scoreClass(cos, 0.85)}">${cos.toFixed(3)}</div></div>
+<div class="score-card"><div class="label">Cosine</div><div class="value ${scoreClass(cos, 0.80)}">${cos.toFixed(3)}</div></div>
 <div class="score-card"><div class="label">ROUGE-L</div><div class="value ${scoreClass(rouge, 0.3)}">${rouge.toFixed(3)}</div></div>
 <div class="score-card"><div class="label">Fidelity</div><div class="value good">${fid.toFixed(2)}</div></div>
 <div class="score-card"><div class="label">Presentation</div><div class="value ${scoreClass(pres, 0.4)}">${pres.toFixed(2)}</div></div>
@@ -966,7 +966,7 @@ function updateUI(){
   // Scores
   if(pair.sim){
     const s = pair.sim;
-    const cosC = s.cosine > 0.85 ? 'warn' : 'good';
+    const cosC = s.cosine > 0.80 ? 'warn' : 'good';
     const rougeC = s.rougeL > 0.3 ? 'warn' : 'good';
     const presC = s.presentation > 0.4 ? 'warn' : 'good';
     const vc = s.verdict.includes('distinct') ? 'distinct' : (s.verdict.includes('reskinned') ? 'reskinned' : (s.verdict.includes('fabrication') ? 'fabrication' : ''));

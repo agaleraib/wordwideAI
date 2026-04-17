@@ -20,7 +20,7 @@ Assumes:
 - The `ContentPersona` type from `packages/api/src/benchmark/uniqueness-poc/types.ts`
 - The `IdentityDefinition` type and `RegisteredIdentity` interface from the identity registry
 - The existing PoC harness infrastructure (runner, similarity scoring, LLM judge)
-- Cross-tenant cosine threshold of 0.85 and ROUGE-L threshold of 0.40 from the v1 spec
+- Cross-tenant cosine threshold of 0.80 and ROUGE-L threshold of 0.40 from the v1 spec
 
 Changes:
 - Adds a `structuralVariant` field to `ContentPersona` (or derives it from tenant ID)

@@ -63,13 +63,13 @@ function verdictBanner(result: RunResult): string {
     lines.push(result.crossTenantMatrix.verdictReasoning);
     lines.push("");
     lines.push(
-      `*Tested by running **${result.crossTenantMatrix.identityName}** on the same core analysis with **${result.crossTenantMatrix.personas.length} different broker personas** (${result.crossTenantMatrix.personas.map((p) => p.name).join(", ")}). This produces ${result.crossTenantMatrix.similarities.length} cross-tenant pairs against the strict 0.85 cosine / 0.40 ROUGE-L thresholds. This is the test that directly validates the architecture's load-bearing claim that two brokers picking the same identity get differentiated content.*`,
+      `*Tested by running **${result.crossTenantMatrix.identityName}** on the same core analysis with **${result.crossTenantMatrix.personas.length} different broker personas** (${result.crossTenantMatrix.personas.map((p) => p.name).join(", ")}). This produces ${result.crossTenantMatrix.similarities.length} cross-tenant pairs against the strict 0.80 cosine / 0.40 ROUGE-L thresholds. This is the test that directly validates the architecture's load-bearing claim that two brokers picking the same identity get differentiated content.*`,
     );
     lines.push("");
     lines.push("### Cross-tenant similarity distribution");
     lines.push("");
     lines.push(
-      `- **Cosine similarity**: mean ${result.crossTenantMatrix.meanCosine.toFixed(4)}, range ${result.crossTenantMatrix.minCosine.toFixed(4)} – ${result.crossTenantMatrix.maxCosine.toFixed(4)} (threshold: < 0.85)`,
+      `- **Cosine similarity**: mean ${result.crossTenantMatrix.meanCosine.toFixed(4)}, range ${result.crossTenantMatrix.minCosine.toFixed(4)} – ${result.crossTenantMatrix.maxCosine.toFixed(4)} (threshold: < 0.80)`,
     );
     lines.push(
       `- **ROUGE-L F1**:       mean ${result.crossTenantMatrix.meanRougeL.toFixed(4)}, range ${result.crossTenantMatrix.minRougeL.toFixed(4)} – ${result.crossTenantMatrix.maxRougeL.toFixed(4)} (threshold: < 0.40)`,
@@ -85,7 +85,7 @@ function verdictBanner(result: RunResult): string {
   lines.push(result.verdictReasoning);
   lines.push("");
   lines.push(
-    "*This is the matrix of pairwise comparisons between the 6 different identities below, all consuming the same core analysis. It tests a different question: \"if a single broker runs multiple identity pipelines on the same event, are the resulting products differentiated?\" Note: this matrix uses the strict cross-tenant thresholds (0.85 cosine), which is over-strict for an intra-tenant comparison — the spec actually allows 0.92 cosine for intra-tenant cross-pipeline. Read this verdict with that caveat.*",
+    "*This is the matrix of pairwise comparisons between the 6 different identities below, all consuming the same core analysis. It tests a different question: \"if a single broker runs multiple identity pipelines on the same event, are the resulting products differentiated?\" Note: this matrix uses the strict cross-tenant thresholds (0.80 cosine), which is over-strict for an intra-tenant comparison — the spec actually allows 0.92 cosine for intra-tenant cross-pipeline. Read this verdict with that caveat.*",
   );
   lines.push("");
 
@@ -269,7 +269,7 @@ export function renderReport(result: RunResult): string {
     lines.push(`- **Pairwise cosine max:** ${result.reproducibility.pairwiseCosineMax.toFixed(4)}`);
     lines.push("");
     lines.push(
-      `*A mean cosine close to 1.0 means each run is nearly identical (high stability). A mean cosine close to the cross-tenant FAIL threshold (0.85) means runs vary significantly — that's bad for trust but good for diversification.*`,
+      `*A mean cosine close to 1.0 means each run is nearly identical (high stability). A mean cosine close to the cross-tenant FAIL threshold (0.80) means runs vary significantly — that's bad for trust but good for diversification.*`,
     );
     lines.push("");
   }
@@ -315,7 +315,7 @@ export function renderReport(result: RunResult): string {
     );
     lines.push("");
     lines.push(
-      `Each pair below is a cross-tenant comparison evaluated against the **strict cross-tenant thresholds** from the uniqueness spec: cosine < 0.85, ROUGE-L F1 < 0.40. This is the bar Google's duplicate-content detection cares about and the bar a discerning reader cares about.`,
+      `Each pair below is a cross-tenant comparison evaluated against the **strict cross-tenant thresholds** from the uniqueness spec: cosine < 0.80, ROUGE-L F1 < 0.40. This is the bar Google's duplicate-content detection cares about and the bar a discerning reader cares about.`,
     );
     lines.push("");
 
@@ -392,7 +392,7 @@ export function renderReport(result: RunResult): string {
     lines.push("| Metric | Mean | Min | Max | Threshold |");
     lines.push("|---|---:|---:|---:|---:|");
     lines.push(
-      `| Cosine | ${ct.meanCosine.toFixed(4)} | ${ct.minCosine.toFixed(4)} | ${ct.maxCosine.toFixed(4)} | < 0.85 |`,
+      `| Cosine | ${ct.meanCosine.toFixed(4)} | ${ct.minCosine.toFixed(4)} | ${ct.maxCosine.toFixed(4)} | < 0.80 |`,
     );
     lines.push(
       `| ROUGE-L F1 | ${ct.meanRougeL.toFixed(4)} | ${ct.minRougeL.toFixed(4)} | ${ct.maxRougeL.toFixed(4)} | < 0.40 |`,

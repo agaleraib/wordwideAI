@@ -445,7 +445,7 @@ async function runPersonaDifferentiation(
 // ───────────────────────────────────────────────────────────────────
 
 /**
- * Apply STRICT cross-tenant thresholds (cosine 0.85, ROUGE-L 0.40) to a pair.
+ * Apply STRICT cross-tenant thresholds (cosine 0.80, ROUGE-L 0.40) to a pair.
  * This is the bar from content-uniqueness §6.1 for the cross-tenant case.
  */
 function classifyCrossTenantStatus(cosineSim: number, rougeL: number): SimilarityStatus {

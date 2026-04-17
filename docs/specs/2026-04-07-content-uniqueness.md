@@ -221,7 +221,7 @@ Runs after the content agent produces a draft, before the compliance gate. Three
 
 | Comparison | Cosine threshold | Borderline margin |
 |---|---|---|
-| Cross-tenant | 0.85 | ±0.05 |
+| Cross-tenant | 0.80 | ±0.05 |
 | Intra-tenant cross-pipeline | 0.92 | ±0.03 |
 
 Cross-tenant is strict because Google does not care about your editorial intent. Intra-tenant is looser because a single client's two pipelines analyzing the same event will share underlying perspective and conclusions — they need to differ in voice/format/CTA, not necessarily in fundamental claims.
@@ -505,6 +505,7 @@ This plan assumes we have a real enough corpus to calibrate against. For the fir
 | 2026-04-07 | Closed core `AngleTag` taxonomy + open string escape hatch | Closed core lets the pre-allocator reason structurally; escape hatch handles edge cases without core changes |
 | 2026-04-07 | Three-stage gate: embedding → ROUGE-L → LLM judge | Cheapest first; LLM only fires on borderline cases; clears both product and SEO bars |
 | 2026-04-07 | Cross-tenant cosine threshold = 0.85 (strict), intra-tenant = 0.92 (looser) | Cross-tenant is Google's bar; intra-tenant is product perception, looser by design |
+| 2026-04-17 | Cross-tenant cosine threshold lowered from 0.85 to 0.80 | PoC data shows 0.85 is within the natural operating range of same-framework pairs; 0.80 is achievable and still clears Google's duplicate bar. Collect real production data before further tuning. |
 | 2026-04-07 | Cross-tenant ROUGE-L = 0.40, intra-tenant = 0.50 | First-pass values; will tune in production via the calibration plan in §10 |
 | 2026-04-07 | One regeneration attempt, then HITL escalation. Never two. | Triples cost for hard collisions; HITL surfaces real product feedback faster |
 | 2026-04-07 | Embedding model = `text-embedding-3-small`, locked system-wide | Cheap, fast, dimension fits, OpenAI is already a configured provider; swapping later is expensive |
