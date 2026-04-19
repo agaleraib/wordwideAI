@@ -1,4 +1,9 @@
-import type { IdentityDefinition, ContentPersona } from "../../types.js";
+import type {
+  IdentityDefinition,
+  ContentPersona,
+  StructuralVariantId,
+} from "../../types.js";
+import type { StructuralVariantEntry } from "./trading-desk.js";
 
 export const SENIOR_STRATEGIST: IdentityDefinition = {
   id: "senior-strategist",
@@ -50,7 +55,94 @@ The source analysis is your factual ground truth. You may change HOW you present
 The piece should feel like a research note from a senior strategist at a major sell-side bank that a real CIO would forward to colleagues. If your output reads like retail content, a blog post, or an AI summary, you have failed.`,
 };
 
+/**
+ * Senior Strategist structural variants. Variant 1 is the current Full
+ * Positioning Note (backward compatible); variants 2 and 3 implement the
+ * Thesis-Antithesis-Synthesis and Executive Briefing formats from
+ * docs/specs/2026-04-16-structural-variants.md §3.3.
+ *
+ * Variant 3 (Executive Briefing) carries a `targetWordCount` override of
+ * 600-800 words — the identity default is 1000-1400. Word-count validators
+ * should prefer `TRADING_DESK_VARIANTS[N].targetWordCount` when present
+ * (OQ#2 decision, 2026-04-19). The override is also stated inline in the
+ * variant directive text as a belt-and-braces guarantee.
+ */
+export const SENIOR_STRATEGIST_VARIANTS: Record<StructuralVariantId, StructuralVariantEntry> = {
+  1: {
+    directive: `# STRUCTURAL FORMAT: Full Positioning Note
+
+Follow this template:
+1. **Title**: institutional ("EUR/USD: Positioning for the Risk-Off Bid")
+2. **Header**: dated, one-line conviction call ("Bearish EUR/USD | Conviction: High | Horizon: 1-4 weeks")
+3. **Executive Summary** (3-4 sentences): headline view, conviction, positioning, time horizon
+4. **Background and current context**: one paragraph
+5. **Detailed scenario analysis**: Base / Upside / Downside with probability weights and target ranges
+6. **Cross-asset implications**: connected markets, leveraged plays, hedges
+7. **Recommended positioning**: long/short/hedge bias with sizing note
+8. **Key risks and what would change the view**: strongest counter-argument, flip trigger
+9. **Signed-off conclusion**: one paragraph + faux signature ("— Macro Strategy Team")`,
+  },
+  2: {
+    directive: `# STRUCTURAL FORMAT: Thesis-Antithesis-Synthesis
+
+Follow this structure:
+
+1. **Title**: framed as a tension or question ("EUR/USD: Is the Rate Differential Story Overstated?", "Gold: Hedge or Crowded Trade?")
+2. **Conviction line**: one sentence, positioned right after the title. Same format: "Conviction: [High/Moderate/Low] | [Direction] | Horizon: [timeframe]"
+3. **The Prevailing Thesis** — 2-3 paragraphs. State the consensus view as strongly as its proponents would state it. Steelman it. Include the data points and arguments that support it. Write it as if you believe it.
+4. **The Counterargument** — 2-3 paragraphs. Now dismantle it. Name the assumptions that could break. Surface the data the thesis is ignoring. Reference the cross-asset signals that complicate the picture. Do not strawman — this should be a genuine challenge.
+5. **Synthesis and Positioning** — 2-3 paragraphs. Your actual view: what do you take from each side? Where does the weight of evidence land? State the directional conviction clearly. Include a sizing note and a time horizon. Name the specific trigger that would force you to revisit.
+6. **The Asymmetric Tail** — one short paragraph. What is the tail-risk scenario that neither the thesis nor the antithesis adequately prices? What would you do if it materializes?
+7. **Sign-off**: one line ("— [Team Name]")
+
+No scenario probability tables. No bullet-point lists. Dense institutional prose throughout.`,
+  },
+  3: {
+    directive: `# STRUCTURAL FORMAT: Executive Briefing
+
+Follow this structure:
+
+1. **Title**: direct, no question marks ("EUR/USD: Short into ECB Divergence")
+2. **Decision Box** — a compact structured block:
+   \`\`\`
+   VIEW:       [one sentence — the directional call]
+   CONVICTION: [High / Moderate / Low]
+   HORIZON:    [timeframe]
+   EXPRESSION: [specific instrument or pair] — [long/short/hedge] — [sizing: tactical/core/max]
+   HEDGE:      [instrument] if [condition]
+   FLIP IF:    [the specific trigger that reverses the view]
+   \`\`\`
+3. **The Case** — ONE dense paragraph, 150-200 words. The entire analytical argument compressed. Every sentence must carry information. No scene-setting, no background for its own sake. This paragraph alone should be sufficient for a CIO to understand the view and its basis.
+4. **Scenarios** — a compact table:
+   | Scenario | Probability | Target | Trigger |
+   |----------|-------------|--------|---------|
+   | Base | [%] | [level] | [condition] |
+   | Upside | [%] | [level] | [condition] |
+   | Downside | [%] | [level] | [condition] |
+5. **Cross-Asset** — 2-3 sentences naming the correlated plays and hedges. No elaboration beyond what's needed.
+6. **Sign-off**: "— [Team Name]"
+
+Target total length: 600-800 words (deliberately shorter than the standard 1000-1400). Information density is the priority.`,
+    targetWordCount: { min: 600, target: 700, max: 800 },
+  },
+};
+
+function resolveStructuralOverride(persona?: ContentPersona): string | null {
+  if (persona?.customStructuralTemplate) return persona.customStructuralTemplate;
+  const requested = persona?.structuralVariant;
+  if (requested === undefined || requested === 1) return null;
+  const variantCount = 3;
+  const clamped = (requested > variantCount ? 1 : requested) as StructuralVariantId;
+  if (clamped === 1) return null;
+  return SENIOR_STRATEGIST_VARIANTS[clamped].directive;
+}
+
 export function buildSeniorStrategistUserMessage(coreAnalysis: string, persona?: ContentPersona): string {
+  const structuralOverride = resolveStructuralOverride(persona);
+  const structuralSection = structuralOverride
+    ? `\n${structuralOverride}\n\nIMPORTANT: The structural format above OVERRIDES the "Required structure" block in your system instructions. Use this format, not the system-prompt default.\n`
+    : "";
+
   const personaSection = persona
     ? `\n# Brand context\n\nYou are writing for ${persona.name}'s institutional research desk.\n- Brand voice: ${persona.brandVoice}\n- Reader audience: ${persona.audienceProfile}\n- Brand positioning: ${persona.brandPositioning}\n- Regional variant: ${persona.regionalVariant}\n- Forbidden phrases: ${persona.forbiddenClaims.join(", ")}\n- CTA policy: ${persona.ctaPolicy}\n\nApply the brand context as a subtle overlay — institutional research has its own conventions that should remain dominant.\n`
     : "";
@@ -62,7 +154,7 @@ The following is a fundamental analysis from a senior in-house analyst. Use it a
 \`\`\`
 ${coreAnalysis}
 \`\`\`
-${personaSection}
+${personaSection}${structuralSection}
 # Your task
 
 Write a complete positioning note following your system instructions. Output ONLY the finished note — no preamble, no meta-commentary. Start with the title.`;
