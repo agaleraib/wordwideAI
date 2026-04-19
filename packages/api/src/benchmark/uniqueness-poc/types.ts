@@ -138,7 +138,19 @@ export interface ContentPersona {
    * confidence posture. Orthogonal to angles. See tags.ts for the taxonomy.
    */
   personalityTags: PersonalityTag[];
+
+  /**
+   * Structural variant resolution order:
+   * `customStructuralTemplate` (if set) > pre-built variant lookup by
+   * `structuralVariant` > default (variant 1, the legacy template).
+   * Both fields are optional; when both are undefined the identity uses
+   * variant 1 unchanged, preserving existing behavior.
+   */
+  structuralVariant?: StructuralVariantId;
+  customStructuralTemplate?: string;
 }
+
+export type StructuralVariantId = 1 | 2 | 3;
 
 export interface IdentityDefinition {
   id: string;
