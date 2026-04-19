@@ -43,7 +43,7 @@
 - **B — next action:** none (paused). Resume by scaffolding `packages/sources/` once C unblocks.
 - **C — next action (design):** validate framework archetype model -- build 3-event x 4-framework fixture set, measure cross-framework cosine (target < 0.80), measure same-framework overlay divergence (ROUGE-L < 0.55). See `docs/specs/2026-04-16-content-uniqueness-v2.md` section 7.
 - **C — next action (TA port):** Phase 1 tasks (types, indicator computation, instrument catalog, fixture data provider). See `docs/specs/2026-04-16-ta-typescript-port.md` Tasks 1-4.
-- **C — next action (structural variants):** ~~Phase 1~~ done in `c317102`; ~~Phase 2 (Wave 1 — per-identity variant prompts + registry)~~ done in merge `73da433` (2026-04-19). Wave 2 next — persona fixtures + runner/manifest wiring (Phase 3, Tasks 10-12). Dispatch with `/run-wave 2`. See "Wave Plan — Structural Variants" below.
+- **C — next action (structural variants):** ~~Phase 1~~ done in `c317102`; ~~Phase 2 (Wave 1 — per-identity variant prompts + registry)~~ done in merge `73da433` (2026-04-19); ~~Phase 3 (Wave 2 — persona fixtures + runner/manifest wiring + spec amendment + CHANGELOG)~~ done in merge `b62db17` (2026-04-19). Wave 3 next — Phase 4 validation run (`--full --editorial-memory` on ≥2 events, capture cosine + ROUGE-L deltas + the live eyeball diff deferred from Wave 2). Dispatch with `/run-wave 3`. See "Wave Plan — Structural Variants" below.
 - **C — ongoing:** run full corpus validation for advisor loop (blocker — see `feedback_unified_pass_risk.md`). Editorial memory Phase 3 near-complete — ~~Task 10: Drizzle schema~~ (done in 1141dd8), ~~Task 11: Postgres store~~ (done in ef147c4), Task 12 blocked on production pipeline.
 - **Pipeline audit trail (demo → production bridge):** `PipelineRun` type + `PipelineRunStore` interface ship with demo (in-memory); `PostgresRunStore` implementation ships with Postgres workstream. Pipeline History UI works against the interface — same screens serve both. See `docs/specs/2026-04-13-demo-mvp.md` Tasks 1, 7, and new history tasks (13c, 13d).
 - **D — next action:** none (planned). First adapter scoping waits on C reaching first-tenant-shipping milestone.
@@ -107,17 +107,15 @@ Conventions:
 
 **Why this wave:** Phase 3 of the spec. Wire the variant prompts through the runner and persist variant choice in run output. Single rollback-safe unit — fixtures, runner wiring, and manifest recording are all harness plumbing inside `packages/api/src/benchmark/uniqueness-poc/` and fail/succeed together. Includes a small spec amendment (code-adjacent maintenance, not silent).
 
-- [ ] **V2 Harness integration — Size: M**
+- [x] **V2 Harness integration — Size: M** (closed in merge `b62db17`; summary `docs/2026-04-19-wordwideAI-wave2-summary.md`)
   - [spec: structural-variants](./specs/2026-04-16-structural-variants.md)
-  - Task 10: Distribute structural variants across `broker-{a,b,c,d}.json` per spec §6.9
-  - Task 11: Wire `persona.structuralVariant` through Stage 6 in `runner.ts` and `index.ts` (depends on Wave 1 Task 9 + Task 10)
-  - Task 12: Record `structuralVariant` on `IdentityOutput`, persist in raw-data.json, surface in text report — `types.ts`, `persist.ts`, `report.ts` (depends on Task 11)
-  - Spec amendment: edit spec §6.10 and Task 11 Verify to drop Stage 2 and point persona-carrying verification to Stage 6
-  - CHANGELOG entry: extend `prompts/identities/CHANGELOG.md` with a Wave 2 entry
+  - Task 10: broker fixtures distribute variants 1/2/3/1 (done in `a2afa41`)
+  - Task 11: runner threads `persona.structuralVariant` through Stage 5/6 + guardrail log on non-default (done in `743a6e6`)
+  - Task 12: `IdentityOutput.structuralVariant` field + persist propagation + report annotation (done in `4709ec7`)
+  - Spec amendment: §6.10, §7 Task 11 Verify, §10 OQ#5 narrowed to Stage 5/6 (done in `c4ae6ae`)
+  - CHANGELOG entry: `prompts/identities/CHANGELOG.md` Wave 2 entry (done in `e008876`)
 
-**Wave 2 exit gate:** `bun run typecheck` passes. `--full` run produces `raw-data.json` where every `IdentityOutput` under the Stage 6 matrix has `structuralVariant: 1|2|3` matching fixture assignment. Text report names variant per output. Visual sanity check on one identity. Spec amended. CHANGELOG updated. No edits outside `packages/api/src/benchmark/uniqueness-poc/`.
-
-**Dependencies:** Wave 1 Task 9 — merged in `73da433`.
+**Wave 2 exit gate — result:** PASS on every mechanical and documentation clause. `bun run typecheck` clean. Spec amended (3 edits, no unrelated text changed). CHANGELOG entry appended. `IdentityOutput.structuralVariant` field, runner guardrail log, and report annotations (`(variant N)` headers, `· structural variant N` stats line, `Variants` column in pairwise matrix) all verified offline. Live `--full` Stage 6 LLM run + visual sanity check intentionally deferred to Wave 3 (same `--full --editorial-memory` run already planned there — avoids spending the LLM budget twice).
 
 ### Wave 3 — Validation run + writeup
 

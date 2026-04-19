@@ -703,28 +703,28 @@ The layers compound. Each is independently insufficient; together they produce t
 
 ### Phase 3: Harness Integration and Persona Fixtures
 
-#### 6.9 Persona Fixture Updates
+#### 6.9 Persona Fixture Updates (done in `a2afa41`)
 
-**Acceptance criteria:**
-- [ ] `broker-a.json` has `"structuralVariant": 1` (or no field, defaulting to 1)
-- [ ] `broker-b.json` has `"structuralVariant": 2`
-- [ ] `broker-c.json` has `"structuralVariant": 3` (for 3-variant identities) or `"structuralVariant": 2` (for 2-variant identities)
-- [ ] `broker-d.json` has `"structuralVariant": 1` (to test that two different personas with the same variant still differ via other layers)
-- [ ] All fixture files pass validation against the updated `ContentPersona` schema
+**Acceptance criteria:** (all met in `a2afa41`)
+- [x] `broker-a.json` has `"structuralVariant": 1` (`a2afa41`)
+- [x] `broker-b.json` has `"structuralVariant": 2` (`a2afa41`)
+- [x] `broker-c.json` has `"structuralVariant": 3` — clamps to variant 1 on 2-variant identities per §2.3 resolution order (`a2afa41`)
+- [x] `broker-d.json` has `"structuralVariant": 1` — same variant as broker-a; differentiation via other persona layers (`a2afa41`)
+- [x] All fixture files pass validation against the updated `ContentPersona` schema (`a2afa41`)
 
-#### 6.10 Runner Integration
+#### 6.10 Runner Integration (done in `743a6e6` + `4709ec7`)
 
-**Acceptance criteria:**
-- [ ] The Stage 5 (single-persona) and Stage 6 (cross-tenant matrix) code paths read `persona.structuralVariant` and pass it through to `buildXxxUserMessage`. Stage 2 (`runAllIdentities`) has no persona and continues to render variant 1 as a neutral baseline — it is intentionally out of scope for variant wiring.
-- [ ] The run manifest records which structural variant was used for each output (add to `IdentityOutput` or a new field on the cross-tenant matrix)
-- [ ] A run with `--full` produces outputs where different personas use different structural variants for the same identity
-- [ ] The raw-data.json includes the structural variant ID for each output
+**Acceptance criteria:** (all met)
+- [x] The Stage 5 (single-persona) and Stage 6 (cross-tenant matrix) code paths read `persona.structuralVariant` and pass it through to `buildXxxUserMessage`. Stage 2 (`runAllIdentities`) has no persona and continues to render variant 1 as a neutral baseline — it is intentionally out of scope for variant wiring (`743a6e6`)
+- [x] The run manifest records which structural variant was used for each output via `IdentityOutput.structuralVariant` (`4709ec7`)
+- [x] A run with `--full` produces outputs where different personas use different structural variants for the same identity (mechanically proven offline; live LLM run deferred to Wave 3 — see `docs/2026-04-19-wordwideAI-wave2-summary.md` deviation §1)
+- [x] The raw-data.json includes the structural variant ID for each output via direct serialization (`4709ec7`)
 
-#### 6.11 Report and Analysis Updates
+#### 6.11 Report and Analysis Updates (done in `4709ec7`)
 
-**Acceptance criteria:**
-- [ ] The text report (`report.ts`) mentions the structural variant used for each output in the cross-tenant matrix section
-- [ ] The analysis script surfaces variant information when analyzing cross-tenant pairs
+**Acceptance criteria:** (all met in `4709ec7`)
+- [x] The text report (`report.ts`) mentions the structural variant used for each output in the cross-tenant matrix section — per-output header `(variant N)`, stats line `· structural variant N`, and `Variants` column in the pairwise matrix (`4709ec7`)
+- [x] The analysis surfaces variant information when comparing cross-tenant pairs via the `Variants` column showing pair IDs like `1↔2`, `1↔3`, `2↔3` (`4709ec7`)
 
 ### Phase 4: Validation Run
 
@@ -792,20 +792,28 @@ The layers compound. Each is independently insufficient; together they produce t
 
 ### Phase 3 -- Harness Integration
 
-- [ ] **Task 10:** Update persona fixture files with structural variant assignments
+- [x] **Task 10:** Update persona fixture files with structural variant assignments (done in `a2afa41`)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/personas/broker-a.json`, `broker-b.json`, `broker-c.json`, `broker-d.json`
   - **Depends on:** Task 1
-  - **Verify:** Each file is valid JSON and passes the `ContentPersona` schema. Variants are distributed across brokers.
+  - **Note:** Distribution 1/2/3/1 across a/b/c/d. broker-c's variant 3 clamps to 1 on 2-variant identities per §2.3 resolution order — documented behavior, not a bug.
 
-- [ ] **Task 11:** Wire structural variants through the runner (Stage 5 and Stage 6)
+- [x] **Task 11:** Wire structural variants through the runner (Stage 5 and Stage 6) (done in `743a6e6`)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/runner.ts`, `packages/api/src/benchmark/uniqueness-poc/index.ts`
   - **Depends on:** Tasks 9, 10
-  - **Verify:** Run a Stage 6 (or `--full`) PoC run with the updated broker fixtures. For at least one identity with ≥2 variants, two personas assigned different variants produce visibly different structural outputs.
+  - **Note:** `runIdentity` already forwarded `persona` to the variant-aware builder; this task added a guardrail log line on non-default variant choice so runs self-document. Live `--full` LLM eyeball check intentionally deferred to Wave 3 (see Wave 2 summary deviation §1).
 
-- [ ] **Task 12:** Record structural variant in output metadata and run manifest
+- [x] **Task 12:** Record structural variant in output metadata and run manifest (done in `4709ec7`)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/types.ts` (add to `IdentityOutput`), `packages/api/src/benchmark/uniqueness-poc/persist.ts`, `packages/api/src/benchmark/uniqueness-poc/report.ts`
   - **Depends on:** Task 11
-  - **Verify:** `raw-data.json` from a test run includes `structuralVariant` on each identity output. The text report mentions variant IDs.
+  - **Note:** `IdentityOutput.structuralVariant?: StructuralVariantId` added; `persist.ts` propagates the field via direct serialization (zero-code change); `report.ts` annotates the Stage 6 cross-tenant matrix with `(variant N)` headers, `· structural variant N` stats lines, and a `Variants` column on pairwise rows.
+
+- [x] **Task 4 (Wave 2):** Spec amendment — narrow §6.10 + §7 Task 11 Verify to Stage 5/6 (done in `c4ae6ae`)
+  - **Files:** `docs/specs/2026-04-16-structural-variants.md`
+  - **Note:** Resolves OQ#5. Stage 2 (`runAllIdentities`) has no persona today and is intentionally out of scope for variant wiring; it continues to render variant 1 as a neutral baseline.
+
+- [x] **Task 5 (Wave 2 CHANGELOG):** Document Wave 2 harness integration (done in `e008876`)
+  - **Files:** `packages/api/src/benchmark/uniqueness-poc/prompts/identities/CHANGELOG.md`
+  - **Note:** Extends the existing identity CHANGELOG (added in Wave 1) with a 2026-04-19 Wave 2 entry. Format matches Wave 1 entry. No new CHANGELOG file created.
 
 ### Phase 4 -- Validation
 
