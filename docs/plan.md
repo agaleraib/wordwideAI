@@ -43,7 +43,7 @@
 - **B — next action:** none (paused). Resume by scaffolding `packages/sources/` once C unblocks.
 - **C — next action (design):** validate framework archetype model -- build 3-event x 4-framework fixture set, measure cross-framework cosine (target < 0.80), measure same-framework overlay divergence (ROUGE-L < 0.55). See `docs/specs/2026-04-16-content-uniqueness-v2.md` section 7.
 - **C — next action (TA port):** Phase 1 tasks (types, indicator computation, instrument catalog, fixture data provider). See `docs/specs/2026-04-16-ta-typescript-port.md` Tasks 1-4.
-- **C — next action (structural variants):** ~~Phase 1 (Tasks 1-2: type extension + assignment fn)~~ done in `c317102`. Phases 2-4 broken into waves below — see "Wave Plan — Structural Variants" section. Dispatch Wave 1 with `/run-wave 1`.
+- **C — next action (structural variants):** ~~Phase 1~~ done in `c317102`; ~~Phase 2 (Wave 1 — per-identity variant prompts + registry)~~ done in merge `73da433` (2026-04-19). Wave 2 next — persona fixtures + runner/manifest wiring (Phase 3, Tasks 10-12). Dispatch with `/run-wave 2`. See "Wave Plan — Structural Variants" below.
 - **C — ongoing:** run full corpus validation for advisor loop (blocker — see `feedback_unified_pass_risk.md`). Editorial memory Phase 3 near-complete — ~~Task 10: Drizzle schema~~ (done in 1141dd8), ~~Task 11: Postgres store~~ (done in ef147c4), Task 12 blocked on production pipeline.
 - **Pipeline audit trail (demo → production bridge):** `PipelineRun` type + `PipelineRunStore` interface ship with demo (in-memory); `PostgresRunStore` implementation ships with Postgres workstream. Pipeline History UI works against the interface — same screens serve both. See `docs/specs/2026-04-13-demo-mvp.md` Tasks 1, 7, and new history tasks (13c, 13d).
 - **D — next action:** none (planned). First adapter scoping waits on C reaching first-tenant-shipping milestone.
@@ -85,22 +85,23 @@ Conventions:
 
 **Why this wave:** Phase 2 of the spec. Build the 6 per-identity variant prompts and update the registry. Tasks 3-8 are independent (one file each) and parallelizable; Task 9 depends on them. No harness, runner, or fixture changes — purely additive prompt data behind the existing `buildXxxUserMessage` signature.
 
-- [ ] **V1 Identity variant prompts — Size: M**
+- [x] **V1 Identity variant prompts — Size: M** (closed in merge `73da433`; summary `docs/2026-04-19-wordwideAI-wave1-summary.md`)
   - [spec: structural-variants](./specs/2026-04-16-structural-variants.md)
-  - Task 3: Trading Desk variants (3 variants) — `prompts/identities/trading-desk.ts`
-  - Task 4: In-House Journalist variants (3 variants) — `prompts/identities/in-house-journalist.ts`
-  - Task 5: Senior Strategist variants (3 variants) — `prompts/identities/senior-strategist.ts`
-  - Task 6: Newsletter Editor variants (2 variants) — `prompts/identities/newsletter-editor.ts`
-  - Task 7: Educator variants (3 variants) — `prompts/identities/educator.ts`
-  - Task 8: Beginner Blogger variants (2 variants) — `prompts/identities/beginner-blogger.ts`
-  - Task 9: Identity registry exposes variant maps + `variantCount` — `prompts/identities/index.ts` (depends on Tasks 3-8)
+  - Task 3: Trading Desk variants (3 variants) — `prompts/identities/trading-desk.ts` (done in `40280be`)
+  - Task 4: In-House Journalist variants (3 variants) — `prompts/identities/in-house-journalist.ts` (done in `6ae8178`)
+  - Task 5: Senior Strategist variants (3 variants) — `prompts/identities/senior-strategist.ts` (done in `c1b42c0`)
+  - Task 6: Newsletter Editor variants (2 variants) — `prompts/identities/newsletter-editor.ts` (done in `ab6e327`)
+  - Task 7: Educator variants (3 variants) — `prompts/identities/educator.ts` (done in `4816dea`)
+  - Task 8: Beginner Blogger variants (2 variants) — `prompts/identities/beginner-blogger.ts` (done in `a7f58d8`)
+  - Task 9: Identity registry exposes variant maps + `variantCount` — `prompts/identities/index.ts` (done in `de6d30c`)
+  - CHANGELOG entry (resolves OQ#4) — `prompts/identities/CHANGELOG.md` (done in `e682c40`)
 
-**Wave 1 exit gate:** `bun run typecheck` passes from `packages/api/`. For each of the 6 identities, calling `buildXxxUserMessage(analysis, { ...persona, structuralVariant: N })` for every valid N returns a string that contains the variant-N structural directive header (e.g. `# STRUCTURAL FORMAT: <name>`). Variant 1 output for each identity is byte-identical to the pre-change current template (backward compatibility check — diff a captured pre-change rendering against the variant-1 rendering and confirm zero delta). The identity registry exports `IDENTITY_VARIANT_COUNTS` matching the per-identity totals (3/3/3/2/3/2 = 16).
+**Wave 1 exit gate — result:** PASS. `bun run typecheck` 0 errors from `packages/api/`. All 16 variant headers verified (6 identities × 2+ variants each). Variant 1 output is byte-identical to the pre-change template for all 6 identities (12 diff-zero checks: undefined + explicit variant 1). `IDENTITY_VARIANT_COUNTS` sums to 16 (3+3+3+2+3+2). Combined verification suites: 43 pass / 0 fail.
 
-**Pre-implementation decisions to resolve before dispatch (spec §10 Open Questions):**
-- OQ#1 — system prompt vs user message injection (spec currently says user message; confirm).
-- OQ#2 — Senior Strategist variant 3 word-count override (600-800 vs 1000-1400) — does it override the identity's `targetWordCount`?
-- OQ#4 — does adding variants count as a prompt change for hash-tracking purposes?
+**Pre-implementation decisions — resolved at merge:**
+- OQ#1: User message injection (system prompts untouched; prompt-hash tracker unchanged).
+- OQ#2: Metadata-carrying variant entry shape — `StructuralVariantEntry = { directive; targetWordCount? }`. Only `SENIOR_STRATEGIST_VARIANTS[3]` carries the override today.
+- OQ#4: CHANGELOG entry added (`e682c40`). No other hash tracker needed updating because system prompts are unchanged.
 
 ### Wave 2 — Harness integration (fixtures, runner, manifest)
 

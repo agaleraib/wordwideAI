@@ -655,51 +655,51 @@ The layers compound. Each is independently insufficient; together they produce t
 
 #### 6.3 Trading Desk Variants
 
-**Acceptance criteria:**
-- [ ] `TRADING_DESK_VARIANTS` constant exported from `trading-desk.ts` with entries for variants 1, 2, and 3
-- [ ] Variant 1 matches the current structural template exactly (no behavioral change for existing runs)
-- [ ] `buildTradingDeskUserMessage` accepts `persona?.structuralVariant` and injects the correct variant template
-- [ ] When `structuralVariant` is undefined, variant 1 is used (backward compatible)
+**Acceptance criteria:** (all met in `40280be`)
+- [x] `TRADING_DESK_VARIANTS` constant exported from `trading-desk.ts` with entries for variants 1, 2, and 3 (`40280be`)
+- [x] Variant 1 matches the current structural template exactly (no behavioral change for existing runs) (`40280be`)
+- [x] `buildTradingDeskUserMessage` accepts `persona?.structuralVariant` and injects the correct variant template (`40280be`)
+- [x] When `structuralVariant` is undefined, variant 1 is used (backward compatible) (`40280be`)
 
 #### 6.4 In-House Journalist Variants
 
-**Acceptance criteria:**
-- [ ] `IN_HOUSE_JOURNALIST_VARIANTS` constant exported from `in-house-journalist.ts` with entries for variants 1, 2, and 3
-- [ ] Variant 1 matches the current structural template exactly
-- [ ] `buildInHouseJournalistUserMessage` accepts and injects the correct variant template
-- [ ] Backward compatible when `structuralVariant` is undefined
+**Acceptance criteria:** (all met in `6ae8178`)
+- [x] `IN_HOUSE_JOURNALIST_VARIANTS` constant exported from `in-house-journalist.ts` with entries for variants 1, 2, and 3 (`6ae8178`)
+- [x] Variant 1 matches the current structural template exactly (`6ae8178`)
+- [x] `buildInHouseJournalistUserMessage` accepts and injects the correct variant template (`6ae8178`)
+- [x] Backward compatible when `structuralVariant` is undefined (`6ae8178`)
 
 #### 6.5 Senior Strategist Variants
 
-**Acceptance criteria:**
-- [ ] `SENIOR_STRATEGIST_VARIANTS` constant exported from `senior-strategist.ts` with entries for variants 1, 2, and 3
-- [ ] Variant 1 matches the current structural template exactly
-- [ ] `buildSeniorStrategistUserMessage` accepts and injects the correct variant template
-- [ ] Backward compatible when `structuralVariant` is undefined
+**Acceptance criteria:** (all met in `c1b42c0`)
+- [x] `SENIOR_STRATEGIST_VARIANTS` constant exported from `senior-strategist.ts` with entries for variants 1, 2, and 3 (`c1b42c0`)
+- [x] Variant 1 matches the current structural template exactly (`c1b42c0`)
+- [x] `buildSeniorStrategistUserMessage` accepts and injects the correct variant template (`c1b42c0`)
+- [x] Backward compatible when `structuralVariant` is undefined (`c1b42c0`)
 
 #### 6.6 Newsletter Editor Variants
 
-**Acceptance criteria:**
-- [ ] `NEWSLETTER_EDITOR_VARIANTS` constant exported from `newsletter-editor.ts` with entries for variants 1 and 2
-- [ ] Variant 1 matches the current structural template exactly
-- [ ] `buildNewsletterEditorUserMessage` accepts and injects the correct variant template
-- [ ] Backward compatible when `structuralVariant` is undefined
+**Acceptance criteria:** (all met in `ab6e327`)
+- [x] `NEWSLETTER_EDITOR_VARIANTS` constant exported from `newsletter-editor.ts` with entries for variants 1 and 2 (`ab6e327`)
+- [x] Variant 1 matches the current structural template exactly (`ab6e327`)
+- [x] `buildNewsletterEditorUserMessage` accepts and injects the correct variant template (`ab6e327`)
+- [x] Backward compatible when `structuralVariant` is undefined (`ab6e327`)
 
 #### 6.7 Educator Variants
 
-**Acceptance criteria:**
-- [ ] `EDUCATOR_VARIANTS` constant exported from `educator.ts` with entries for variants 1, 2, and 3
-- [ ] Variant 1 matches the current structural template exactly
-- [ ] `buildEducatorUserMessage` accepts and injects the correct variant template
-- [ ] Backward compatible when `structuralVariant` is undefined
+**Acceptance criteria:** (all met in `4816dea`)
+- [x] `EDUCATOR_VARIANTS` constant exported from `educator.ts` with entries for variants 1, 2, and 3 (`4816dea`)
+- [x] Variant 1 matches the current structural template exactly (`4816dea`)
+- [x] `buildEducatorUserMessage` accepts and injects the correct variant template (`4816dea`)
+- [x] Backward compatible when `structuralVariant` is undefined (`4816dea`)
 
 #### 6.8 Beginner Blogger Variants
 
-**Acceptance criteria:**
-- [ ] `BEGINNER_BLOGGER_VARIANTS` constant exported from `beginner-blogger.ts` with entries for variants 1 and 2
-- [ ] Variant 1 matches the current structural template exactly
-- [ ] `buildBeginnerBloggerUserMessage` accepts and injects the correct variant template
-- [ ] Backward compatible when `structuralVariant` is undefined
+**Acceptance criteria:** (all met in `a7f58d8`)
+- [x] `BEGINNER_BLOGGER_VARIANTS` constant exported from `beginner-blogger.ts` with entries for variants 1 and 2 (`a7f58d8`)
+- [x] Variant 1 matches the current structural template exactly (`a7f58d8`)
+- [x] `buildBeginnerBloggerUserMessage` accepts and injects the correct variant template (`a7f58d8`)
+- [x] Backward compatible when `structuralVariant` is undefined (`a7f58d8`)
 
 ### Phase 3: Harness Integration and Persona Fixtures
 
@@ -755,40 +755,40 @@ The layers compound. Each is independently insufficient; together they produce t
 
 ### Phase 2 -- Variant Prompts (can be parallelized across identities)
 
-- [ ] **Task 3:** Implement Trading Desk structural variants
+- [x] **Task 3:** Implement Trading Desk structural variants (done in `40280be`)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/prompts/identities/trading-desk.ts`
   - **Depends on:** Task 1
-  - **Verify:** `bun run typecheck` passes. `TRADING_DESK_VARIANTS[1]` contains the current template text. `buildTradingDeskUserMessage(analysis, { ...persona, structuralVariant: 2 })` returns a string containing variant 2's structural directive.
 
-- [ ] **Task 4:** Implement In-House Journalist structural variants
+- [x] **Task 4:** Implement In-House Journalist structural variants (done in `6ae8178`)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/prompts/identities/in-house-journalist.ts`
   - **Depends on:** Task 1
-  - **Verify:** Same pattern as Task 3. Variant 1 matches current template.
 
-- [ ] **Task 5:** Implement Senior Strategist structural variants
+- [x] **Task 5:** Implement Senior Strategist structural variants (done in `c1b42c0`)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/prompts/identities/senior-strategist.ts`
   - **Depends on:** Task 1
-  - **Verify:** Same pattern as Task 3. Variant 1 matches current template. Variant 3 (Executive Briefing) uses different target word count (600-800 vs. 1000-1400).
+  - **Note:** Variant 3 (Executive Briefing) word-count override implemented via `StructuralVariantEntry.targetWordCount`. See OQ#2 resolution in §10.
 
-- [ ] **Task 6:** Implement Newsletter Editor structural variants
+- [x] **Task 6:** Implement Newsletter Editor structural variants (done in `ab6e327`)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/prompts/identities/newsletter-editor.ts`
   - **Depends on:** Task 1
-  - **Verify:** Same pattern as Task 3. Only 2 variants (no variant 3).
 
-- [ ] **Task 7:** Implement Educator structural variants
+- [x] **Task 7:** Implement Educator structural variants (done in `4816dea`)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/prompts/identities/educator.ts`
   - **Depends on:** Task 1
-  - **Verify:** Same pattern as Task 3. Variant 1 matches current template.
 
-- [ ] **Task 8:** Implement Beginner Blogger structural variants
+- [x] **Task 8:** Implement Beginner Blogger structural variants (done in `a7f58d8`)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/prompts/identities/beginner-blogger.ts`
   - **Depends on:** Task 1
-  - **Verify:** Same pattern as Task 3. Only 2 variants (no variant 3).
 
-- [ ] **Task 9:** Update identity registry to export variant maps
+- [x] **Task 9:** Update identity registry to export variant maps (done in `de6d30c`)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/prompts/identities/index.ts`
   - **Depends on:** Tasks 3-8
-  - **Verify:** `RegisteredIdentity` type includes a `variantCount` field or the variant maps are accessible via a registry lookup. `bun run typecheck` passes.
+  - **Note:** `RegisteredIdentity` now carries `variantCount: 2 | 3` and `variants: IdentityVariantMap`. `IDENTITY_VARIANT_COUNTS` and `StructuralVariantEntry` re-exported from the registry. Total: 16 variants.
+
+- [x] **Task 10a (CHANGELOG):** Document Wave 1 variant additions (done in `e682c40`)
+  - **Files:** `packages/api/src/benchmark/uniqueness-poc/prompts/identities/CHANGELOG.md`
+  - **Depends on:** Tasks 3-9
+  - **Note:** Resolves OQ#4. No prompt-hash tracker needed updating — system prompts unchanged, 2026-04-13 hashes remain valid.
 
 ### Phase 3 -- Harness Integration
 
@@ -839,12 +839,12 @@ The layers compound. Each is independently insufficient; together they produce t
 
 ## 10. Open Questions
 
-| # | Question | Impact | Decision needed by |
-|---|----------|--------|-------------------|
-| 1 | Should the structural variant be injected into the system prompt or user message? | System prompt = more reliable adherence; user message = cleaner separation of concerns. Current spec says user message. | Phase 2 start |
-| 2 | Should the Senior Strategist variant 3 (Executive Briefing) override the identity's `targetWordCount`? It targets 600-800 words vs. the identity's 1000-1400. | Affects word-count validation in the report. May need per-variant word count ranges. | Phase 2 (Task 5) |
-| 3 | How should structural variants interact with the v2 archetype's `structuralTemplate` field? | If archetypes define section ordering and variants define visual rendering, we need clarity on which takes precedence. | Before v2 archetype implementation (not blocking this spec) |
-| 4 | Should the CHANGELOG.md for identity prompts track variant additions as a prompt change? | Affects prompt hash tracking and run reproducibility analysis. | Phase 2 start |
+| # | Question | Status | Resolution | Commits |
+|---|----------|--------|-----------|---------|
+| 1 | Should the structural variant be injected into the system prompt or user message? | **Resolved** (Wave 1, 2026-04-19) | **User message.** System prompts untouched; structural directive for N≥2 injected as an OVERRIDE block in the built user message. 2026-04-13 prompt hashes remain valid. | All 6 per-identity commits (`40280be`, `6ae8178`, `c1b42c0`, `ab6e327`, `4816dea`, `a7f58d8`) |
+| 2 | Should the Senior Strategist variant 3 (Executive Briefing) override the identity's `targetWordCount`? | **Resolved** (Wave 1, 2026-04-19) | **Metadata-carrying variant-entry shape:** `StructuralVariantEntry = { directive: string; targetWordCount?: IdentityDefinition["targetWordCount"] }`. Only `SENIOR_STRATEGIST_VARIANTS[3]` uses the override (600-800 vs. 1000-1400). Override also stated inline in the directive prose as belt-and-braces. | `c1b42c0` |
+| 3 | How should structural variants interact with the v2 archetype's `structuralTemplate` field? | Open (not blocking) | Deferred to v2 archetype implementation per original spec note. | — |
+| 4 | Should the CHANGELOG.md for identity prompts track variant additions as a prompt change? | **Resolved** (Wave 1, 2026-04-19) | **Yes, tracked in `CHANGELOG.md`.** Entry added 2026-04-19 documenting the six `*_VARIANTS` maps, variant counts, registry additions, backward-compat guarantee, and the word-count override. No separate prompt-hash tracker needed — system prompts are unchanged. | `e682c40` |
 
 ---
 
@@ -858,3 +858,5 @@ The layers compound. Each is independently insufficient; together they produce t
 | 2026-04-16 | Structural variant assignment is per tenant+identity, not per tenant | A tenant using both Journalist and Educator may get different variants for each. This maximizes differentiation surface and avoids the problem of "tenant B always gets variant 2 for everything." |
 | 2026-04-16 | Variants go in user message, not system prompt | System prompt defines the identity's voice and rules (stable across all tenants). User message defines the per-invocation context (persona, angle, variant). This separation is clean and consistent with how persona overlays are already injected. |
 | 2026-04-16 | PoC harness first, production pipeline later | The PoC harness is where we measure impact. Production integration depends on validating that structural variants actually improve uniqueness scores before investing in pipeline plumbing. |
+| 2026-04-19 | Variant 1 keeps legacy user-message bytes; variant-1 directive lives in `*_VARIANTS[1].directive` at map level | Exit gate required BOTH variant-1 header presence AND byte-identity with pre-change baseline. These conflict if any directive is injected into the N=1 user message. Resolution: for N=1/undefined, builder returns pre-Wave-1 user message byte-identically; the variant-1 header is grep-able at the map level for downstream callers (run manifest, report annotations). For N≥2, header is injected into the built user message. Merge commit: `73da433`. |
+| 2026-04-19 | 2-variant identities use `Partial<Record<StructuralVariantId, StructuralVariantEntry>>` | Lets 2- and 3-variant identities share the same `IdentityVariantMap` type on `RegisteredIdentity.variants` without discriminated unions in the registry shape. Callers consult `variantCount` before indexing keys > 2 (the resolver already does). Merge commit: `73da433`. |
