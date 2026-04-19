@@ -633,23 +633,23 @@ The layers compound. Each is independently insufficient; together they produce t
 
 ### Phase 1: Type System and Variant Assignment
 
-#### 6.1 ContentPersona Type Extension
+#### 6.1 ContentPersona Type Extension (done in c317102)
 
 **Acceptance criteria:**
-- [ ] `ContentPersona` in `types.ts` has new optional fields `structuralVariant?: StructuralVariantId` and `customStructuralTemplate?: string`
-- [ ] `StructuralVariantId` is exported as `type StructuralVariantId = 1 | 2 | 3`
-- [ ] Resolution order is documented in a JSDoc comment: custom template > pre-built variant > default (variant 1)
-- [ ] `bun run typecheck` passes with no errors in `packages/api/`
-- [ ] All existing test runs and harness invocations continue to work with both fields undefined (backward compatible)
+- [x] `ContentPersona` in `types.ts` has new optional fields `structuralVariant?: StructuralVariantId` and `customStructuralTemplate?: string`
+- [x] `StructuralVariantId` is exported as `type StructuralVariantId = 1 | 2 | 3`
+- [x] Resolution order is documented in a JSDoc comment: custom template > pre-built variant > default (variant 1)
+- [x] `bun run typecheck` passes with no errors in `packages/api/`
+- [x] All existing test runs and harness invocations continue to work with both fields undefined (backward compatible)
 
-#### 6.2 Variant Assignment Function
+#### 6.2 Variant Assignment Function (done in c317102)
 
 **Acceptance criteria:**
-- [ ] A pure function `assignStructuralVariant(tenantId: string, identityId: string): StructuralVariantId` exists in a new file `packages/api/src/benchmark/uniqueness-poc/structural-variants.ts`
-- [ ] The function is deterministic: `assignStructuralVariant("tenant-a", "trading-desk") === assignStructuralVariant("tenant-a", "trading-desk")` for any number of calls
-- [ ] The function distributes variants uniformly: over 1000 random tenant IDs, each variant appears at least 25% of the time (for 3-variant identities) or 40% of the time (for 2-variant identities)
-- [ ] The function respects per-identity variant counts: never returns variant 3 for identities that only have 2 variants
-- [ ] A `IDENTITY_VARIANT_COUNTS` constant maps each identity ID to its variant count
+- [x] A pure function `assignStructuralVariant(tenantId: string, identityId: string): StructuralVariantId` exists in a new file `packages/api/src/benchmark/uniqueness-poc/structural-variants.ts`
+- [x] The function is deterministic: `assignStructuralVariant("tenant-a", "trading-desk") === assignStructuralVariant("tenant-a", "trading-desk")` for any number of calls
+- [x] The function distributes variants uniformly: over 1000 random tenant IDs, each variant appears at least 25% of the time (for 3-variant identities) or 40% of the time (for 2-variant identities)
+- [x] The function respects per-identity variant counts: never returns variant 3 for identities that only have 2 variants
+- [x] A `IDENTITY_VARIANT_COUNTS` constant maps each identity ID to its variant count
 
 ### Phase 2: Variant Prompt Implementation
 
@@ -743,12 +743,12 @@ The layers compound. Each is independently insufficient; together they produce t
 
 ### Phase 1 -- Type System and Assignment
 
-- [ ] **Task 1:** Add `StructuralVariantId` type and `structuralVariant` field to `ContentPersona`
+- [x] **Task 1:** Add `StructuralVariantId` type and `structuralVariant` field to `ContentPersona` (done in c317102)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/types.ts`
   - **Depends on:** Nothing
   - **Verify:** `bun run typecheck` passes. Existing harness runs without errors when `structuralVariant` is undefined.
 
-- [ ] **Task 2:** Implement variant assignment function and identity variant count registry
+- [x] **Task 2:** Implement variant assignment function and identity variant count registry (done in c317102)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/structural-variants.ts` (new)
   - **Depends on:** Task 1
   - **Verify:** Write a quick inline test: call `assignStructuralVariant` with 1000 random UUIDs, assert uniform distribution and determinism. `bun run typecheck` passes.
