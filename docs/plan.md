@@ -105,28 +105,31 @@ Conventions:
 
 ### Wave 2 — Harness integration (fixtures, runner, manifest)
 
-**Why this wave:** Phase 3 of the spec. Wire the variant prompts through the runner and persist variant choice in run output. Splits cleanly from Wave 1 because nothing here changes the prompts themselves — only how they get selected and recorded.
+**Why this wave:** Phase 3 of the spec. Wire the variant prompts through the runner and persist variant choice in run output. Single rollback-safe unit — fixtures, runner wiring, and manifest recording are all harness plumbing inside `packages/api/src/benchmark/uniqueness-poc/` and fail/succeed together. Includes a small spec amendment (code-adjacent maintenance, not silent).
 
-- [ ] **V2 Persona fixtures — Size: S**
+- [ ] **V2 Harness integration — Size: M**
   - [spec: structural-variants](./specs/2026-04-16-structural-variants.md)
   - Task 10: Distribute structural variants across `broker-{a,b,c,d}.json` per spec §6.9
-
-- [ ] **V3 Runner + manifest wiring — Size: M**
-  - [spec: structural-variants](./specs/2026-04-16-structural-variants.md)
-  - Task 11: Wire `persona.structuralVariant` through Stage 2 + Stage 6 in `runner.ts` and `index.ts` (depends on Wave 1 Task 9 + V2 Task 10)
+  - Task 11: Wire `persona.structuralVariant` through Stage 6 in `runner.ts` and `index.ts` (depends on Wave 1 Task 9 + Task 10)
   - Task 12: Record `structuralVariant` on `IdentityOutput`, persist in raw-data.json, surface in text report — `types.ts`, `persist.ts`, `report.ts` (depends on Task 11)
+  - Spec amendment: edit spec §6.10 and Task 11 Verify to drop Stage 2 and point persona-carrying verification to Stage 6
+  - CHANGELOG entry: extend `prompts/identities/CHANGELOG.md` with a Wave 2 entry
 
-**Wave 2 exit gate:** `bun run typecheck` passes. Run `bun run poc:uniqueness -- --stage 2` against a persona with `structuralVariant: 2` and confirm the rendered output follows variant 2's structural format (not variant 1). A `--full` PoC run produces a `raw-data.json` where every entry under the cross-tenant matrix has a `structuralVariant: 1|2|3` field, and the text report names the variant ID per output. Personas with different variants for the same identity show structurally different outputs (visual sanity check on at least one identity).
+**Wave 2 exit gate:** `bun run typecheck` passes. `--full` run produces `raw-data.json` where every `IdentityOutput` under the Stage 6 matrix has `structuralVariant: 1|2|3` matching fixture assignment. Text report names variant per output. Visual sanity check on one identity. Spec amended. CHANGELOG updated. No edits outside `packages/api/src/benchmark/uniqueness-poc/`.
+
+**Dependencies:** Wave 1 Task 9 — merged in `73da433`.
 
 ### Wave 3 — Validation run + writeup
 
-**Why this wave:** Phase 4 of the spec. The point of the whole effort: prove structural variants actually move uniqueness metrics in the right direction without hurting fidelity. Pure measurement wave — no code changes.
+**Why this wave:** Phase 4. Pure measurement — no code. Always runs after Wave 2; the writeup verdict (ship vs. iterate) is the output, not a gate. Post-Wave-3 production wiring is a separate conversation, not a wave.
 
-- [ ] **V4 Structural variant validation — Size: S (no code, ops + analysis)**
+- [ ] **V3 Structural variant validation — Size: S (no code, ops + analysis)**
   - [spec: structural-variants](./specs/2026-04-16-structural-variants.md)
-  - Task 13: Run `--full --editorial-memory` on ≥2 events, capture cosine + ROUGE-L for cross-tenant pairs that differ in structural variant vs pairs that share variant 1, write up findings under `uniqueness-poc-runs/<run-id>/analysis.md`
+  - Task 13: Run `--full --editorial-memory` on ≥2 events, capture cosine + ROUGE-L for pairs that differ in variant vs pairs that share variant 1, writeup under `uniqueness-poc-runs/<run-id>/analysis.md`
 
-**Wave 3 exit gate:** Run completed against ≥2 events with `--full --editorial-memory`. Cross-tenant pairs using *different* structural variants show lower mean cosine similarity than the pre-Wave-1 baseline (delta documented; spec §5.1 estimates 0.03-0.08 drop). ROUGE-L drops on the same pairs (spec §5.1 estimates 0.08-0.15). LLM judge factual fidelity is unchanged within noise (≥ 0.90 mean, no regression > 0.02 vs baseline). Writeup committed to the run directory with the specific numbers and a verdict (ship to production wiring vs. iterate on variants).
+**Wave 3 exit gate:** ≥2 events. Mean cosine drop on different-variant pairs vs baseline (spec §5.1 est. 0.03-0.08). ROUGE-L drop (est. 0.08-0.15). Judge fidelity ≥ 0.90, no pair regression > 0.02. Writeup with explicit verdict line.
+
+**Dependencies:** Wave 2.
 
 **Operating Rules (apply to all waves):**
 - Stage files explicitly — never `git add -A` / `git add .`
