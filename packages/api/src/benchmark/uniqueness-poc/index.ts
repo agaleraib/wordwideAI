@@ -372,7 +372,7 @@ async function runOne(
   console.log(`\n[index] Run complete.`);
   console.log(`[index] Report:        ${join(dir, "report.md")}`);
   console.log(`[index] Run dir:       ${dir}`);
-  console.log(`[index] Intra-tenant verdict: ${result.verdict}`);
+  console.log(`[index] Identity-format diversity verdict (no-persona): ${result.verdict}`);
   if (result.crossTenantMatrix) {
     console.log(`[index] STAGE 6 cross-tenant: ${result.crossTenantMatrix.verdict} (cosine mean ${result.crossTenantMatrix.meanCosine.toFixed(4)})`);
   }

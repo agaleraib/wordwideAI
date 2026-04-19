@@ -79,13 +79,13 @@ function verdictBanner(result: RunResult): string {
     lines.push("");
   }
 
-  // Then the intra-tenant verdict (cross-identity matrix) — secondary
-  lines.push(`## ${verdictBadge(result.verdict)} Intra-tenant cross-identity verdict (secondary)`);
+  // Then the cross-identity (no-persona) format-diversity verdict — secondary
+  lines.push(`## ${verdictBadge(result.verdict)} Identity-format diversity verdict (no-persona, secondary)`);
   lines.push("");
   lines.push(result.verdictReasoning);
   lines.push("");
   lines.push(
-    "*This is the matrix of pairwise comparisons between the 6 different identities below, all consuming the same core analysis. It tests a different question: \"if a single broker runs multiple identity pipelines on the same event, are the resulting products differentiated?\" Note: this matrix uses the strict cross-tenant thresholds (0.80 cosine), which is over-strict for an intra-tenant comparison — the spec actually allows 0.92 cosine for intra-tenant cross-pipeline. Read this verdict with that caveat.*",
+    "*Compares the 6 identity templates pairwise on the same FA core analysis with NO persona overlay applied. Measures identity-format diversity — the design intent is that different identities (in-house-journalist, beginner-blogger, etc.) produce visibly different formats for different audiences within a single brand. **This is NOT a brand-fragmentation test:** there is no tenant, no persona, no brand voice in this comparison. The strict cross-tenant threshold (cosine < 0.80) is applied here for diagnostic uniformity; the spec's permissive intra-tenant threshold (0.92) would apply to a genuine intra-tenant cross-pipeline test (same identity, same persona, multiple events) — that test isn't built yet. See plan.md Wave 4 candidate.*",
   );
   lines.push("");
 

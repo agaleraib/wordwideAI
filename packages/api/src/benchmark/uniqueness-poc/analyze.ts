@@ -148,7 +148,7 @@ function renderExecutiveSummary(r: RunResult): string {
   if (intraCosines.length > 0) {
     const mean = intraCosines.reduce((a, b) => a + b, 0) / intraCosines.length;
     const meanR = intraRouges.reduce((a, b) => a + b, 0) / intraRouges.length;
-    lines.push(`| Intra-tenant (secondary) | ${verdictEmoji(r.verdict)} ${r.verdict} | ${fmt(mean)} | ${fmt(meanR)} | cosine < ${UNIQUENESS_THRESHOLDS.intraTenant.cosine} |`);
+    lines.push(`| Identity-format diversity (no-persona, secondary) | ${verdictEmoji(r.verdict)} ${r.verdict} | ${fmt(mean)} | ${fmt(meanR)} | cosine < ${UNIQUENESS_THRESHOLDS.intraTenant.cosine} |`);
   }
 
   // Cross-tenant
