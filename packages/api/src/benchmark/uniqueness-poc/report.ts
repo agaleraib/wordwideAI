@@ -319,16 +319,18 @@ export function renderReport(result: RunResult): string {
     );
     lines.push("");
 
-    // The 4 outputs in full
+    // The N outputs in full, each annotated with its structural variant
+    // so the reader can see which variant produced which output (spec §6.11).
     lines.push(`### The ${ct.outputs.length} outputs`);
     lines.push("");
     for (let i = 0; i < ct.outputs.length; i++) {
       const output = ct.outputs[i]!;
       const persona = ct.personas[i]!;
-      lines.push(`#### ${persona.name} — ${persona.regionalVariant}`);
+      const variantLabel = `variant ${output.structuralVariant ?? persona.structuralVariant ?? 1}`;
+      lines.push(`#### ${persona.name} — ${persona.regionalVariant} (${variantLabel})`);
       lines.push("");
       lines.push(
-        `*${output.wordCount} words · ${output.model} · ${(output.durationMs / 1000).toFixed(1)}s · ${formatUsd(output.costUsd)}*`,
+        `*${output.wordCount} words · ${output.model} · ${(output.durationMs / 1000).toFixed(1)}s · ${formatUsd(output.costUsd)} · structural ${variantLabel}*`,
       );
       lines.push("");
       lines.push(`**Brand voice:** ${persona.brandVoice}`);
@@ -339,20 +341,30 @@ export function renderReport(result: RunResult): string {
       lines.push("");
     }
 
-    // Pairwise matrix
+    // Pairwise matrix — annotate each pair with the variant pair so the
+    // reader can spot same-variant vs different-variant pairs at a glance.
     lines.push(`### Cross-tenant pairwise similarity matrix`);
     lines.push("");
     lines.push(
-      `${ct.personas.length} personas → ${ct.similarities.length} cross-tenant pairs. Each scored against the strict cross-tenant thresholds.`,
+      `${ct.personas.length} personas → ${ct.similarities.length} cross-tenant pairs. Each scored against the strict cross-tenant thresholds. The *Variants* column shows \`A↔B\` structural-variant IDs so same-variant pairs can be separated from different-variant pairs during analysis.`,
     );
     lines.push("");
-    lines.push("| Pair | Cosine | ROUGE-L | Status | Fidelity | Presentation | Verdict |");
-    lines.push("|---|---:|---:|---|---:|---:|---|");
+    lines.push("| Pair | Variants | Cosine | ROUGE-L | Status | Fidelity | Presentation | Verdict |");
+    lines.push("|---|---|---:|---:|---|---:|---:|---|");
+    // Pair IDs are prefixed with tenant indices (see runner.ts `runCrossTenantMatrix`)
+    // so we can map a pair back to its two outputs without relying on
+    // identityA/identityB name collisions.
     for (const sim of ct.similarities) {
       const fidelity = sim.judgeFactualFidelity !== undefined ? sim.judgeFactualFidelity.toFixed(2) : "—";
       const presentation = sim.judgePresentationSimilarity !== undefined ? sim.judgePresentationSimilarity.toFixed(2) : "—";
+      const [prefixA, prefixB] = sim.pairId.split("__");
+      const indexA = Number.parseInt(prefixA?.split("_")[0] ?? "", 10);
+      const indexB = Number.parseInt(prefixB?.split("_")[0] ?? "", 10);
+      const vA = Number.isInteger(indexA) ? ct.outputs[indexA]?.structuralVariant ?? ct.personas[indexA]?.structuralVariant ?? 1 : "?";
+      const vB = Number.isInteger(indexB) ? ct.outputs[indexB]?.structuralVariant ?? ct.personas[indexB]?.structuralVariant ?? 1 : "?";
+      const variantPair = `${vA}↔${vB}`;
       lines.push(
-        `| ${sim.identityA} ↔ ${sim.identityB} | ${sim.cosineSimilarity.toFixed(4)} | ${sim.rougeL.toFixed(4)} | ${statusBadge(sim.status)} | ${fidelity} | ${presentation} | ${trinaryVerdictBadge(sim.judgeTrinaryVerdict)} |`,
+        `| ${sim.identityA} ↔ ${sim.identityB} | ${variantPair} | ${sim.cosineSimilarity.toFixed(4)} | ${sim.rougeL.toFixed(4)} | ${statusBadge(sim.status)} | ${fidelity} | ${presentation} | ${trinaryVerdictBadge(sim.judgeTrinaryVerdict)} |`,
       );
     }
     lines.push("");

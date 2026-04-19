@@ -184,6 +184,15 @@ export interface IdentityOutput {
   costUsd: number;
   /** Set when this output was produced under a specific persona overlay (stage 5). */
   personaId?: string;
+  /**
+   * Structural variant used to render this output. Populated on Stage 5
+   * and Stage 6 calls (anywhere a persona is threaded) from
+   * `persona?.structuralVariant ?? 1`. Omitted when no persona is
+   * present (Stage 2 `runAllIdentities`) — documented behavior, not
+   * silent: downstream readers treat omission as "variant 1 / baseline".
+   * See `docs/specs/2026-04-16-structural-variants.md` §6.10-6.11.
+   */
+  structuralVariant?: StructuralVariantId;
 }
 
 export type SimilarityStatus = "pass" | "borderline-cross-tenant" | "fail-cross-tenant";

@@ -34,5 +34,6 @@
     "Zero dealing-desk intervention policy — all trades executed via direct STP to Tier-1 liquidity"
   ],
   "preferredAngles": ["sentiment-extreme", "crowded-trade", "tail-risk"],
-  "personalityTags": ["contrarian", "skeptical", "provocative", "independent", "authoritative"]
+  "personalityTags": ["contrarian", "skeptical", "provocative", "independent", "authoritative"],
+  "structuralVariant": 3
 }

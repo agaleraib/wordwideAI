@@ -36,5 +36,6 @@
     "Zero-commission model funded by spread markup, no hidden fees"
   ],
   "preferredAngles": ["trade-idea", "momentum-driven", "signal-extract"],
-  "personalityTags": ["aggressive", "prescriptive", "high-conviction", "urgent", "energetic"]
+  "personalityTags": ["aggressive", "prescriptive", "high-conviction", "urgent", "energetic"],
+  "structuralVariant": 2
 }

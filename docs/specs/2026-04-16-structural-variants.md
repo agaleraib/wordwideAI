@@ -715,7 +715,7 @@ The layers compound. Each is independently insufficient; together they produce t
 #### 6.10 Runner Integration
 
 **Acceptance criteria:**
-- [ ] The Stage 2 (identity adaptation) and Stage 6 (cross-tenant matrix) code paths read `persona.structuralVariant` and pass it through to `buildXxxUserMessage`
+- [ ] The Stage 5 (single-persona) and Stage 6 (cross-tenant matrix) code paths read `persona.structuralVariant` and pass it through to `buildXxxUserMessage`. Stage 2 (`runAllIdentities`) has no persona and continues to render variant 1 as a neutral baseline — it is intentionally out of scope for variant wiring.
 - [ ] The run manifest records which structural variant was used for each output (add to `IdentityOutput` or a new field on the cross-tenant matrix)
 - [ ] A run with `--full` produces outputs where different personas use different structural variants for the same identity
 - [ ] The raw-data.json includes the structural variant ID for each output
@@ -797,10 +797,10 @@ The layers compound. Each is independently insufficient; together they produce t
   - **Depends on:** Task 1
   - **Verify:** Each file is valid JSON and passes the `ContentPersona` schema. Variants are distributed across brokers.
 
-- [ ] **Task 11:** Wire structural variants through the runner (Stage 2 and Stage 6)
+- [ ] **Task 11:** Wire structural variants through the runner (Stage 5 and Stage 6)
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/runner.ts`, `packages/api/src/benchmark/uniqueness-poc/index.ts`
   - **Depends on:** Tasks 9, 10
-  - **Verify:** Run `bun run poc:uniqueness -- --stage 2` with a persona that has `structuralVariant: 2`. Inspect the output -- it should follow variant 2's structural format, not variant 1's.
+  - **Verify:** Run a Stage 6 (or `--full`) PoC run with the updated broker fixtures. For at least one identity with ≥2 variants, two personas assigned different variants produce visibly different structural outputs.
 
 - [ ] **Task 12:** Record structural variant in output metadata and run manifest
   - **Files:** `packages/api/src/benchmark/uniqueness-poc/types.ts` (add to `IdentityOutput`), `packages/api/src/benchmark/uniqueness-poc/persist.ts`, `packages/api/src/benchmark/uniqueness-poc/report.ts`
@@ -845,6 +845,7 @@ The layers compound. Each is independently insufficient; together they produce t
 | 2 | Should the Senior Strategist variant 3 (Executive Briefing) override the identity's `targetWordCount`? | **Resolved** (Wave 1, 2026-04-19) | **Metadata-carrying variant-entry shape:** `StructuralVariantEntry = { directive: string; targetWordCount?: IdentityDefinition["targetWordCount"] }`. Only `SENIOR_STRATEGIST_VARIANTS[3]` uses the override (600-800 vs. 1000-1400). Override also stated inline in the directive prose as belt-and-braces. | `c1b42c0` |
 | 3 | How should structural variants interact with the v2 archetype's `structuralTemplate` field? | Open (not blocking) | Deferred to v2 archetype implementation per original spec note. | — |
 | 4 | Should the CHANGELOG.md for identity prompts track variant additions as a prompt change? | **Resolved** (Wave 1, 2026-04-19) | **Yes, tracked in `CHANGELOG.md`.** Entry added 2026-04-19 documenting the six `*_VARIANTS` maps, variant counts, registry additions, backward-compat guarantee, and the word-count override. No separate prompt-hash tracker needed — system prompts are unchanged. | `e682c40` |
+| 5 | Which stages carry the persona-driven structural variant? | **Resolved** (Wave 2, 2026-04-19) | **Stage 5 and Stage 6 only.** §6.10 and Task 11 Verify narrowed to Stage 5/6 because `runAllIdentities` (Stage 2) has no persona available — it intentionally renders variant 1 as a neutral baseline. Stage 2 is out of scope for variant wiring; Wave 1 byte-identity guarantee for variant 1 is preserved there. | Wave 2 spec amendment |
 
 ---
 

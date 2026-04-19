@@ -4,6 +4,52 @@ Track of every prompt change with the full prompt text. Each entry records what 
 
 ---
 
+## 2026-04-19 — Wave 2: harness integration (Phase 3 of 2026-04-16-structural-variants.md)
+
+Wires the Wave 1 variant maps into the PoC harness. No system-prompt changes — this wave is harness plumbing only. The 2026-04-13 prompt hashes remain valid and no prompt-hash tracker updates are needed.
+
+### Persona fixture schema
+
+`structuralVariant` now populated on all four `broker-*.json` fixtures:
+
+| Fixture | Persona ID | `structuralVariant` |
+|---------|-----------|---------------------|
+| `broker-a.json` | `premium-capital-markets` | 1 |
+| `broker-b.json` | `fasttrade-pro` | 2 |
+| `broker-c.json` | `helix-markets` | 3 |
+| `broker-d.json` | `northbridge-wealth` | 1 |
+
+Three distinct variant values across four fixtures. Broker-d shares variant 1 with broker-a intentionally — this tests whether two personas with the same structural variant still differ via other layers (brand voice, company background, regional variant, angles, personality).
+
+### Type surface
+
+`IdentityOutput.structuralVariant?: StructuralVariantId` added — optional, backward compatible. Populated on Stage 5 / Stage 6 calls from `persona?.structuralVariant ?? 1`. Omitted when no persona is threaded (Stage 2 `runAllIdentities`). Downstream readers treat omission as "variant 1 / baseline" per the spec amendment.
+
+### Runner plumbing
+
+`runIdentity` already forwarded `persona` to the variant-aware `buildXxxUserMessage` builder (shipped in Wave 1) — Stages 5 and 6 that wrap `runIdentity` therefore thread the variant end-to-end. Wave 2 adds:
+
+- A self-documenting guardrail log line whenever `persona.structuralVariant` is non-default (N ≥ 2). Variant 1 / undefined stays silent to preserve the Wave 1 byte-identity path on Stage 2 + legacy runs.
+- `structuralVariant` populated on every `IdentityOutput` produced with a persona, so `persist.ts` (direct JSON.stringify of RunResult) propagates the field into `raw-data.json` without schema-layer changes.
+
+### Report annotations
+
+`report.ts` Stage 6 section:
+
+- Per-output header now reads `#### {persona} — {locale} (variant N)` and the stats line appends `· structural variant N`.
+- Pairwise similarity matrix gains a **Variants** column rendering each pair's IDs as `A↔B` (e.g. `1↔2`, `2↔3`). Readers can now separate same-variant from different-variant pairs when analyzing cross-tenant similarity distributions.
+
+### Spec amendment
+
+§6.10 and §7 Task 11 Verify narrowed to Stage 5 and Stage 6 only. Stage 2 (`runAllIdentities`) has no persona today and is intentionally excluded — it continues to render variant 1 as a neutral baseline, preserving the Wave 1 byte-identity guarantee. §10 Open Questions gains row OQ#5 documenting the amendment.
+
+### Related spec
+
+- `docs/specs/2026-04-16-structural-variants.md` Phase 3 (Tasks 10-12 + amendment).
+- Wave 1 (Phase 2, Tasks 3-9 + CHANGELOG) merged in `73da433` (2026-04-19).
+
+---
+
 ## 2026-04-19 — Wave 1: per-identity structural variant maps (Phase 2 of 2026-04-16-structural-variants.md)
 
 Each of the 6 identity files now exports a `*_VARIANTS` map keyed by `StructuralVariantId` (1 | 2 | 3) carrying a `StructuralVariantEntry` shape (`{ directive: string; targetWordCount?: IdentityDefinition["targetWordCount"] }`). The per-identity maps are:
