@@ -1,6 +1,6 @@
 # Plan — FinFlow (wordwideAI)
 
-**Last updated:** 2026-04-16
+**Last updated:** 2026-04-20
 **Current focus:** Workstream C — content pipeline (framework archetype model design + TA port)
 **This session:** wrote two new decision briefs — Content Uniqueness v2 (framework archetype model) and TA TypeScript Port. The framework archetype model supersedes the House Position brief (2026-04-15). See memory `project_house_position_framework.md`.
 
@@ -43,7 +43,7 @@
 - **B — next action:** none (paused). Resume by scaffolding `packages/sources/` once C unblocks.
 - **C — next action (design):** validate framework archetype model -- build 3-event x 4-framework fixture set, measure cross-framework cosine (target < 0.80), measure same-framework overlay divergence (ROUGE-L < 0.55). See `docs/specs/2026-04-16-content-uniqueness-v2.md` section 7.
 - **C — next action (TA port):** Phase 1 tasks (types, indicator computation, instrument catalog, fixture data provider). See `docs/specs/2026-04-16-ta-typescript-port.md` Tasks 1-4.
-- **C — next action (structural variants):** ~~Phase 1~~ done in `c317102`; ~~Phase 2 (Wave 1)~~ done in merge `73da433` (2026-04-19); ~~Phase 3 (Wave 2)~~ done in merge `b62db17` (2026-04-19); ~~Phase 4 (Wave 3 — validation run + writeup)~~ done in merge `2fac649` (2026-04-19) — verdict **ITERATE** with strong upward signal on production-gate metric (A/B vs 2026-04-15 baseline: `distinct_products` 2/6→5/6, `reskinned_same_article` 2/6→0/6, `fabrication_risk` 2/6→1/6). Next decision point: pursue Wave 3 iteration priorities (grow same-variant control set, triage fasttrade-pro persona, widen Stage 6 to ≥3 identities) OR pause structural-variants work and pivot to other C priorities (TA port, archetype validation, demo MVP). Wave 4 candidate (brand-fragmentation spec) surfaced but blocked on new spec — see "Wave 4 candidate" below.
+- **C — next action (structural variants):** ~~Phase 1~~ done in `c317102`; ~~Phase 2 (Wave 1)~~ done in merge `73da433` (2026-04-19); ~~Phase 3 (Wave 2)~~ done in merge `b62db17` (2026-04-19); ~~Phase 4 (Wave 3 — validation run + writeup)~~ done in merge `2fac649` (2026-04-19) — verdict **ITERATE** with strong upward signal on production-gate metric (A/B vs 2026-04-15 baseline: `distinct_products` 2/6→5/6, `reskinned_same_article` 2/6→0/6, `fabrication_risk` 2/6→1/6). **Scheduled 2026-04-20:** Wave 4 — Structural variants iteration (3 parallel mechanical prep items; extended LLM run post-merge in parent session). Brand-fragmentation still tracked as Wave 5 candidate (blocked on new spec).
 - **C — ongoing:** run full corpus validation for advisor loop (blocker — see `feedback_unified_pass_risk.md`). Editorial memory Phase 3 near-complete — ~~Task 10: Drizzle schema~~ (done in 1141dd8), ~~Task 11: Postgres store~~ (done in ef147c4), Task 12 blocked on production pipeline.
 - **Pipeline audit trail (demo → production bridge):** `PipelineRun` type + `PipelineRunStore` interface ship with demo (in-memory); `PostgresRunStore` implementation ships with Postgres workstream. Pipeline History UI works against the interface — same screens serve both. See `docs/specs/2026-04-13-demo-mvp.md` Tasks 1, 7, and new history tasks (13c, 13d).
 - **D — next action:** none (planned). First adapter scoping waits on C reaching first-tenant-shipping milestone.
@@ -129,7 +129,26 @@ Conventions:
 
 **Dependencies:** Wave 2.
 
-### Wave 4 candidate — Brand-fragmentation test for intra-tenant cross-pipeline (NEW SPEC NEEDED, NOT SCHEDULED)
+### Wave 4 — Structural variants iteration (Wave 3 follow-on)
+
+**Why this wave:** Wave 3 closed with verdict ITERATE and four mechanical prep items before the extended validation run can go. Items below are independent (different files, no shared state) and parallel-safe. The extended LLM run itself is deliberately NOT in this wave per `feedback_orchestrator_bg_bash_hibernation.md` — it runs from the parent session after merge.
+
+- [ ] **V4 Structural variants iteration — Size: S**
+  - [spec: structural-variants](./specs/2026-04-16-structural-variants.md)
+  - [analysis: 2026-04-19-wave3 §§1–3](./uniqueness-poc-analysis/2026-04-19-wave3.md)
+  - Item 1 — Grow same-variant control set: add `broker-e.json` (variant 2) + `broker-f.json` (variant 3) under `packages/api/src/benchmark/uniqueness-poc/personas/`, matching shape of existing broker-a/b/c/d. Pair distribution becomes 2 same-variant pairs/event (vs 1 today). Addresses Wave 3 analysis §1 (sample size).
+  - Item 2 — Triage `fasttrade-pro` persona (`personas/broker-b.json`): tighten `forbiddenClaims` (add bans on fabricated probabilities, un-sourced directional calls, invented price levels); soften `personalityTags` (keep energy/urgent; drop prescriptive/high-conviction); add `brandVoice` sentence requiring facts-only anchoring to source doc. Preserve brand identity. Root cause documented in memory `project_fasttrade_pro_persona_rootcause.md`. Addresses Wave 3 analysis §2 (fid=0.75 outlier) and resolves parking-lot item 2026-04-19.
+  - Item 3 — Widen Stage 6 to ≥3 identities in `runner.ts`: expose identity set via CLI flag (`--stage6-identities <csv>`) or default-loop over `[in-house-journalist, trading-desk, educator]`. Handle v3-clamps on 2-variant identities gracefully (educator has 3, in-house-journalist has 3, trading-desk has 3 — no clamping risk with this default set). Addresses Wave 3 analysis §3 and priority #4.
+
+**Wave 4 exit gate:** `bunx tsc --noEmit` 0 errors from `packages/api/`. New broker fixtures parse as valid `ContentPersona` (spot-check via runtime load or `JSON.parse` test). Fasttrade-pro JSON edit preserves schema (all required fields present). Stage 6 widening: dry-run or unit test shows ≥3 identities enumerate correctly without triggering v3-clamp warnings on the default identity set. **No LLM call required in the wave** — live run is deferred to parent session (see below).
+
+**Out of scope — parent session after merge:** Run `--full --editorial-memory` on 3-4 events spanning topic diversity (candidates: fed-rate-decision r3, bitcoin-etf-approval r2, oil-supply-shock, us-cpi-surprise) against the widened fixture set + widened Stage 6. Produce durable analysis under `docs/uniqueness-poc-analysis/2026-04-20-wave4-iteration.md` comparing cross-variant vs same-variant pair distributions with n≥2 same-variant pairs per event. Budget: ~$3–5 LLM spend (4 events × ~$0.75 each + judge overhead). This step is priority #3 from the Wave 3 post-merge note.
+
+**Dependencies:** Wave 3 (merged). None within this wave (all three items independent).
+
+---
+
+### Wave 5 candidate — Brand-fragmentation test for intra-tenant cross-pipeline (NEW SPEC NEEDED, NOT SCHEDULED)
 
 **Why this candidate exists:** Wave 3 surfaced a metric-architecture gap. The PoC's existing "intra-tenant" verdict (Stage 3.5) compares 6 different identity agents *with no persona overlay applied* — it measures **identity-format diversity** (do different identity templates produce visibly different formats? — design intent, should be high), NOT brand coherence. The actual intra-tenant brand-fragmentation question — *does the same identity for the same tenant produce a recognizable house voice across multiple pipeline runs?* — is **unmeasured anywhere in the PoC today**. This matters before scaling cross-tenant variant rollout, because variants could amplify within-tenant brand drift without us noticing.
 
