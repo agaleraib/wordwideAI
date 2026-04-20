@@ -133,7 +133,7 @@ Conventions:
 
 **Why this wave:** Wave 3 closed with verdict ITERATE and four mechanical prep items before the extended validation run can go. Items below are independent (different files, no shared state) and parallel-safe. The extended LLM run itself is deliberately NOT in this wave per `feedback_orchestrator_bg_bash_hibernation.md` — it runs from the parent session after merge.
 
-- [ ] **V4 Structural variants iteration — Size: S** (items 1–3 shipped 2026-04-20 on master; item 4 LLM run deferred to parent session)
+- [~] **V4 Structural variants iteration — PAUSED 2026-04-20** (items 1–3 shipped on master `096f52d`/`91a9018`/`cd48e4b`; item 4 pilot run showed persona-layer fixes regressed the production-gate metric — `distinct_products` 5/6 (Wave 3 r2) → 10/15 (pilot). See pilot run `uniqueness-poc-runs/2026-04-20T14-36-49-400Z_fed-rate-pause-2026-04-03/` and memory `project_wave4_persona_layer_ceiling.md`. Iteration continues at a different layer — persona-prompt is not the lever. Live-promote bar per memory `project_live_promote_bar.md` is unchanged regardless.)
   - [spec: structural-variants](./specs/2026-04-16-structural-variants.md)
   - [analysis: 2026-04-19-wave3 §§1–3](./uniqueness-poc-analysis/2026-04-19-wave3.md)
   - [x] Item 1 — Grow same-variant control set: add `broker-e.json` (Meridian Macro, variant 2) + `broker-f.json` (Apex Quant Desk, variant 3) under `packages/api/src/benchmark/uniqueness-poc/personas/`, matching shape of existing broker-a/b/c/d. Pair distribution becomes 3 same-variant pairs/event (a↔d v1, b↔e v2, c↔f v3) vs 1 today. Addresses Wave 3 analysis §1 (sample size). **Done in `91a9018`.**
