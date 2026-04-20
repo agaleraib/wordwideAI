@@ -25,6 +25,13 @@
  *                                 (persisting state between them), then
  *                                 runs full Stage 6 + Stage 7 on step N
  *                                 against the accumulated history.
+ *   --identity <id>               Identity to use for Stages 4 (reproducibility),
+ *                                 5 (persona differentiation), and 6 (cross-tenant
+ *                                 matrix). Defaults to "in-house-journalist".
+ *                                 Must match an IDENTITY_REGISTRY id. Rotate
+ *                                 across events to widen identity coverage per
+ *                                 Wave 4 iteration (docs/uniqueness-poc-analysis/
+ *                                 2026-04-19-wave3.md §3).
  *
  * Output:
  *   uniqueness-poc-runs/<runId>/
@@ -254,6 +261,12 @@ interface RunOneOptions {
   sequenceId?: string | null;
   sequenceStep?: number | null;
   sequenceStepCount?: number | null;
+  /**
+   * Identity to use for Stage 4/5/6. Defaults to "in-house-journalist" for
+   * backward compatibility. Must be a registered identity id — validated at
+   * CLI arg parse time, not here.
+   */
+  identity?: string;
 }
 
 /**
@@ -332,7 +345,7 @@ async function runOne(
     fixtureId,
     eventIds,
     personaIds: allPersonas.map((p) => p.id),
-    identityIds: ["in-house-journalist"],
+    identityIds: [opts.identity ?? "in-house-journalist"],
     sequenceId: opts.sequenceId,
     sequenceStep: opts.sequenceStep,
     sequenceStepCount: opts.sequenceStepCount,
@@ -345,15 +358,15 @@ async function runOne(
       ...(opts.skipReproducibility
         ? {}
         : {
-            withReproducibility: { identityId: "in-house-journalist", runs: 3 },
+            withReproducibility: { identityId: opts.identity ?? "in-house-journalist", runs: 3 },
             withPersonaDifferentiation: {
-              identityId: "in-house-journalist",
+              identityId: opts.identity ?? "in-house-journalist",
               personaA: allPersonas[0]!,
               personaB: allPersonas[1]!,
             },
           }),
       withCrossTenantMatrix: {
-        identityId: "in-house-journalist",
+        identityId: opts.identity ?? "in-house-journalist",
         personas: allPersonas,
       },
       ...(narrativeContinuation && {
@@ -394,7 +407,7 @@ async function runOne(
   return result;
 }
 
-async function runSequence(sequenceId: string, seqOpts: { memoryBackend: RunManifest["memoryBackend"]; cliFlags: string[] }): Promise<void> {
+async function runSequence(sequenceId: string, seqOpts: { memoryBackend: RunManifest["memoryBackend"]; cliFlags: string[]; identity?: string }): Promise<void> {
   const sequence = loadSequence(sequenceId);
   console.log(
     `[index] Loaded sequence ${sequence.id}: "${sequence.title}" (${sequence.steps.length} steps, topicId=${sequence.topicId})`,
@@ -445,6 +458,7 @@ async function runSequence(sequenceId: string, seqOpts: { memoryBackend: RunMani
       sequenceId: sequence.id,
       sequenceStep: i + 1,
       sequenceStepCount: sequence.steps.length,
+      identity: seqOpts.identity,
     });
     results.push(result);
   }
@@ -497,10 +511,24 @@ async function main() {
   const sequenceFlagIndex = args.indexOf("--sequence");
   const sequenceId =
     sequenceFlagIndex >= 0 ? args[sequenceFlagIndex + 1] : undefined;
+  const identityFlagIndex = args.indexOf("--identity");
+  const identityArg =
+    identityFlagIndex >= 0 ? args[identityFlagIndex + 1] : undefined;
+  if (identityFlagIndex >= 0 && !identityArg) {
+    console.error("ERROR: --identity requires an id, e.g. --identity trading-desk");
+    process.exit(1);
+  }
+  if (identityArg && !IDENTITY_REGISTRY.some((r) => r.definition.id === identityArg)) {
+    const valid = IDENTITY_REGISTRY.map((r) => r.definition.id).join(", ");
+    console.error(`ERROR: --identity "${identityArg}" is not a registered identity. Valid: ${valid}`);
+    process.exit(1);
+  }
+  const identity = identityArg;
   const positional = args.filter((a, i) => {
     if (a.startsWith("--")) return false;
-    // Skip the value positional that immediately follows --sequence.
+    // Skip the value positional that immediately follows --sequence or --identity.
     if (sequenceFlagIndex >= 0 && i === sequenceFlagIndex + 1) return false;
+    if (identityFlagIndex >= 0 && i === identityFlagIndex + 1) return false;
     return true;
   });
 
@@ -572,7 +600,7 @@ async function main() {
       console.error("ERROR: --sequence requires a sequence id, e.g. --sequence eur-usd-q2-2026");
       process.exit(1);
     }
-    await runSequence(sequenceId, { memoryBackend: memoryBackendType, cliFlags: args.filter((a) => a.startsWith("--")) });
+    await runSequence(sequenceId, { memoryBackend: memoryBackendType, cliFlags: args.filter((a) => a.startsWith("--")), identity });
     return;
   }
 
@@ -582,16 +610,16 @@ async function main() {
 
   if (all) {
     const fixtures = ["iran-strike", "fed-rate-decision", "china-tariffs"];
-    console.log(`[index] Running all ${fixtures.length} fixtures${full ? " with --full mode" : ""}...`);
+    console.log(`[index] Running all ${fixtures.length} fixtures${full ? " with --full mode" : ""}${identity ? ` [identity=${identity}]` : ""}...`);
     for (const id of fixtures) {
-      await runOne(id, { full, store, persistNarrativeState, editorialMemory, memoryBackend: memoryBackendType, cliFlags: args.filter((a) => a.startsWith("--")) });
+      await runOne(id, { full, store, persistNarrativeState, editorialMemory, memoryBackend: memoryBackendType, cliFlags: args.filter((a) => a.startsWith("--")), identity });
     }
     return;
   }
 
   const fixtureId = positional[0] ?? "iran-strike";
-  console.log(`[index] Running fixture: ${fixtureId}${full ? " (--full mode)" : ""}${persistNarrativeState ? " [persist-narrative-state]" : ""}${editorialMemory ? " [editorial-memory]" : ""}`);
-  await runOne(fixtureId, { full, store, persistNarrativeState, editorialMemory, memoryBackend: memoryBackendType, cliFlags: args.filter((a) => a.startsWith("--")) });
+  console.log(`[index] Running fixture: ${fixtureId}${full ? " (--full mode)" : ""}${persistNarrativeState ? " [persist-narrative-state]" : ""}${editorialMemory ? " [editorial-memory]" : ""}${identity ? ` [identity=${identity}]` : ""}`);
+  await runOne(fixtureId, { full, store, persistNarrativeState, editorialMemory, memoryBackend: memoryBackendType, cliFlags: args.filter((a) => a.startsWith("--")), identity });
 }
 
 main().catch((err) => {
