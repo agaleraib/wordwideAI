@@ -287,13 +287,17 @@ async function runOne(
   const fixtureId = typeof eventOrFixtureId === "string" ? eventOrFixtureId : event.id;
   const { full } = opts;
 
-  // In --full mode, load ALL FOUR personas for the cross-tenant matrix
+  // In --full mode, load ALL SIX personas for the cross-tenant matrix.
+  // Distribution across structural variants: a=v1, b=v2, c=v3, d=v1, e=v2, f=v3.
+  // Yields 2 same-variant pairs per event (a↔d v1, b↔e v2, c↔f v3) vs 1 pre-Wave 4.
   const allPersonas = full
     ? [
         loadPersona("broker-a"),
         loadPersona("broker-b"),
         loadPersona("broker-c"),
         loadPersona("broker-d"),
+        loadPersona("broker-e"),
+        loadPersona("broker-f"),
       ]
     : [];
 
@@ -472,7 +476,7 @@ async function runSequence(sequenceId: string, seqOpts: { memoryBackend: RunMani
   }
 
   // Per-persona entry count after the run, for quick sanity
-  for (const personaFile of ["broker-a", "broker-b", "broker-c", "broker-d"]) {
+  for (const personaFile of ["broker-a", "broker-b", "broker-c", "broker-d", "broker-e", "broker-f"]) {
     const persona = loadPersona(personaFile);
     const state = await store.get(sequence.id, persona.id, sequence.topicId);
     const count = state?.recentEntries.length ?? 0;

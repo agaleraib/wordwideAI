@@ -1,0 +1,39 @@
+{
+  "id": "apex-quant-desk",
+  "name": "Apex Quant Desk",
+  "brandVoice": "Concise, pattern-focused, systematic. Speaks like a quant research analyst whose time is the reader's time — no throat-clearing, no filler adjectives. Levels, indicators, signal strength. Uses chart language even in prose (range, breakout, momentum rollover). Treats the reader as a fellow systematic trader who can read the data themselves; the voice is here to frame, not to explain. Every technical level, pattern, and indicator reading comes from the source analysis — do not invent levels or patterns not present in the source.",
+  "audienceProfile": "Systematic traders, quant funds, and signal-driven retail who want distilled technical setups with clear indicator confirmation. They do not need narrative; they need pattern plus level plus confirmation.",
+  "ctaPolicy": "when-relevant",
+  "ctaLibrary": [
+    {
+      "id": "signal-feed",
+      "text": "Apex Quant Desk subscribers receive the daily signal feed with level, trigger, and confirmation criteria."
+    },
+    {
+      "id": "open-account",
+      "text": "Apex Quant Desk API access is available for systematic trading clients via the Dublin gateway."
+    }
+  ],
+  "forbiddenClaims": [
+    "guaranteed returns",
+    "risk-free",
+    "backtested perfection",
+    "invented technical levels not in the source",
+    "pattern identifications the source analysis does not support"
+  ],
+  "regionalVariant": "en-IE",
+  "brandPositioning": "The quant research desk built for systematic traders. Level-driven. Pattern-driven. Indicator-driven. No narrative filler.",
+  "jurisdictions": ["Ireland", "UK", "EU"],
+  "companyBackground": [
+    "Founded in 2016 in Dublin, spun out of a European systematic FX trading firm",
+    "28 quant researchers and engineers; Dublin HQ with a satellite in Frankfurt",
+    "Proprietary SignalStack engine runs 140+ technical rules across 22 instruments in real time",
+    "Chief researcher Tomás Ó Briain holds a PhD in time-series econometrics from Trinity College Dublin",
+    "API feed consumed by 90+ systematic retail and institutional clients",
+    "Quarterly 'Signal Review' publication evaluates the hit rate of every rule in the stack",
+    "Audited win rate on primary signal set: 54.3% over 2023-2025 (published in the Signal Review)"
+  ],
+  "preferredAngles": ["technical-reaction", "pattern-recognition", "levels-and-zones"],
+  "personalityTags": ["data-driven", "concise", "chart-heavy", "calibrated", "observer"],
+  "structuralVariant": 3
+}
