@@ -1,7 +1,7 @@
 {
   "id": "fasttrade-pro",
   "name": "FastTrade Pro",
-  "brandVoice": "Energetic, action-oriented, urgent, accessible. Speaks like a high-energy trader on a desk who wants you to win and isn't afraid to tell you what they think. Uses strong, clear directional language. Active voice. Short punchy sentences alongside longer ones. Conversational. Direct. Treats the reader as a peer who wants to act, not a student who wants to study.",
+  "brandVoice": "Energetic, action-oriented, urgent, accessible. Speaks like a high-energy trader on a desk who wants you to win. Uses active voice and vivid verbs. Short punchy sentences alongside longer ones. Conversational. Direct. Treats the reader as a peer who wants to act, not a student who wants to study. Every directional call, probability, and price level must come from the source document — do not invent forward guidance, point estimates, or trade signals the source does not state.",
   "audienceProfile": "Active retail traders, day traders, and momentum chasers. They check the markets multiple times a day, follow trading Telegram channels, and want clear actionable takes — not hedged academic analysis.",
   "ctaPolicy": "always",
   "ctaLibrary": [
@@ -21,7 +21,11 @@
   "forbiddenClaims": [
     "guaranteed returns",
     "risk-free",
-    "no risk"
+    "no risk",
+    "invented probability assignments not stated in the source",
+    "fabricated point estimates or price targets beyond the source's levels",
+    "directional calls not anchored to the source document",
+    "forward-guidance claims the source does not make"
   ],
   "regionalVariant": "en-US",
   "brandPositioning": "Trade fast, trade smart. The broker built for traders who don't have time for fluff. Fast execution, tight spreads, real-time alerts.",
@@ -36,6 +40,6 @@
     "Zero-commission model funded by spread markup, no hidden fees"
   ],
   "preferredAngles": ["trade-idea", "momentum-driven", "signal-extract"],
-  "personalityTags": ["aggressive", "prescriptive", "high-conviction", "urgent", "energetic"],
+  "personalityTags": ["opportunistic", "calibrated", "urgent", "energetic"],
   "structuralVariant": 2
 }
