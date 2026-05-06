@@ -1,6 +1,6 @@
 # Uniqueness PoC Test-Methodology Audit and Baseline
 
-**Status:** Round 1 draft — pending Codex adversarial review per `2026-05-06-uniqueness-poc-audit-plan.md` §7
+**Status:** Final — Codex 3-round adversarial review converged on substance; Round 3 surfaced only a mechanical threshold inconsistency in the §6 checklist (N_events < 3 vs. < 6) which has been fixed inline. See `Appendix A — Codex review log` for the full review trail.
 **Date:** 2026-05-06
 **Author:** Claude (Opus 4.7) drafting; Codex (GPT-5.4) adversarial reviewer
 **Plan that gates this:** `docs/specs/2026-05-06-uniqueness-poc-audit-plan.md`
@@ -11,7 +11,7 @@
 
 ## 0. TL;DR
 
-The uniqueness PoC harness is a structurally sound experimental rig with **decision-grade evidentiary value** for ship/iterate/abandon calls — *not* publication-grade. With N = 6 pairs per event, a single LLM judge with no inter-rater data, and several reproducibility primitives missing or implicit, the strongest defensible claim from a single test is *"the variant moved metric X by Y on this fixture under these run conditions, with bootstrap CI [a,b]."* The audit identifies **eleven verdict-relevant gaps** (four high-risk, five medium, two low) and recommends a baseline methodology that can be implemented incrementally without code rewrites — most fixes are reproducibility receipts, pre-registration of thresholds, and a Phase-2 lightweight inter-rater protocol. **One calibration finding is verdict-changing in retrospect:** Wave 4's pivot to persona-layer fixes was based on an attribution claim (variant-independence of the fasttrade-pro fidelity outlier) that the methodology cannot rigorously support given current confounders, which means the persona-layer regression Wave 4 produced may not actually rule out the layer.
+The uniqueness PoC harness is a structurally sound experimental rig with **decision-grade evidentiary value** for ship/iterate/abandon calls — *not* publication-grade. With N = 6 pairs per event, N_events typically 2–4 per study, a single LLM judge with no inter-rater data, and several reproducibility primitives missing or implicit, the strongest defensible claim from a single test is *"the variant moved metric X by Y on this fixture under these run conditions, with stratified-clustered-bootstrap CI [a,b] over N_events events. Estimand: population mean of X across the bench's event distribution."* The audit identifies **eleven verdict-relevant gaps** (four high-risk, five medium, two low) and recommends a baseline methodology that can be implemented incrementally without code rewrites — most fixes are reproducibility receipts, pre-registration of thresholds, clustered uncertainty estimation, and a Phase-2 lightweight inter-rater protocol. **One unresolved attribution-risk finding is surfaced (§4.7.5):** Wave 4's pivot to persona-layer fixes rested on an attribution claim (variant-independence of the fasttrade-pro fidelity outlier) that the current methodology cannot verify or refute, because the relevant confounders (judge prompt drift, embedding drift, persona JSON edits, model-version drift) are not currently tracked. This warning is *not* a retrospective verdict reversal — the audit does not have run-level evidence to assert that Wave 4's persona-layer conclusion is wrong; it asserts only that the conclusion's evidentiary basis is weaker than the wave's writeup conveyed, and that the same mis-attribution risk recurs in future waves until the §4.1 + §4.4 fixes ship.
 
 ---
 
@@ -197,7 +197,9 @@ Each subsection: current state → reference-framework expectation → gaps with
 
 #### 4.1.2 Reference-framework expectations
 
-Kohavi (2020, ch. 13) and BIG-bench (2023, §4) require: pinned model versions for every model call; content-addressable fixtures; package/dependency versions; deterministic seed when applicable; full prompt provenance (not just system prompt hash but user-message templates and tool-schema hashes too).
+**Framework principles.** Kohavi (2020) emphasizes the general principle that controlled experiments require holding non-experimental variables constant — concretely framed for tech A/B against shared-codebase deployments, but the underlying constraint applies anywhere comparisons are made over time. BIG-bench (Srivastava et al. 2023) discusses prompt-sensitivity and model-version effects on benchmark reproducibility. Neither framework prescribes the LLM-specific provenance fields below; those are FinFlow-local choices derived from the principle.
+
+**FinFlow-local methodological decisions** (defended by Wave 3's already-confessed code-drift confounder rather than by external prescription): pin model versions per call, capture user-message and tool-schema hashes in the manifest, content-hash fixtures, capture package/dependency hashes. Deterministic seeding is not relevant where temperature is 0 and provider-side determinism is the only available control surface.
 
 #### 4.1.3 Gaps
 
@@ -250,7 +252,9 @@ Each event produces 6 cross-tenant pairs (C(4,2) = 6 with 4 personas, or up to C
 
 Kohavi (2020, ch. 17) on minimum detectable effect (MDE): for a binomial proportion with N = 6 and α = 0.05, the 95% CI half-width at p = 0.5 is ±0.40 — i.e., we cannot distinguish 30% from 70% rates with N = 6. With N = 24, half-width drops to ±0.20.
 
-For continuous metrics (cosine, ROUGE-L), Bayesian-Workflow (Bürkner et al. 2023) recommends posterior intervals via bootstrap or weakly-informative priors when N is small. Effect sizes need explicit reporting; point estimates without CIs are misleading.
+For continuous metrics (cosine, ROUGE-L), Bürkner et al. (2023) describe a Bayesian workflow centered on posterior intervals from explicit prior+likelihood models — not specifically prescribing the bootstrap. Bootstrap (Efron & Tibshirani 1993) is a separate, non-parametric technique for CI estimation that this audit recommends as the more pragmatic FinFlow-local choice given the absence of a fitted Bayesian model. Both frameworks share the load-bearing principle the audit lifts: point estimates without CIs are misleading at this N regime.
+
+**Critical caveat on independence.** Pair outcomes in this harness are *not* independent. With M generated outputs, C(M,2) = M(M−1)/2 pairs share outputs — each output participates in (M−1) pairs. Naive iid pair-resampling (`bootstrap-resample 24 pairs from 24`) over-states effective N and inflates apparent precision. Clustered/paired bootstrap procedures are required; see §4.2.4 recommendation.
 
 #### 4.2.3 Gaps
 
@@ -263,13 +267,31 @@ For continuous metrics (cosine, ROUGE-L), Bayesian-Workflow (Bürkner et al. 202
 
 #### 4.2.4 Recommendation
 
-For every wave writeup:
-1. Report all categorical metrics with **bootstrap 95% CIs** (resample pairs with replacement, ≥10,000 iterations).
-2. For mean continuous metrics, report bootstrap CI on the mean.
-3. Pre-declare the **MDE for the metric the wave most cares about**, given the planned N.
-4. Explicit "underpowered for X" disclaimers when MDE > expected effect.
+For every wave writeup, use a **stratified clustered bootstrap** that respects both the pair-graph dependence *and* the event-level comparison structure:
 
-Implementation: a small bootstrap helper in `analyze.ts` (or a sibling `statistics.ts`); roughly half a day.
+**Why stratification is mandatory.** Pair metrics are only meaningful within an event — a "cosine between premium-capital-markets on the fed-rate event and northbridge-wealth on the bitcoin-etf event" is meaningless because content topic is the dominant signal. Naive cross-event resampling either constructs invalid cross-event pairs or, if filtered to same-event, unpredictably reweights events (some events appear 0× in a given bootstrap, others 3×) and silently changes the estimand. The stratified procedure below preserves the original benchmark's design.
+
+**Procedure — stratified clustered bootstrap:**
+
+1. **Top-level clusters are events.** Resample events with replacement from the bench's E events. Each bootstrap iteration produces a (potentially repeated, potentially missing) multiset of events.
+2. **Within each sampled event, preserve the cell structure.** All output cells (persona × identity) within that event are kept together as a block — *do not* sub-resample cells within events. The bench's design (which personas × which identities × which event) is the within-event unit.
+3. **Reconstruct only within-event pairs.** For each event in the bootstrap sample, build C(M_e, 2) pairs from the M_e cells in that event. Never construct cross-event pairs.
+4. **Compute the metric over the union of within-event pairs.** Aggregate the metric (count, mean, etc.) across the bootstrap sample.
+5. **Repeat ≥10,000 iterations.** Report percentile-based 95% CI of the metric.
+
+**For variant-vs-baseline comparisons:** resample **matched event blocks** — the same event appears in both arms (control and treatment) in each bootstrap iteration, preserving the per-event paired structure. Compute Δ within event, then aggregate.
+
+**Effective cluster N reporting (mandatory):** report **N_events** (top-level cluster count) alongside the CI. The pair count is a derived quantity, not the precision driver. Wave writeups should state both: e.g., "OEC moved by 0.12 with stratified-bootstrap 95% CI [0.04, 0.21]; N_events = 4, N_pairs = 24."
+
+**Estimand statement (also mandatory):** every metric reported with a CI must name what it is estimating — e.g., *"the population mean of metric M across the universe of events from which the bench was sampled, holding bench composition constant."* Without an estimand statement, the CI is uninterpretable.
+
+**Pre-declare the MDE** for the wave's primary metric, given the planned **N_events**, not pair count. With E = 4 events, the bootstrap CI half-width on a binomial-style metric runs ~0.30 even at high pair counts — events are the precision constraint.
+
+**Descriptive-only fallback:** if the wave produces fewer than **3 events** (top-level cluster N < 3), the bootstrap is too unstable for decision-grade CI; report point estimates as descriptive only. The 3-event minimum is a FinFlow-local floor (no external prescription); below it, "did the wave move the metric?" is not a decidable question with this method.
+
+**Implementation:** a stratified-clustered-bootstrap helper in `packages/api/src/benchmark/uniqueness-poc/statistics.ts`. The pair-graph reconstruction stays simple because pairs are constrained to within-event; the bootstrap loop is just `for each iter: resample event indices with replacement → for each sampled event idx: take its frozen cell block → compute metric over the union`. ~200 LOC of pure TS, roughly one day.
+
+**Why not iid pair-resampling, restated in plain terms:** if you have 4 generated articles per event and you compare them pairwise (6 pairs/event), then "resampling 6 pairs from 6" is just permuting the same six edges in the same graph — the four underlying articles never change. Inference looks tighter than it should. Resampling at the *event* level (with the within-event cell structure preserved) is what propagates real uncertainty into the CI, because it changes which events the metric was computed over — and event difficulty is the dominant variance source.
 
 ### 4.3 Judge reliability
 
@@ -281,11 +303,15 @@ Single judge call per pair, model `claude-haiku-4-5-20251001`, up to 3 retries o
 
 #### 4.3.2 Reference-framework expectations
 
-Zheng et al. (2023) "Judging LLM-as-a-Judge" documents three pervasive biases: **verbosity bias** (longer outputs preferred), **position bias** (first-listed preferred), **self-preference** (judge from same model family preferred). Mitigations: swap A/B order, run twice per pair, calibrate on human-rated pairs.
+**Framework principles.** Zheng et al. (2023) "Judging LLM-as-a-Judge" documents three pervasive biases in LLM-as-judge systems: **verbosity bias** (longer outputs preferred), **position bias** (first-listed preferred), **self-preference** (judge from same model family preferred). Their proposed mitigations include swapping A/B order, running multiple judges, and calibrating against human-rated pairs. Chiang & Lee (2023) report single-LLM-judge correlation with human judgment ranging from 0.50 to 0.85 depending on task and rubric — useful but with non-trivial variance that single calls do not reveal. HELM (Liang et al. 2022) emphasizes scenario coverage, multi-metric evaluation, and standardization — it does not prescribe a specific multi-judge κ protocol; it does advocate for transparency in evaluator choice and for reporting evaluation uncertainty.
 
-HELM (Liang et al. 2022, §6) recommends multi-judge ensembles for robust evaluation, with explicit reporting of inter-rater agreement (Cohen's κ or similar).
+**FinFlow-local methodological decisions** (informed by Zheng + Chiang/Lee, not directly prescribed by them):
 
-Chiang & Lee (2023) showed that single-LLM-judge correlation with human judgment can range from 0.50 to 0.85 depending on task and rubric — high enough to be useful but with non-trivial variance that single calls do not reveal.
+- A/B order-swap on a pair sample, treated as a position-bias spot-check.
+- Periodic human-rated κ as the long-run calibration anchor.
+- Optional second-judge ensemble (different model family) is a future option, not a current requirement; deferred to §7 open questions.
+
+These choices are FinFlow-local; the literature supports the *direction* of the choice but the specific thresholds (15% disagreement triggers unreliable flag, 20% pair sample for swap, quarterly cadence for human κ) are operational tuning, not framework-prescribed.
 
 #### 4.3.3 Gaps
 
@@ -445,25 +471,35 @@ The §4.1 reproducibility receipt resolves the visibility problem. For drift *co
 
 Persona-vs-variant attribution (the Wave 4 motivating example) is the central case: until both reproducibility receipts and two-baseline are in place, attribution claims of the form *"X is variant-independent because we measured it constant across variants"* are not rigorously defensible.
 
-#### 4.7.5 Calibration finding (verdict-changing in retrospect)
+#### 4.7.5 Attribution-risk warning (would-have-changed-the-rigour-bar — case study, not retrospective verdict reversal)
 
-This is the §9.e plan-required finding.
+This is the §9.e plan-required finding, downgraded from "verdict-changing" to "attribution-risk warning" after Codex Round 1 review (the original framing speculated about a specific alternative reading without the run-level evidence to support it).
 
-The Wave 3 → Wave 4 pivot — *"the fasttrade-pro fid=0.75 outlier is persona-prompt-driven, not variant-driven"* — was based on comparing identical-persona runs across variant 1 and variant 2 conditions. The attribution rests on the assumption that **only variant changed** between those runs.
+**The Wave 3 → Wave 4 pivot reasoning (verbatim from `project_fasttrade_pro_persona_rootcause.md`):** *"the fasttrade-pro fid=0.75 outlier is persona-prompt-driven, not variant-driven"* — based on comparing identical-persona runs across variant-1 and variant-2 conditions. The attribution rests on the assumption that **only variant changed** between those compared runs.
 
-Per the audit, that assumption is unverifiable with the current methodology:
-- Judge prompt may have changed between the runs (no version marker).
-- Embedding model may have drifted (not pinned).
-- Persona JSON may have been edited mid-stream (no content hash).
-- User-message templates were not hashed.
+**What the audit can establish:** the assumption is unverifiable under current methodology. The following confounders could each independently affect the comparison and are not currently tracked:
+- Judge prompt edits between the compared runs (no version marker on the prompt).
+- Embedding model upgrades by OpenAI (model not pinned in manifest).
+- Persona JSON edits between the runs (no content hash).
+- User-message template changes (not hashed).
+- Anthropic model snapshot drift on the FA, identity, or judge calls.
 
-The Wave 4 spec then pursued persona-layer fixes based on this attribution, regressed `distinct_products` 5/6 → 10/15, and concluded *"persona layer is not the lever."*
+**What the audit cannot establish:** whether any of those confounders *actually occurred* between the compared runs. That would require a run-level evidence table — exact run IDs, ISO timestamps, code commit hashes, prompt hashes/diffs, persona JSON content hashes, embedding/judge model identifiers, matched denominator comparisons (whether persona expansion broker-d → broker-a..f also affects the comparison) — none of which is currently captured for the Wave 3 attribution decision. Building that evidence table is itself out of scope for this audit (would require run-archeology against `uniqueness-poc-runs/` directories from before the audit's recommendations were in place).
 
-A different reading consistent with the data: **the attribution itself was wrong.** Variant *was* a contributing cause to the fid=0.75 outlier, persona-layer fixes were targeting the wrong lever, and the regression was a (now-explainable) downstream consequence.
+**The conservative claim, which the audit does support:**
+- Wave 4's persona-layer pivot was a methodologically reasonable bet given the data the team had at the time.
+- The data the team had does not — under this audit's standards — clear the rigour bar required to *exclude* variant as a contributing cause to the fid=0.75 outlier.
+- The Wave 4 regression on `distinct_products` (5/6 → 10/15) is itself confounded by the persona-set expansion (broker-a..d → broker-a..f) noted as high-risk in §4.8.3, so it does not by itself prove or disprove the persona-layer-is-the-lever claim.
+- Net: Wave 4's conclusion *"persona-prompt is currently not the lever"* should be treated as supported with low confidence rather than as a closed finding. The methodology cannot defend a stronger conclusion either way until the §4.1 + §4.4 fixes are in place.
 
-If the §4.1 + §4.4 fixes had been in place, the Wave 3 attribution claim would either have been (a) confirmed under controlled conditions, vindicating the Wave 4 design, or (b) disproved, redirecting Wave 4 to a different layer (perhaps the FA layer, which is where FA prompt iteration is now headed).
+**Calibration value of this finding (the §9.e clause this audit must satisfy):**
+- If the §4.1 reproducibility receipt + §4.4 two-baseline rule had been in place at Wave 3 time, the Wave 4 spec would either have:
+  - **Cleared the bar** — comparison ran under known-equal confounders, attribution claim is rigorous, Wave 4 design vindicated, OR
+  - **Failed the bar** — the freshly-rerun baseline wouldn't have reproduced the historical baseline within MDE, debugging would have surfaced *which* confounder mattered, and Wave 4 would have either been redirected or re-run under controlled conditions.
+- Either outcome would have produced a stronger basis for the layer-of-iteration decision than what currently exists.
+- Future waves face the same risk until the methodology fixes ship. The FA prompt iteration spec (`2026-05-06-fa-prompt-iteration.md`) — currently parked behind this audit — should not run without those fixes in place, or it inherits the same attribution-risk pathology.
 
-This finding does not invalidate the Wave 4 conclusion that persona-prompt is *currently* not the lever — that's still the data. It does suggest the Wave 4 design was built on a non-rigorous attribution, and the same kind of mis-attribution will recur in future waves until the methodology is upgraded.
+**This is not a retrospective verdict reversal.** The Wave 4 result is the Wave 4 result. The audit is identifying *unboundedness in what that result can support*, not asserting an alternative result.
 
 <!-- foundations:end -->
 
@@ -508,7 +544,12 @@ Point estimates only. No bootstrap. No Bayesian inference. No CI reporting on me
 
 #### 4.9.2 Reference-framework expectations
 
-Bürkner et al. (2023) Bayesian Workflow: small-N inference with weakly informative priors yields more honest uncertainty quantification than frequentist NHST. Bootstrap (Efron & Tibshirani 1993) is the non-parametric workhorse for CI estimation.
+**Framework principles.** Bürkner et al. (2023) describe a Bayesian workflow centered on prior+likelihood model fitting, posterior interval reporting, and explicit prior sensitivity analysis. Their workflow does *not* prescribe the bootstrap. Efron & Tibshirani (1993) introduced the bootstrap as a separate non-parametric CI-estimation technique. Both share the load-bearing principle: at small N, point estimates without uncertainty intervals are misleading.
+
+**FinFlow-local methodological decisions:**
+- Use the bootstrap (clustered variant per §4.2) as the pragmatic CI-estimation procedure. Rationale: no fitted parametric model exists for the metric distributions; non-parametric resampling gets us defensible CIs without the modelling cost.
+- Bayesian posterior intervals are a future option (§7 open questions) if a fitted model becomes worthwhile. The audit does not require Bayesian inference today.
+- Effect-size measures (Cohen's d, Cohen's h) come from standard meta-analytic statistics; report with bootstrap CI on the effect.
 
 #### 4.9.3 Gaps
 
@@ -521,14 +562,24 @@ Bürkner et al. (2023) Bayesian Workflow: small-N inference with weakly informat
 
 #### 4.9.4 Recommendation
 
-Implement a small statistics module:
-- `bootstrapCi(samples, statistic, iters=10000)` returns 95% CI on any sample statistic
-- `proportionCi(k, n)` returns Wilson CI for binomial proportions (better than normal-approx for N=6)
-- `effectSize(controlSamples, treatmentSamples)` returns Cohen's d for continuous, Cohen's h for proportions
+Implement a small statistics module at `packages/api/src/benchmark/uniqueness-poc/statistics.ts`:
 
-Wave writeups must report at minimum: each headline metric with bootstrap or Wilson CI; effect size between conditions with CI.
+- `stratifiedClusteredBootstrapCi(eventBlocks, statistic, iters=10000)` — **load-bearing primitive**. `eventBlocks` is `Array<{ eventId, cells: OutputCell[] }>`. Resamples events with replacement; for each sampled event reconstructs only within-event pairs from the frozen cell block; computes statistic over the union; returns 95% percentile CI. Refuses to run if N_events < 3 (returns descriptive-only label).
+- `pairedStratifiedBootstrap(controlBlocks, treatmentBlocks, statistic, iters=10000)` — for variant-vs-baseline. Requires control and treatment to share the same event set. Resamples event indices and computes Δ within each event, aggregates across the bootstrap sample, returns CI on the difference. The matched-by-event design dramatically reduces variance vs. unpaired sampling.
+- `bootstrapCi(samples, statistic, iters=10000)` — iid version; **only used for genuinely independent samples** (e.g., one statistic per event used as the unit). Calling code must justify independence in a comment.
+- `proportionCi(k, n)` — Wilson CI for binomial proportions; appropriate for cluster-level success counts (e.g., "events on which the wave produced a SHIP-grade verdict"), not pair-level.
+- `effectSize(controlSamples, treatmentSamples)` — Cohen's d for continuous, Cohen's h for proportions; report with bootstrap CI on the effect.
 
-Implementation cost: ~half a day, ~150 LOC.
+Every CI-returning function returns `{ ci: [lo, hi], nClusters: number, descriptiveOnly: boolean, estimand: string }`. The `estimand` field is a free-text label the caller supplies; the function prepends "Population estimand: " and surfaces it in writeups.
+
+Wave writeups must report:
+- Each headline metric with **stratified-clustered bootstrap CI** (default for pair-derived metrics) or Wilson CI (for cluster-level proportions)
+- N_events alongside CI
+- Effect size between conditions with CI on the difference
+- Estimand statement per CI
+- Explicit "descriptive only" label when N_events < 3
+
+Implementation cost: ~1 day. ~200–250 LOC. Pair-graph reconstruction is simple because pairs are constrained to within-event blocks.
 
 ### 4.10 Pre-registration
 
@@ -595,18 +646,21 @@ Explicit limitations, restated for clarity (per §1.3 bar):
 
 **Valid claims** (post-recommendations implementation):
 
-- *"Variant V moved metric M by Δ on this fixture under these run conditions, with bootstrap 95% CI [a, b]."*
-- *"At N = 24 pairs the wave is underpowered to detect effects below MDE."*
+- *"Variant V moved metric M by Δ on this fixture under these run conditions, with stratified-clustered-bootstrap 95% CI [a, b] over N_events events. Estimand: population mean of M across the bench's event distribution."*
+- *"At N_events = X the wave is underpowered to detect effects below MDE."*
 - *"The pre-registered SHIP rule was met / not met."*
 - *"Judge agreement on the position-swap subsample was X%; below the 85% threshold this run is judge-unreliable."*
 
 **Forbidden claims** (under any conditions until methodology upgraded substantially):
 
 - *"Variant V is statistically significantly better than baseline at p < 0.05."* — no.
+- *"Variant V moved metric M by Δ with iid-bootstrap CI [a, b] over N pairs."* — no; pair-iid resampling violates independence and over-states precision.
+- *"…with cell-bootstrap CI over N output cells (cells resampled without event strata)."* — no; unstratified cell resampling either constructs invalid cross-event pairs or silently reweights events. See §4.9.
 - *"Effect size is robust to model drift."* — no, until the §4.1 + §4.4 fixes are in place.
 - *"This wave proves [layer] is/isn't the lever."* — no; can support "is/isn't apparently the lever under these run conditions."
 - *"The result generalizes to all retail FX broker scenarios."* — no; bench scope only.
 - *"The judge is calibrated against human review."* — no, until §4.3 Tier 3 protocol runs.
+- *"This audit's calibration finding (§4.7.5) reverses Wave 4's verdict."* — no; the calibration finding warns about evidentiary basis, not result correctness.
 
 ---
 
@@ -623,9 +677,24 @@ Every run captures, in `RunManifest.reproducibility`:
 - Package version hash
 - Temperature overrides (any)
 
-### 5.2 Statistics
+### 5.2 Statistics — stratified clustered uncertainty estimation (§4.2 + §4.9)
 
-Bootstrap CIs on every reported metric. Wilson CIs on binomial counts. Effect sizes with CIs on every variant-vs-baseline comparison.
+**Default for pair-derived metrics:** **stratified clustered bootstrap** — resample *events* (top-level cluster) with replacement, preserve within-event cell blocks, reconstruct only within-event pairs, compute metric, ≥10,000 iters, percentile-based 95% CI.
+
+**Why event-level stratification matters:** content topic dominates the variance of pair metrics. Pairs are only meaningful within an event. Resampling output cells without preserving event strata either constructs invalid cross-event pairs or silently reweights events; either way, the estimand changes and the CI no longer measures what the wave was designed to measure.
+
+**Pair-iid bootstrap is forbidden as a decision-grade gate.** Cell-iid bootstrap (resampling cells across events without stratification) is also forbidden. Use iid bootstrap only when the unit is genuinely independent (e.g., one-event-aggregate-per-event averaged across events).
+
+For variant-vs-baseline comparisons: **paired stratified bootstrap** — same event multiset in both arms each iteration. Per-event Δ aggregated.
+
+Wilson CIs on cluster-level proportions (e.g., proportion of events on which the wave produced a SHIP-grade verdict). Effect sizes (Cohen's d, Cohen's h) with bootstrap CI on every variant-vs-baseline comparison.
+
+**Mandatory in every CI-bearing claim:**
+- N_events explicitly reported
+- Estimand statement (what population the CI is estimating)
+- Descriptive-only label when N_events < 3
+
+This is the most operationally consequential change vs. how Waves 1–4 were analyzed.
 
 ### 5.3 Pre-registration (§4.10 + §4.5)
 
@@ -686,11 +755,12 @@ Use this checklist when running any methodology-compliant test from now on.
 - [ ] Verdict computed against pre-registered decision rule (no post-hoc threshold tuning)
 - [ ] Writeup includes:
   - [ ] Pre-registered plan referenced verbatim
-  - [ ] OEC result with CI
-  - [ ] Secondary metric results with CIs
+  - [ ] OEC result with **stratified-clustered-bootstrap CI** + N_events + estimand statement
+  - [ ] Secondary metric results with stratified-clustered-bootstrap CIs + N_events + estimands
   - [ ] Two-baseline comparison (historical vs freshly-rerun)
   - [ ] Judge-reliability check result (Tier 2)
   - [ ] Effect sizes with CIs
+  - [ ] Explicit "descriptive only" labels on metrics where N_events < 3
   - [ ] Limitations section restating §4.12 forbidden claims
   - [ ] Verdict: SHIP / ITERATE / ABANDON, with justification mapped to the pre-registered rule
 
@@ -736,7 +806,64 @@ Items the audit identifies but cannot resolve without significant new work.
 
 ## Appendix A — Codex review log
 
-*(Placeholder — populated by the planning-loop adversarial review process per audit-plan §7. Round 1 of Codex review fills in here.)*
+Adversarial review via `planning-loop` skill (REVISE mode), Codex companion. Three substantive rounds + one cap-time mechanical-fix confirmation pass. Verbatim output preserved per audit-plan §7.2. Full machine-readable log at `.harness-state/planning-loop/2026-05-06-uniqueness-poc-test-methodology-revise-*.md`.
+
+### Round 1 — verdict `needs-attention` (3 findings)
+
+```text
+- [high] Pair-level bootstrap treats dependent comparisons as independent (lines 247-268)
+  Same generated persona/article appears in multiple cross-tenant pairs, so pair outcomes
+  are clustered/correlated, not iid. Bootstrap CI from iid pair-resampling overstates
+  effective N. Recommendation: clustered/paired procedure resampling events and/or
+  generated output units while preserving the pair graph.
+
+- [high] §4.7.5 calibration finding framed as verdict-changing without evidence (lines 452-464)
+  Section establishes attribution assumption is unverifiable but advances a specific
+  alternative reading without run-level evidence (judge prompt drift, embedding drift,
+  persona edits, template drift) actually being demonstrated. Recommendation: downgrade
+  to attribution-risk warning or add a run-by-run evidence table.
+
+- [medium] Reference frameworks cited as requiring procedures they don't (lines 198-200)
+  Kohavi/BIG-bench described as requiring LLM-style pinned versions; HELM described as
+  recommending multi-judge κ ensembles; Bayesian Workflow used to justify bootstrap.
+  Public framework summaries don't directly support these. Recommendation: separate
+  "framework says" from "FinFlow-local adaptation".
+```
+
+### Round 2 — verdict `needs-attention` (1 new finding; round-1 findings resolved)
+
+```text
+- [high] Cluster bootstrap can destroy the event-level comparison structure (lines 267-276)
+  Procedure resamples (event × persona × identity) cells from one pool then reconstructs
+  induced pairs. Pair metrics are only meaningful within an event; event difficulty is a
+  core dependence source. Method either creates invalid cross-event pairs or unpredictably
+  reweights events. Recommendation: stratified bootstrap — resample events as top-level
+  clusters, preserve within-event cell structure, reconstruct only within-event pairs,
+  match event blocks across arms for variant comparisons. State the target estimand.
+```
+
+### Round 3 — cap-round, verdict `needs-attention` (single mechanical finding)
+
+```text
+- [medium] §6 checklist contradicts the descriptive-only floor used everywhere else (line 765)
+  §4.2.4, §4.9.4, §5.2 define the decision-grade floor at N_events < 3. The execution
+  checklist in §6 used "cluster N < 6" — left over from earlier draft language. Implementers
+  following the checklist would silently downgrade typical 3-4 event studies. Recommendation:
+  align §6 with the rest of the doc.
+```
+
+### Cap-time mechanical-fix confirmation — verdict `approve`
+
+```text
+Verdict: approve
+Ship: the reviewed sections consistently use the descriptive-only floor of N_events < 3,
+and I found no remaining stale cluster-N-<-6 threshold in the provided diff context.
+No material findings.
+```
+
+### Loop outcome
+
+Substantive disagreement converged in 2 rounds (Round 2 closed with the stratified-bootstrap fix; Round 3 surfaced only a mechanical inconsistency from Round 2's edit). Cap-time fix verified by confirmation pass. **Spec ready to ship.**
 
 ---
 
