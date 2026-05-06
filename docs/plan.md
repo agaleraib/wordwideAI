@@ -1,8 +1,8 @@
 # Plan — FinFlow (wordwideAI)
 
-**Last updated:** 2026-04-20
-**Current focus:** Workstream C — content pipeline (framework archetype model design + TA port)
-**This session:** wrote two new decision briefs — Content Uniqueness v2 (framework archetype model) and TA TypeScript Port. The framework archetype model supersedes the House Position brief (2026-04-15). See memory `project_house_position_framework.md`.
+**Last updated:** 2026-05-06
+**Current focus:** Decision point — Wave 4 paused 2026-04-20 (persona-layer iteration regressed the production-gate metric, see memory `project_wave4_persona_layer_ceiling.md`). No new wave scheduled. Structural-variants iteration layer (pipeline guardrail vs. identity-prompt) is the open pick. No commits in 16 days; working tree clean.
+**This session:** plan refresh only — confirmed no code shipped since the Wave 4 pause; queued Workstream-C items below (framework-archetype validation Phase 3, TA TS port Phase 1, advisor-loop full-corpus validation, editorial memory Phase 3 wrap) are all still untouched.
 
 **2026-04-16 architectural decision — Framework Archetype Model:** instead of per-tenant LLM identity calls (O(N) cost), the platform uses 3-4 pre-built framework archetypes (Conservative Advisor, Active Trader Desk, Retail Educator, Contrarian Strategist). Tenants pick a framework at onboarding, get a shared base article, then a cheap deterministic overlay (brand, glossary, CTA, company background) makes it theirs. Cost: O(K) LLM calls + O(N) cheap transforms. Decision brief: `docs/specs/2026-04-16-content-uniqueness-v2.md`.
 
@@ -43,14 +43,14 @@
 - **B — next action:** none (paused). Resume by scaffolding `packages/sources/` once C unblocks.
 - **C — next action (design):** validate framework archetype model -- build 3-event x 4-framework fixture set, measure cross-framework cosine (target < 0.80), measure same-framework overlay divergence (ROUGE-L < 0.55). See `docs/specs/2026-04-16-content-uniqueness-v2.md` section 7.
 - **C — next action (TA port):** Phase 1 tasks (types, indicator computation, instrument catalog, fixture data provider). See `docs/specs/2026-04-16-ta-typescript-port.md` Tasks 1-4.
-- **C — next action (structural variants):** ~~Phase 1~~ done in `c317102`; ~~Phase 2 (Wave 1)~~ done in merge `73da433` (2026-04-19); ~~Phase 3 (Wave 2)~~ done in merge `b62db17` (2026-04-19); ~~Phase 4 (Wave 3 — validation run + writeup)~~ done in merge `2fac649` (2026-04-19) — verdict **ITERATE** with strong upward signal on production-gate metric (A/B vs 2026-04-15 baseline: `distinct_products` 2/6→5/6, `reskinned_same_article` 2/6→0/6, `fabrication_risk` 2/6→1/6). **Scheduled 2026-04-20:** Wave 4 — Structural variants iteration (3 parallel mechanical prep items; extended LLM run post-merge in parent session). Brand-fragmentation still tracked as Wave 5 candidate (blocked on new spec).
+- **C — next action (structural variants):** ~~Phase 1~~ done in `c317102`; ~~Phase 2 (Wave 1)~~ done in merge `73da433` (2026-04-19); ~~Phase 3 (Wave 2)~~ done in merge `b62db17` (2026-04-19); ~~Phase 4 (Wave 3 — validation run + writeup)~~ done in merge `2fac649` (2026-04-19) — verdict **ITERATE** with strong upward signal on production-gate metric (A/B vs 2026-04-15 baseline: `distinct_products` 2/6→5/6, `reskinned_same_article` 2/6→0/6, `fabrication_risk` 2/6→1/6). **Wave 4 paused 2026-04-20:** items 1–3 shipped on master (`91a9018`, `096f52d`, `cd48e4b` — broker-e/f personas, fasttrade-pro persona triage, `--identity` CLI flag). Item 4 pilot LLM run regressed the gate metric (`distinct_products` 5/6 → 10/15), ruling out persona-prompt as the lever (memory `project_wave4_persona_layer_ceiling.md`). **Open decision:** which layer drives the next iteration — pipeline guardrail or identity-prompt. No successor wave scheduled. Brand-fragmentation still tracked as Wave 5 candidate (blocked on new spec).
 - **C — ongoing:** run full corpus validation for advisor loop (blocker — see `feedback_unified_pass_risk.md`). Editorial memory Phase 3 near-complete — ~~Task 10: Drizzle schema~~ (done in 1141dd8), ~~Task 11: Postgres store~~ (done in ef147c4), Task 12 blocked on production pipeline.
 - **Pipeline audit trail (demo → production bridge):** `PipelineRun` type + `PipelineRunStore` interface ship with demo (in-memory); `PostgresRunStore` implementation ships with Postgres workstream. Pipeline History UI works against the interface — same screens serve both. See `docs/specs/2026-04-13-demo-mvp.md` Tasks 1, 7, and new history tasks (13c, 13d).
 - **D — next action:** none (planned). First adapter scoping waits on C reaching first-tenant-shipping milestone.
 
 ## Active-now focus (Workstream C)
 
-**This week:** framework archetype model validation + TA port foundation. Also: advisor loop corpus validation + editorial memory Phase 3 completion.
+**Status:** dormant since 2026-04-20. Structural-variants Wave 4 paused mid-iteration — the persona-layer pilot regressed the production-gate metric, so the next iteration layer (pipeline guardrail or identity-prompt) needs to be picked before scheduling Wave 4b. Several queued items below (framework archetype validation Phase 3, TA TS port Phase 1, advisor-loop full-corpus validation, editorial memory Task 12) are unstarted; none has been picked up as the next active piece.
 
 **Active C specs:**
 - `docs/specs/2026-04-16-content-uniqueness-v2.md` — **Proposal** (decision brief). Framework archetype model — O(K) LLM calls instead of O(N). Supersedes House Position brief, reframes v1 uniqueness gate. Decision gated on cross-framework validation + design-partner calls.
