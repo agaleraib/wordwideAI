@@ -1,8 +1,8 @@
 # Plan — FinFlow (wordwideAI)
 
-**Last updated:** 2026-05-06
-**Current focus:** Decision point — Wave 4 paused 2026-04-20 (persona-layer iteration regressed the production-gate metric, see memory `project_wave4_persona_layer_ceiling.md`). No new wave scheduled. Structural-variants iteration layer (pipeline guardrail vs. identity-prompt) is the open pick. No commits in 16 days; working tree clean.
-**This session:** plan refresh only — confirmed no code shipped since the Wave 4 pause; queued Workstream-C items below (framework-archetype validation Phase 3, TA TS port Phase 1, advisor-loop full-corpus validation, editorial memory Phase 3 wrap) are all still untouched.
+**Last updated:** 2026-05-06 (later in same day)
+**Current focus:** Methodology baseline implementation is the active Wave 4 successor. Codex-converged audit at `docs/specs/2026-05-06-uniqueness-poc-test-methodology.md` identifies 11 gaps and 7 baseline items; the §5.1 reproducibility receipt + §5.4 two-baseline rule + §4.9.4 stratified-clustered-bootstrap statistics module are preconditions for ANY future wave A/B. FA prompt iteration spec (`2026-05-06-fa-prompt-iteration.md`) stays parked behind this — it runs once methodology lands.
+**This session:** scoped + drafted + Codex-adversarial-reviewed the test-methodology audit (3 substantive rounds + confirmation pass; converged 2026-05-06). Decision: persona-prompt vs pipeline-guardrail vs identity-prompt is no longer the open Wave 4 successor question — it's been displaced by the audit's finding that the prior-wave attribution evidence cannot rigorously support any of those layer choices until methodology fixes ship. Added research docs (FA/TA prompt reference, MCP connector schema) earlier in session.
 
 **2026-04-16 architectural decision — Framework Archetype Model:** instead of per-tenant LLM identity calls (O(N) cost), the platform uses 3-4 pre-built framework archetypes (Conservative Advisor, Active Trader Desk, Retail Educator, Contrarian Strategist). Tenants pick a framework at onboarding, get a shared base article, then a cheap deterministic overlay (brand, glossary, CTA, company background) makes it theirs. Cost: O(K) LLM calls + O(N) cheap transforms. Decision brief: `docs/specs/2026-04-16-content-uniqueness-v2.md`.
 
@@ -43,14 +43,25 @@
 - **B — next action:** none (paused). Resume by scaffolding `packages/sources/` once C unblocks.
 - **C — next action (design):** validate framework archetype model -- build 3-event x 4-framework fixture set, measure cross-framework cosine (target < 0.80), measure same-framework overlay divergence (ROUGE-L < 0.55). See `docs/specs/2026-04-16-content-uniqueness-v2.md` section 7.
 - **C — next action (TA port):** Phase 1 tasks (types, indicator computation, instrument catalog, fixture data provider). See `docs/specs/2026-04-16-ta-typescript-port.md` Tasks 1-4.
-- **C — next action (structural variants):** ~~Phase 1~~ done in `c317102`; ~~Phase 2 (Wave 1)~~ done in merge `73da433` (2026-04-19); ~~Phase 3 (Wave 2)~~ done in merge `b62db17` (2026-04-19); ~~Phase 4 (Wave 3 — validation run + writeup)~~ done in merge `2fac649` (2026-04-19) — verdict **ITERATE** with strong upward signal on production-gate metric (A/B vs 2026-04-15 baseline: `distinct_products` 2/6→5/6, `reskinned_same_article` 2/6→0/6, `fabrication_risk` 2/6→1/6). **Wave 4 paused 2026-04-20:** items 1–3 shipped on master (`91a9018`, `096f52d`, `cd48e4b` — broker-e/f personas, fasttrade-pro persona triage, `--identity` CLI flag). Item 4 pilot LLM run regressed the gate metric (`distinct_products` 5/6 → 10/15), ruling out persona-prompt as the lever (memory `project_wave4_persona_layer_ceiling.md`). **Open decision:** which layer drives the next iteration — pipeline guardrail or identity-prompt. No successor wave scheduled. Brand-fragmentation still tracked as Wave 5 candidate (blocked on new spec).
+- **C — next action (methodology baseline) — ACTIVE WAVE 4 SUCCESSOR:** Implement the three preconditions from the test-methodology audit. Spec: `docs/specs/2026-05-06-uniqueness-poc-test-methodology.md`. Estimated 2-3 days code work, no LLM cost. Three tasks: (a) `RunManifest.reproducibility` extension (audit §5.1 + §4.1.4 — pinned model versions per call, prompt versions, fixture content hash, package version hash, fix conformance-pass cost rollup); (b) stratified-clustered-bootstrap statistics module at `packages/api/src/benchmark/uniqueness-poc/statistics.ts` (audit §5.2 + §4.9.4 — events as top-level resampling unit, within-event-only pair reconstruction, paired-arms variant comparison, mandatory N_events + estimand reporting); (c) two-baseline-rule writeup template + analyze.ts integration (audit §5.4 + §4.4.4 — every wave evaluates against historical AND freshly-rerun baseline). Once shipped, FA prompt iteration unblocks; subsequent prompt-iteration waves use the new baseline.
+- **C — next action (structural variants) — DEFERRED behind methodology baseline:** ~~Phase 1~~ done in `c317102`; ~~Phase 2 (Wave 1)~~ done in merge `73da433` (2026-04-19); ~~Phase 3 (Wave 2)~~ done in merge `b62db17` (2026-04-19); ~~Phase 4 (Wave 3 — validation run + writeup)~~ done in merge `2fac649` (2026-04-19) — verdict **ITERATE**. **Wave 4 paused 2026-04-20:** items 1–3 shipped on master (`91a9018`, `096f52d`, `cd48e4b`). Item 4 pilot regressed the gate metric (`distinct_products` 5/6 → 10/15) (memory `project_wave4_persona_layer_ceiling.md`). **Audit calibration update 2026-05-06:** the Wave 4 conclusion ("persona layer is not the lever") is supported with low confidence per audit §4.7.5 — the persona-set expansion confounder (broker-a..d → broker-a..f) means the regression cannot be rigorously attributed to persona-prompt edits alone. Resolving the open layer-choice decision (FA prompt / pipeline guardrail / identity-prompt) is no longer urgent — the audit's preconditions block all of them equally. Brand-fragmentation still tracked as Wave 5 candidate (blocked on new spec).
 - **C — ongoing:** run full corpus validation for advisor loop (blocker — see `feedback_unified_pass_risk.md`). Editorial memory Phase 3 near-complete — ~~Task 10: Drizzle schema~~ (done in 1141dd8), ~~Task 11: Postgres store~~ (done in ef147c4), Task 12 blocked on production pipeline.
 - **Pipeline audit trail (demo → production bridge):** `PipelineRun` type + `PipelineRunStore` interface ship with demo (in-memory); `PostgresRunStore` implementation ships with Postgres workstream. Pipeline History UI works against the interface — same screens serve both. See `docs/specs/2026-04-13-demo-mvp.md` Tasks 1, 7, and new history tasks (13c, 13d).
 - **D — next action:** none (planned). First adapter scoping waits on C reaching first-tenant-shipping milestone.
 
 ## Active-now focus (Workstream C)
 
-**Status:** dormant since 2026-04-20. Structural-variants Wave 4 paused mid-iteration — the persona-layer pilot regressed the production-gate metric, so the next iteration layer (pipeline guardrail or identity-prompt) needs to be picked before scheduling Wave 4b. Several queued items below (framework archetype validation Phase 3, TA TS port Phase 1, advisor-loop full-corpus validation, editorial memory Task 12) are unstarted; none has been picked up as the next active piece.
+**Status:** ACTIVE — methodology baseline implementation as Wave 4 successor (per audit `docs/specs/2026-05-06-uniqueness-poc-test-methodology.md` §5).
+
+**Why this displaced the layer-choice decision:** the audit's §4.7.5 attribution-risk warning establishes that prior-wave evidence cannot rigorously support layer choices (persona-prompt / FA prompt / pipeline guardrail / identity-prompt) until the reproducibility receipt + two-baseline rule ship. Picking a layer to iterate on without those fixes inherits the same mis-attribution pathology Wave 4 just exhibited. Methodology first, layer second.
+
+**This week's deliverables:**
+1. `RunManifest.reproducibility` extension (~half day)
+2. Stratified-clustered-bootstrap statistics module (~1 day)
+3. Two-baseline rule wave-spec template + analyze.ts integration (~half day)
+4. Update FA prompt iteration spec (`2026-05-06-fa-prompt-iteration.md`) §5 to reference the new statistics primitives + two-baseline pre-registration
+
+**Once methodology lands, the next active piece becomes:** FA prompt iteration spec runs as the first wave under the new methodology. Other queued items (framework archetype validation Phase 3, TA TS port Phase 1, advisor-loop full-corpus validation, editorial memory Task 12) remain unstarted but are not blocked by the audit — they can run in parallel if capacity allows.
 
 **Active C specs:**
 - `docs/specs/2026-04-16-content-uniqueness-v2.md` — **Proposal** (decision brief). Framework archetype model — O(K) LLM calls instead of O(N). Supersedes House Position brief, reframes v1 uniqueness gate. Decision gated on cross-framework validation + design-partner calls.
@@ -71,6 +82,32 @@
 
 - `docs/specs/2026-04-07-deployment-stack.md` — Ubuntu/Caddy/Bun/Postgres+pgvector/Drizzle/Vercel AI SDK; applies to every workstream
 - `docs/specs/2026-04-06-syntactic-calculus.md` — **pending** (design complete, implementation queued)
+- `docs/specs/2026-05-06-uniqueness-poc-audit-plan.md` — **complete** (gates the audit, audit converged 2026-05-06)
+- `docs/specs/2026-05-06-uniqueness-poc-test-methodology.md` — **Final, Codex-converged 2026-05-06**. Gates all future uniqueness-PoC prompt-iteration A/B tests until §5.1 + §5.4 + §4.9.4 fixes ship.
+
+## Wave Plan — Methodology Baseline (Wave 4 successor)
+
+Source spec: [`docs/specs/2026-05-06-uniqueness-poc-test-methodology.md`](./specs/2026-05-06-uniqueness-poc-test-methodology.md). Codex-adversarial-reviewed 2026-05-06 (3 substantive rounds + confirmation pass). Implementing §5.1 + §5.4 + §4.9.4 is the precondition for any future uniqueness-PoC prompt-iteration A/B test.
+
+Conventions:
+- All work targets `packages/api/src/benchmark/uniqueness-poc/` — PoC harness only.
+- No LLM cost; pure code work.
+- Estimated 2-3 days total.
+
+### Wave M — Methodology baseline implementation
+
+- [ ] **WM Methodology baseline — Size: M (~2-3 days)**
+  - [spec: uniqueness-poc-test-methodology](./specs/2026-05-06-uniqueness-poc-test-methodology.md)
+  - WM1: `RunManifest.reproducibility` extension — pinned model versions per call, prompt versions (semver + SHA-256), fixture content hash, package version hash; fix conformance-pass cost rollup. (~half day; audit §5.1 + §4.1.4)
+  - WM2: Stratified clustered bootstrap statistics module at `packages/api/src/benchmark/uniqueness-poc/statistics.ts` — events as top-level resampling unit, within-event-only pair reconstruction, paired-arms variant comparison primitive, mandatory N_events + estimand reporting, descriptive-only floor at N_events < 3. (~1 day; audit §5.2 + §4.9.4)
+  - WM3: Two-baseline-rule wave-spec template + analyze.ts integration — every wave evaluates against historical AND freshly-rerun baseline; if drift > MDE, debug before evaluating variant. (~half day; audit §5.4 + §4.4.4)
+  - WM4: Update FA prompt iteration spec (`2026-05-06-fa-prompt-iteration.md`) §5 to reference the new statistics primitives + add a Pre-registration block per audit §4.10.4. (~hour)
+
+**Wave M exit gate:** `bunx tsc --noEmit` clean from `packages/api/`. Existing PoC runs (e.g. Wave 3 fed-rate-decision) re-execute under the new manifest schema and produce identical metrics ± floating-point noise. Statistics module unit-tests pass on a synthetic event-block fixture (3 events × 4 cells; bootstrap recovers known mean within tolerance). FA prompt iteration spec amended in same PR or follow-up commit.
+
+**Dependencies:** none. Audit (`docs/specs/2026-05-06-uniqueness-poc-test-methodology.md`) is the design input; this wave implements it.
+
+**Once Wave M ships:** FA prompt iteration (`2026-05-06-fa-prompt-iteration.md`) becomes the first wave under the new methodology. Other layer-choice candidates (pipeline guardrail, identity-prompt) re-enter the candidate pool with rigorous attribution available for future selection.
 
 ## Wave Plan — Structural Variants
 
