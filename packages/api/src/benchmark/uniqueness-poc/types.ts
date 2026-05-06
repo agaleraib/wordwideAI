@@ -512,6 +512,46 @@ export interface ConformanceDetail {
   preConformanceBody?: string;
 }
 
+/**
+ * One sampled pair's Tier 2 inter-rater record (WM6, audit §4.3.4 Tier 2 /
+ * §5.5). Both verdicts are pre-override / post-override pairs; agreement is
+ * computed on the post-override gate verdict because that's what the
+ * pipeline actually consumes.
+ */
+export interface Tier2PairRecord {
+  pairId: string;
+  /** Original-order verdict (post-override, the pipeline-consumed one). */
+  rawVerdict: TrinaryUniquenessVerdict;
+  /** Swapped-order verdict (post-override). */
+  swappedVerdict: TrinaryUniquenessVerdict;
+  /** True iff the two verdicts match — feeds the agreement rate. */
+  agree: boolean;
+  /** Cost of the swapped re-judge call (the original was paid by Stage 6). */
+  swapCostUsd: number;
+}
+
+/**
+ * Tier 2 (WM6) — judge-reliability sampling. Per audit §4.3.4 Tier 2 / §5.5,
+ * 20% of cross-tenant pairs (≥3 whichever larger) are re-judged with A/B
+ * order swapped. If disagreement on the gate metric exceeds 15%, the wave
+ * is flagged as judge-unreliable. The flag is informational — it does NOT
+ * short-circuit the run or change the cross-tenant verdict.
+ */
+export interface Tier2InterRaterResult {
+  /** Per-pair records. */
+  pairs: Tier2PairRecord[];
+  /** Number of pairs sampled (= pairs.length, surfaced for ergonomics). */
+  sampledPairCount: number;
+  /** Total cross-tenant pair count from which the sample was drawn. */
+  totalCrossTenantPairs: number;
+  /** Fraction of sampled pairs whose raw and swapped verdicts agree. */
+  agreementRate: number;
+  /** True when (1 − agreementRate) > 0.15. */
+  judgeUnreliableFlag: boolean;
+  /** Total cost of the Tier 2 swapped re-judge calls. */
+  totalCostUsd: number;
+}
+
 export interface RunResult {
   runId: string;
   startedAt: string;
@@ -542,6 +582,13 @@ export interface RunResult {
    * with caution.
    */
   judgeFailures: JudgeFailureRecord[];
+  /**
+   * Tier 2 inter-rater check (WM6, audit §4.3.4 Tier 2 / §5.5). Optional —
+   * present only when the cross-tenant matrix ran AND the runner sampled
+   * 20% of pairs for position-swap re-judging. Renders into the inter-rater
+   * section of report.md and the writeup template's `{{TIER2_INTER_RATER_BLOCK}}`.
+   */
+  tier2?: Tier2InterRaterResult;
 }
 
 /**

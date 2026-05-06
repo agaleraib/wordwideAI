@@ -34,6 +34,11 @@ import {
   buildNarrativeStateFromPriorOutput,
   extractNarrativeState,
 } from "./narrative-state.js";
+import { mulberry32 } from "./statistics.js";
+import type {
+  Tier2InterRaterResult,
+  Tier2PairRecord,
+} from "./types.js";
 import {
   lookupPersonaState,
   type NarrativeStateStore,
@@ -1299,6 +1304,143 @@ export interface RunCallbacks {
   onRunErrored?: (error: Error) => void;
 }
 
+/**
+ * Wave M / WM6 — Tier 2 judge-reliability sampling (audit §4.3.4 Tier 2,
+ * §5.5). Sample 20% of cross-tenant pairs (≥3 pairs whichever larger),
+ * re-call the judge with A/B order swapped, compute agreement %, flag
+ * `judgeUnreliableFlag` when disagreement > 15% on the gate metric.
+ *
+ * Determinism: the sampler is seeded with the run's `runId` (digest folded
+ * into a 32-bit int) so the same run produces the same sample under the
+ * Wave M reproducibility receipt. Same run → same sampled pair set across
+ * re-executions.
+ *
+ * Failure mode: a swapped re-judge that throws is recorded as a "skip" and
+ * does NOT count toward the agreement rate (the original verdict is
+ * considered un-paired for that pair). When ALL sampled pairs fail, the
+ * function returns `null` and the caller renders the placeholder banner.
+ */
+async function runTier2InterRaterSampling(args: {
+  runId: string;
+  matrix: CrossTenantMatrixResult;
+  contentByPersonaId: Map<string, string>;
+}): Promise<Tier2InterRaterResult | null> {
+  const allPairs = args.matrix.similarities.filter((s) => s.judgeTrinaryVerdict);
+  const totalCrossTenantPairs = allPairs.length;
+  if (totalCrossTenantPairs === 0) return null;
+
+  // Audit §4.3.4 Tier 2: 20% of pairs, ≥3 whichever larger.
+  const targetSample = Math.max(3, Math.ceil(totalCrossTenantPairs * 0.2));
+  const sampleSize = Math.min(targetSample, totalCrossTenantPairs);
+
+  // Deterministic seed from the runId — fold every char into a 32-bit int.
+  let seed = 0;
+  for (let i = 0; i < args.runId.length; i++) {
+    seed = (seed * 31 + args.runId.charCodeAt(i)) | 0;
+  }
+  const rng = mulberry32(seed >>> 0);
+
+  // Fisher–Yates partial shuffle to pick `sampleSize` indices without replacement.
+  const indices = allPairs.map((_, i) => i);
+  for (let i = 0; i < sampleSize; i++) {
+    const j = i + Math.floor(rng() * (indices.length - i));
+    const tmp = indices[i]!;
+    indices[i] = indices[j]!;
+    indices[j] = tmp;
+  }
+  const sampledIndices = indices.slice(0, sampleSize);
+
+  console.log(
+    `[runner] Tier 2 inter-rater check (WM6) — sampling ${sampleSize}/${totalCrossTenantPairs} cross-tenant pairs for position-swap re-judging...`,
+  );
+
+  const tier2Pairs: Tier2PairRecord[] = [];
+  let totalCostUsd = 0;
+
+  for (const idx of sampledIndices) {
+    const sim = allPairs[idx]!;
+    const contentA = args.contentByPersonaId.get(sim.identityA);
+    const contentB = args.contentByPersonaId.get(sim.identityB);
+    if (!contentA || !contentB) {
+      console.warn(
+        `[runner]   ⚠ Tier 2: missing content for ${sim.identityA} or ${sim.identityB}, skipping pair ${sim.pairId}`,
+      );
+      continue;
+    }
+    if (!sim.judgeTrinaryVerdict) {
+      // Defensive — should already be filtered above.
+      continue;
+    }
+
+    try {
+      const swappedVerdict = await judgePairUniqueness({
+        identityA: sim.identityA,
+        identityB: sim.identityB,
+        contentA,
+        contentB,
+        cosineSimilarity: sim.cosineSimilarity,
+        rougeL: sim.rougeL,
+        swapOrder: true,
+      });
+      tier2Pairs.push({
+        pairId: sim.pairId,
+        rawVerdict: sim.judgeTrinaryVerdict,
+        swappedVerdict: swappedVerdict.verdict,
+        agree: swappedVerdict.verdict === sim.judgeTrinaryVerdict,
+        swapCostUsd: swappedVerdict.costUsd,
+      });
+      totalCostUsd += swappedVerdict.costUsd;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[runner]   ⚠ Tier 2: swapped re-judge failed for ${sim.pairId}: ${message.slice(0, 200)}`,
+      );
+      // Skip this pair — does NOT count toward agreement %.
+    }
+  }
+
+  if (tier2Pairs.length === 0) return null;
+
+  const agreementRate =
+    tier2Pairs.filter((p) => p.agree).length / tier2Pairs.length;
+
+  return computeTier2Verdict({
+    pairs: tier2Pairs,
+    sampledPairCount: tier2Pairs.length,
+    totalCrossTenantPairs,
+    agreementRate,
+    totalCostUsd,
+  });
+}
+
+/**
+ * Pure helper that finalises a Tier 2 result by setting the
+ * `judgeUnreliableFlag` per audit §4.3.4 Tier 2: disagreement > 15% on the
+ * gate metric. Exported for unit testing — runner-internal so we keep the
+ * call-site simple.
+ */
+export function computeTier2Verdict(input: {
+  pairs: Tier2PairRecord[];
+  sampledPairCount: number;
+  totalCrossTenantPairs: number;
+  agreementRate: number;
+  totalCostUsd: number;
+}): Tier2InterRaterResult {
+  // Audit §4.3.4 Tier 2 — disagreement > 15% on the gate metric flags the
+  // wave as judge-unreliable. Apply a small epsilon so float arithmetic on
+  // exact-boundary inputs (e.g. agreementRate = 0.85) doesn't tip the flag.
+  const TIER2_DISAGREEMENT_EPSILON = 1e-9;
+  const disagreement = 1 - input.agreementRate;
+  return {
+    pairs: input.pairs,
+    sampledPairCount: input.sampledPairCount,
+    totalCrossTenantPairs: input.totalCrossTenantPairs,
+    agreementRate: input.agreementRate,
+    judgeUnreliableFlag: disagreement > 0.15 + TIER2_DISAGREEMENT_EPSILON,
+    totalCostUsd: input.totalCostUsd,
+  };
+}
+
 export async function runUniquenessPoc(
   opts: RunOptions,
   callbacks?: RunCallbacks,
@@ -1442,6 +1584,43 @@ export async function runUniquenessPoc(
     console.log(`[runner]   ✓ CROSS-TENANT VERDICT: ${crossTenantMatrix.verdict}`);
     console.log(`[runner]     ${crossTenantMatrix.verdictReasoning}`);
 
+    // Wave M / WM6 — Tier 2 inter-rater check on the cross-tenant matrix.
+    // Adds ~+20% judge spend per future wave; opt-in by virtue of the
+    // matrix existing (no separate flag — once Wave M ships, every Stage 6
+    // run carries the inter-rater check). If a future wave needs to skip
+    // it for cost reasons, gate this block behind an opt-out.
+    {
+      const contentByPersonaId = new Map<string, string>();
+      for (let i = 0; i < crossTenantMatrix.outputs.length; i++) {
+        const output = crossTenantMatrix.outputs[i]!;
+        const persona = crossTenantMatrix.personas[i]!;
+        const id = output.personaId ?? persona.id;
+        contentByPersonaId.set(id, output.body);
+      }
+      try {
+        const tier2 = await runTier2InterRaterSampling({
+          runId,
+          matrix: crossTenantMatrix,
+          contentByPersonaId,
+        });
+        if (tier2) {
+          (crossTenantMatrix as CrossTenantMatrixResult & {
+            __tier2Capture?: Tier2InterRaterResult;
+          }).__tier2Capture = tier2;
+          console.log(
+            `[runner]   ✓ Tier 2: ${tier2.sampledPairCount}/${tier2.totalCrossTenantPairs} pairs sampled, agreement ${(tier2.agreementRate * 100).toFixed(1)}%${tier2.judgeUnreliableFlag ? " 🚨 wave flagged judge-unreliable" : ""} ($${tier2.totalCostUsd.toFixed(4)})`,
+          );
+        } else {
+          console.log("[runner]   ⚠ Tier 2: no sample produced (no judged cross-tenant pairs available).");
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `[runner]   ⚠ Tier 2: aborted (${msg.slice(0, 200)}); proceeding without inter-rater check.`,
+        );
+      }
+    }
+
     // Editorial memory write-back: extract and store facts from each Stage 6
     // output. Guarded by `opts.editorialMemory` — runs automatically when the
     // store is provided, since extraction IS the core feature being tested.
@@ -1535,13 +1714,31 @@ export async function runUniquenessPoc(
   const reproCost = reproducibility
     ? reproducibility.runs.reduce((sum) => sum + 0, 0)
     : 0;
+  // Wave M / WM6: extract Tier 2 inter-rater capture from the matrix's
+  // dynamic property and surface it on RunResult.tier2. This isolates the
+  // rest of the cost rollup from the WM6 schema addition.
+  const tier2 = crossTenantMatrix
+    ? (crossTenantMatrix as CrossTenantMatrixResult & {
+        __tier2Capture?: Tier2InterRaterResult;
+      }).__tier2Capture
+    : undefined;
+  if (tier2 && crossTenantMatrix) {
+    // Strip the transport-only field from the persisted matrix object so
+    // raw-data.json doesn't carry the duplicate.
+    delete (crossTenantMatrix as CrossTenantMatrixResult & {
+      __tier2Capture?: Tier2InterRaterResult;
+    }).__tier2Capture;
+  }
+
   const crossTenantCost = crossTenantMatrix
     ? crossTenantMatrix.outputs.reduce((sum, o) => sum + o.costUsd, 0) +
       crossTenantMatrix.similarities.reduce((sum, s) => sum + (s.judgeCostUsd ?? 0), 0) +
       // Wave M: include conformance-pass cost in the rollup. The matrix
       // already exposes `conformanceCostUsd` (line ~779) but the rollup was
       // silently ignoring it — see audit §10.3 / Wave M summary §Deviations.
-      (crossTenantMatrix.conformanceCostUsd ?? 0)
+      (crossTenantMatrix.conformanceCostUsd ?? 0) +
+      // Wave M / WM6: include Tier 2 inter-rater swap-judge cost.
+      (tier2?.totalCostUsd ?? 0)
     : 0;
   const narrativeStateCost = narrativeStateTest
     ? narrativeStateTest.secondCoreAnalysis.costUsd +
@@ -1599,6 +1796,7 @@ export async function runUniquenessPoc(
     verdict,
     verdictReasoning: reasoning,
     judgeFailures,
+    ...(tier2 ? { tier2 } : {}),
   };
 
   callbacks?.onRunCompleted?.(result);

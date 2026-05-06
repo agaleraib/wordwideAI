@@ -339,23 +339,44 @@ export async function judgePairUniqueness(args: {
   cosineSimilarity: number;
   /** ROUGE-L F1, informational only. */
   rougeL: number;
+  /**
+   * Swap A and B in the user message before sending. Used by the WM6 Tier 2
+   * inter-rater check to test whether the judge's verdict is order-dependent
+   * (audit §4.3.4 Tier 2 / §5.5). The returned verdict is computed against
+   * the ORIGINAL caller's A/B labelling — i.e. when `swapOrder: true`, the
+   * caller still sees `verdict` as if A and B were unchanged. The agreement
+   * % is computed by comparing two independent calls (one normal, one
+   * swapped) on the same pair.
+   *
+   * Note: trinary verdicts are symmetric in A↔B (distinct_products vs
+   * reskinned_same_article vs fabrication_risk are statements about the
+   * pair, not about a direction). So no relabelling of the verdict is
+   * needed — only the prompt order is swapped to probe model robustness.
+   */
+  swapOrder?: boolean;
 }): Promise<JudgeVerdict> {
   const client = getClient();
+
+  // Either the caller's order or A/B swapped per WM6.
+  const promptA = args.swapOrder ? args.contentB : args.contentA;
+  const promptB = args.swapOrder ? args.contentA : args.contentB;
+  const labelA = args.swapOrder ? args.identityB : args.identityA;
+  const labelB = args.swapOrder ? args.identityA : args.identityB;
 
   const userMessage = `Pair under review.
 
 Both documents were written from the SAME underlying FA/TA source analysis, for two different brokers. Apply the two-axis rubric.
 
-# Document A — ${args.identityA}
+# Document A — ${labelA}
 
 \`\`\`
-${args.contentA}
+${promptA}
 \`\`\`
 
-# Document B — ${args.identityB}
+# Document B — ${labelB}
 
 \`\`\`
-${args.contentB}
+${promptB}
 \`\`\`
 
 # Measured similarity (informational only, do not defer to it)
