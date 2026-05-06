@@ -297,7 +297,26 @@ export interface JudgeVerdict {
   factualDivergences: FactualDivergence[];
   presentationSimilarity: number;
   presentationSimilarityReasoning: string;
+  /**
+   * Final verdict surfaced to the rest of the pipeline. Identical to
+   * `rawVerdict` UNLESS the HARD_RULE_KINDS check forced a downgrade to
+   * `fabrication_risk` — see the HARD_RULE comment above the
+   * `HARD_RULE_KINDS` set for the rationale.
+   */
   verdict: TrinaryVerdict;
+  /**
+   * The judge model's own returned verdict, BEFORE the
+   * `HARD_RULE_KINDS` override. Surfaced in two-column form on `report.md`
+   * (audit §4.3.4 Tier 1 / WM5) so readers can see how often the override
+   * is firing. Equal to `verdict` when the override didn't fire.
+   */
+  rawVerdict: TrinaryVerdict;
+  /**
+   * True when the hard-rule override flipped the verdict to
+   * `fabrication_risk`. Useful for the WM5 inter-rater section + future
+   * judge-reliability dashboards.
+   */
+  hardRuleFired: boolean;
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
@@ -420,6 +439,8 @@ Submit your verdict via the submit_uniqueness_verdict tool.`;
         presentationSimilarity: parsed.presentationSimilarity,
         presentationSimilarityReasoning: parsed.presentationSimilarityReasoning,
         verdict,
+        rawVerdict: parsed.verdict,
+        hardRuleFired,
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
         costUsd: computeCostUsd(

@@ -58,6 +58,10 @@ function applyJudgeVerdict(sim: SimilarityResult, verdict: JudgeVerdict): void {
   sim.judgePresentationSimilarity = verdict.presentationSimilarity;
   sim.judgePresentationSimilarityReasoning = verdict.presentationSimilarityReasoning;
   sim.judgeTrinaryVerdict = verdict.verdict;
+  // Wave M: persist raw + override fields so the report.md two-column
+  // verdict surface can be rendered without re-calling the judge.
+  sim.judgeRawVerdict = verdict.rawVerdict;
+  sim.judgeHardRuleFired = verdict.hardRuleFired;
   sim.judgeCostUsd = verdict.costUsd;
 }
 

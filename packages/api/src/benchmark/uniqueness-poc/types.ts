@@ -292,6 +292,20 @@ export interface SimilarityResult {
   judgePresentationSimilarity?: number;
   judgePresentationSimilarityReasoning?: string;
   judgeTrinaryVerdict?: TrinaryUniquenessVerdict;
+  /**
+   * The judge model's own returned verdict BEFORE the `HARD_RULE_KINDS`
+   * override (see llm-judge.ts). Persisted on the SimilarityResult so the
+   * Wave M two-column verdict surface (judge raw vs post-override) on
+   * report.md can render without re-calling the judge. Optional for
+   * backward compatibility with raw-data.json files written before WM5.
+   */
+  judgeRawVerdict?: TrinaryUniquenessVerdict;
+  /**
+   * True when the hard-rule override fired and flipped the verdict to
+   * `fabrication_risk`. Surfaced on the two-column report row so readers
+   * see at a glance how often the override mattered. Optional; WM5 onward.
+   */
+  judgeHardRuleFired?: boolean;
   judgeCostUsd?: number;
 
   /**
