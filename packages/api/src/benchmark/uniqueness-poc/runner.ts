@@ -1596,6 +1596,8 @@ export async function runUniquenessPoc(
         const persona = crossTenantMatrix.personas[i]!;
         const id = output.personaId ?? persona.id;
         contentByPersonaId.set(id, output.body);
+        // Cross-tenant similarity records use persona.name (not id) for identityA/B.
+        contentByPersonaId.set(persona.name, output.body);
       }
       try {
         const tier2 = await runTier2InterRaterSampling({
