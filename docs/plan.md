@@ -43,7 +43,7 @@
 - **B — next action:** none (paused). Resume by scaffolding `packages/sources/` once C unblocks.
 - **C — next action (design):** validate framework archetype model -- build 3-event x 4-framework fixture set, measure cross-framework cosine (target < 0.80), measure same-framework overlay divergence (ROUGE-L < 0.55). See `docs/specs/2026-04-16-content-uniqueness-v2.md` section 7.
 - **C — next action (TA port):** Phase 1 tasks (types, indicator computation, instrument catalog, fixture data provider). See `docs/specs/2026-04-16-ta-typescript-port.md` Tasks 1-4.
-- **C — next action (methodology baseline) — ACTIVE WAVE 4 SUCCESSOR:** Implement the three preconditions from the test-methodology audit. Spec: `docs/specs/2026-05-06-uniqueness-poc-test-methodology.md`. Estimated 2-3 days code work, no LLM cost. Three tasks: (a) `RunManifest.reproducibility` extension (audit §5.1 + §4.1.4 — pinned model versions per call, prompt versions, fixture content hash, package version hash, fix conformance-pass cost rollup); (b) stratified-clustered-bootstrap statistics module at `packages/api/src/benchmark/uniqueness-poc/statistics.ts` (audit §5.2 + §4.9.4 — events as top-level resampling unit, within-event-only pair reconstruction, paired-arms variant comparison, mandatory N_events + estimand reporting); (c) two-baseline-rule writeup template + analyze.ts integration (audit §5.4 + §4.4.4 — every wave evaluates against historical AND freshly-rerun baseline). Once shipped, FA prompt iteration unblocks; subsequent prompt-iteration waves use the new baseline.
+- **C — next action (methodology baseline) — ACTIVE WAVE 4 SUCCESSOR:** Implement Wave M (six sub-tasks) from the test-methodology audit. Spec: `docs/specs/2026-05-06-uniqueness-poc-test-methodology.md`. Estimated ~4 days code work; no LLM cost for harness changes; Tier 2 (WM6) adds ~+20% judge spend per future wave. Sub-tasks: WM1 RunManifest reproducibility receipt + report.md surface + conformance-cost-rollup fix + judge prompt versioning; WM2 stratified-clustered-bootstrap statistics module at `statistics.ts`; WM3 wave-writeup template + analyze.ts auto-fill + two-baseline rendering; WM4 amend FA prompt iteration spec §5; WM5 per-run report.md two-column verdict (judge raw vs post-override); WM6 Tier 2 position-swap sampling (20% of pairs, agreement reporting). Once shipped, FA prompt iteration unblocks; subsequent prompt-iteration waves use the new baseline. Full breakdown in "Wave Plan — Methodology Baseline" section below.
 - **C — next action (structural variants) — DEFERRED behind methodology baseline:** ~~Phase 1~~ done in `c317102`; ~~Phase 2 (Wave 1)~~ done in merge `73da433` (2026-04-19); ~~Phase 3 (Wave 2)~~ done in merge `b62db17` (2026-04-19); ~~Phase 4 (Wave 3 — validation run + writeup)~~ done in merge `2fac649` (2026-04-19) — verdict **ITERATE**. **Wave 4 paused 2026-04-20:** items 1–3 shipped on master (`91a9018`, `096f52d`, `cd48e4b`). Item 4 pilot regressed the gate metric (`distinct_products` 5/6 → 10/15) (memory `project_wave4_persona_layer_ceiling.md`). **Audit calibration update 2026-05-06:** the Wave 4 conclusion ("persona layer is not the lever") is supported with low confidence per audit §4.7.5 — the persona-set expansion confounder (broker-a..d → broker-a..f) means the regression cannot be rigorously attributed to persona-prompt edits alone. Resolving the open layer-choice decision (FA prompt / pipeline guardrail / identity-prompt) is no longer urgent — the audit's preconditions block all of them equally. Brand-fragmentation still tracked as Wave 5 candidate (blocked on new spec).
 - **C — ongoing:** run full corpus validation for advisor loop (blocker — see `feedback_unified_pass_risk.md`). Editorial memory Phase 3 near-complete — ~~Task 10: Drizzle schema~~ (done in 1141dd8), ~~Task 11: Postgres store~~ (done in ef147c4), Task 12 blocked on production pipeline.
 - **Pipeline audit trail (demo → production bridge):** `PipelineRun` type + `PipelineRunStore` interface ship with demo (in-memory); `PostgresRunStore` implementation ships with Postgres workstream. Pipeline History UI works against the interface — same screens serve both. See `docs/specs/2026-04-13-demo-mvp.md` Tasks 1, 7, and new history tasks (13c, 13d).
@@ -55,11 +55,13 @@
 
 **Why this displaced the layer-choice decision:** the audit's §4.7.5 attribution-risk warning establishes that prior-wave evidence cannot rigorously support layer choices (persona-prompt / FA prompt / pipeline guardrail / identity-prompt) until the reproducibility receipt + two-baseline rule ship. Picking a layer to iterate on without those fixes inherits the same mis-attribution pathology Wave 4 just exhibited. Methodology first, layer second.
 
-**This week's deliverables:**
-1. `RunManifest.reproducibility` extension (~half day)
-2. Stratified-clustered-bootstrap statistics module (~1 day)
-3. Two-baseline rule wave-spec template + analyze.ts integration (~half day)
-4. Update FA prompt iteration spec (`2026-05-06-fa-prompt-iteration.md`) §5 to reference the new statistics primitives + two-baseline pre-registration
+**This week's deliverables (Wave M, ~4 days total):**
+1. WM1 — `RunManifest.reproducibility` extension + report.md surface + conformance-cost-rollup fix + judge prompt versioning (~1 day)
+2. WM2 — Stratified-clustered-bootstrap statistics module (~1 day)
+3. WM3 — Wave-writeup template + analyze.ts auto-fill + two-baseline rendering (~1 day)
+4. WM4 — Amend FA prompt iteration spec §5 (~hour)
+5. WM5 — Per-run report.md methodology surface (judge raw vs post-override columns) (~1 hour)
+6. WM6 — Tier 2 judge-reliability sampling (20% position-swap, agreement reporting) (~3 hours)
 
 **Once methodology lands, the next active piece becomes:** FA prompt iteration spec runs as the first wave under the new methodology. Other queued items (framework archetype validation Phase 3, TA TS port Phase 1, advisor-loop full-corpus validation, editorial memory Task 12) remain unstarted but are not blocked by the audit — they can run in parallel if capacity allows.
 
@@ -91,23 +93,27 @@ Source spec: [`docs/specs/2026-05-06-uniqueness-poc-test-methodology.md`](./spec
 
 Conventions:
 - All work targets `packages/api/src/benchmark/uniqueness-poc/` — PoC harness only.
-- No LLM cost; pure code work.
-- Estimated 2-3 days total.
+- No LLM cost for harness changes (WM1-WM5); Tier 2 (WM6) adds ~+20% judge spend per future wave.
+- Estimated ~4 days total (revised from 2-3 days after reporting + Tier 2 surface-area review).
 
 ### Wave M — Methodology baseline implementation
 
-- [ ] **WM Methodology baseline — Size: M (~2-3 days)**
+- [ ] **WM Methodology baseline — Size: L (~4 days)**
   - [spec: uniqueness-poc-test-methodology](./specs/2026-05-06-uniqueness-poc-test-methodology.md)
-  - WM1: `RunManifest.reproducibility` extension — pinned model versions per call, prompt versions (semver + SHA-256), fixture content hash, package version hash; fix conformance-pass cost rollup. (~half day; audit §5.1 + §4.1.4)
+  - WM1: `RunManifest.reproducibility` extension + per-run reporting surface — pinned model versions per call, prompt versions (semver + SHA-256), fixture content hash, package version hash; surface receipt block at top of `report.md`; fix conformance-pass cost silently omitted from `totalCostUsd` (per Explore finding §10.3); add `judge_prompt_version` semver alongside hash. (~1 day; audit §5.1 + §4.1.4 + §4.3.4 Tier 1)
   - WM2: Stratified clustered bootstrap statistics module at `packages/api/src/benchmark/uniqueness-poc/statistics.ts` — events as top-level resampling unit, within-event-only pair reconstruction, paired-arms variant comparison primitive, mandatory N_events + estimand reporting, descriptive-only floor at N_events < 3. (~1 day; audit §5.2 + §4.9.4)
-  - WM3: Two-baseline-rule wave-spec template + analyze.ts integration — every wave evaluates against historical AND freshly-rerun baseline; if drift > MDE, debug before evaluating variant. (~half day; audit §5.4 + §4.4.4)
+  - WM3: Two-baseline-rule wave-spec template + analyze.ts integration + writeup auto-fill — wave-writeup template at `docs/uniqueness-poc-analysis/_template.md` codifies §6 operating-procedure checklist; `analyze.ts` auto-fills the template with stratified-bootstrap CIs + N_events + estimand stubs from `raw-data.json`; renders historical-vs-freshly-rerun two-baseline comparison block; if drift > MDE, debug before evaluating variant. (~1 day; audit §5.4 + §4.4.4 + §6 + §4.10.4)
   - WM4: Update FA prompt iteration spec (`2026-05-06-fa-prompt-iteration.md`) §5 to reference the new statistics primitives + add a Pre-registration block per audit §4.10.4. (~hour)
+  - WM5: Per-run report.md methodology surface — judge verdict reported in two columns ("judge raw" vs "post hard-rule override"); inter-rater check section reserved for WM6 output; reproducibility receipt rendered above similarity matrix. (~1 hour; audit §4.3.4 Tier 1 + §5.5)
+  - WM6: Tier 2 judge-reliability sampling — `runner.ts` samples 20% of cross-tenant pairs (≥3 pairs whichever larger) for position-swap judge call; agreement rate computed and persisted in `raw-data.json.tier2`; `report.md` renders the inter-rater check section with raw + swapped verdicts + agreement %; flag wave as judge-unreliable if disagreement > 15% on the gate metric. Adds ~+20% judge spend per future wave. (~3 hours; audit §4.3.4 Tier 2 + §5.5)
 
-**Wave M exit gate:** `bunx tsc --noEmit` clean from `packages/api/`. Existing PoC runs (e.g. Wave 3 fed-rate-decision) re-execute under the new manifest schema and produce identical metrics ± floating-point noise. Statistics module unit-tests pass on a synthetic event-block fixture (3 events × 4 cells; bootstrap recovers known mean within tolerance). FA prompt iteration spec amended in same PR or follow-up commit.
+**Wave M exit gate:** `bunx tsc --noEmit` clean from `packages/api/`. Existing PoC runs (e.g. Wave 3 fed-rate-decision) re-execute under the new manifest schema and produce identical metrics ± floating-point noise. Statistics module unit-tests pass on a synthetic event-block fixture (3 events × 4 cells; bootstrap recovers known mean within tolerance). FA prompt iteration spec amended in same PR or follow-up commit. `_template.md` exists and a sample writeup auto-generated from a recent run validates against it. Tier 2 sampling produces an inter-rater check section in a smoke-test run.
 
 **Dependencies:** none. Audit (`docs/specs/2026-05-06-uniqueness-poc-test-methodology.md`) is the design input; this wave implements it.
 
 **Once Wave M ships:** FA prompt iteration (`2026-05-06-fa-prompt-iteration.md`) becomes the first wave under the new methodology. Other layer-choice candidates (pipeline guardrail, identity-prompt) re-enter the candidate pool with rigorous attribution available for future selection.
+
+**Out of scope (deferred):** Tier 3 human κ spot-check (audit §5.5) — quarterly cadence, ~1 hour human time per cycle; not blocking, not recurring per-wave. Inter-judge ensemble (audit §7 open question #1) — separate architectural decision pending Tier 2 disagreement evidence. Multi-comparisons correction reporting (audit §4.6) — wave-spec-level concern in pre-registration blocks, not the harness.
 
 ## Wave Plan — Structural Variants
 
