@@ -57,10 +57,23 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { computeCostUsd } from "./pricing.js";
 
-const JUDGE_MODEL = "claude-haiku-4-5-20251001";
+export const JUDGE_MODEL = "claude-haiku-4-5-20251001";
+
+/**
+ * Hand-bumped semver for the judge rubric. Increment on any rubric edit
+ * (system prompt or tool schema description) so historical and freshly-rerun
+ * baselines can be told apart even when the bytes drift inside the same
+ * conceptual version. Wave M (2026-05-06) is the first version captured —
+ * no prior versioning history existed in the repo before this point.
+ *
+ * Surfaced through `RunManifest.reproducibility.promptVersions.judge` (audit
+ * §4.3.4 Tier 1, §5.1).
+ */
+export const JUDGE_PROMPT_VERSION = "v1-2026-05-06";
 
 // ───────────────────────────────────────────────────────────────────
 // Zod schema for the judge tool response
@@ -258,6 +271,21 @@ const JUDGE_TOOL = {
     },
   },
 };
+
+/**
+ * Full SHA-256 hash of the judge system prompt + tool schema description.
+ * Captured alongside `JUDGE_PROMPT_VERSION` in the reproducibility receipt so
+ * we can detect rubric drift even when the semver wasn't bumped (audit §5.1).
+ *
+ * Hex-encoded, full 64-char digest — distinct from the legacy 8-char
+ * `promptHashes` shown on the `Setup` block. The full hash is the canonical
+ * audit input; the 8-char form is a render convenience.
+ */
+export const JUDGE_SYSTEM_PROMPT_HASH = createHash("sha256")
+  .update(JUDGE_SYSTEM_PROMPT)
+  .update("\n---\n")
+  .update(JUDGE_TOOL.description)
+  .digest("hex");
 
 export type FactualDivergence = z.infer<typeof FactualDivergenceSchema>;
 

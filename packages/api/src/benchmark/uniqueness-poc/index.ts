@@ -51,6 +51,14 @@ import type {
 import { runUniquenessPoc } from "./runner.js";
 import { persistRun, RUNS_OUTPUT_ROOT } from "./persist.js";
 import { IDENTITY_REGISTRY } from "./prompts/identities/index.js";
+import { FA_AGENT_SYSTEM_PROMPT } from "./prompts/fa-agent.js";
+import {
+  JUDGE_MODEL,
+  JUDGE_PROMPT_VERSION,
+  JUDGE_SYSTEM_PROMPT_HASH,
+} from "./llm-judge.js";
+import { CONFORMANCE_SYSTEM_PROMPT } from "./conformance-pass.js";
+import { modelForTier } from "./pricing.js";
 import { mkdirSync } from "node:fs";
 import {
   FileSystemNarrativeStateStore,
@@ -195,6 +203,104 @@ function computePromptHashes(): Record<string, string> {
   return hashes;
 }
 
+/**
+ * Produce a deterministic SHA-256 hex digest over an arbitrary JSON value by
+ * canonicalising key order before stringifying. Used by the reproducibility
+ * receipt to hash fixtures (and any other JSON inputs) in a way that is
+ * insensitive to whitespace, key ordering, and trailing newlines — bytes-on-
+ * disk hashes are too brittle for a multi-month methodology baseline.
+ */
+function canonicalSha256(value: unknown): string {
+  const sorter = (val: unknown): unknown => {
+    if (Array.isArray(val)) return val.map(sorter);
+    if (val !== null && typeof val === "object") {
+      const out: Record<string, unknown> = {};
+      for (const key of Object.keys(val as Record<string, unknown>).sort()) {
+        out[key] = sorter((val as Record<string, unknown>)[key]);
+      }
+      return out;
+    }
+    return val;
+  };
+  return createHash("sha256").update(JSON.stringify(sorter(value))).digest("hex");
+}
+
+/**
+ * Hash the repository lockfile bytes. Returns the hex digest, or `null` when
+ * no recognised lockfile is found (single-line warning emitted by the caller).
+ *
+ * Recognised, in order: `bun.lockb`, `bun.lock`, `pnpm-lock.yaml`,
+ * `package-lock.json`. The walk starts at `__dirname` and climbs up to 8
+ * levels — same shape as `loadDotEnvFromRepoRoot`.
+ */
+function computePackageHash(): string | null {
+  const candidates = ["bun.lockb", "bun.lock", "pnpm-lock.yaml", "package-lock.json"];
+  let dir = __dirname;
+  for (let i = 0; i < 8; i++) {
+    for (const name of candidates) {
+      const path = resolve(dir, name);
+      if (existsSync(path)) {
+        return createHash("sha256").update(readFileSync(path)).digest("hex");
+      }
+    }
+    const parent = resolve(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+/**
+ * Build the Wave M reproducibility receipt — every input that determines a
+ * run's output. See `RunManifestSchema.reproducibility` (types.ts) for the
+ * full field-by-field rationale.
+ *
+ * Caller supplies the loaded fixture object (so the canonical-form fixture
+ * hash is over the in-memory value, not the on-disk bytes — robust to
+ * formatting drift) and the receipt is otherwise self-contained.
+ *
+ * Note: `temperatureOverrides` is empty today (every PoC call site uses
+ * default temperature 1.0). The field is reserved for future overrides; an
+ * empty object means "no overrides" rather than "field absent."
+ */
+function buildReproducibility(args: {
+  fixtureValue: unknown;
+}): NonNullable<RunManifest["reproducibility"]> {
+  const identityPromptHashes: Record<string, string> = {};
+  for (const reg of IDENTITY_REGISTRY) {
+    identityPromptHashes[reg.definition.id] = createHash("sha256")
+      .update(reg.definition.systemPrompt)
+      .digest("hex");
+  }
+
+  const packageHash = computePackageHash();
+  if (packageHash === null) {
+    console.warn(
+      "[index] No lockfile found while building reproducibility receipt — packageHash will be null.",
+    );
+  }
+
+  return {
+    models: {
+      fa: modelForTier("opus"),
+      identity: modelForTier("sonnet"),
+      judge: JUDGE_MODEL,
+      embedding: "text-embedding-3-small",
+      conformance: modelForTier("sonnet"),
+    },
+    promptVersions: {
+      judge: JUDGE_PROMPT_VERSION,
+      judgeHash: JUDGE_SYSTEM_PROMPT_HASH,
+      fa: createHash("sha256").update(FA_AGENT_SYSTEM_PROMPT).digest("hex"),
+      identities: identityPromptHashes,
+      conformance: createHash("sha256").update(CONFORMANCE_SYSTEM_PROMPT).digest("hex"),
+    },
+    fixtureHash: canonicalSha256(args.fixtureValue),
+    packageHash,
+    temperatureOverrides: {},
+  };
+}
+
 function buildManifest(opts: {
   source: "cli" | "dashboard";
   memoryBackend: RunManifest["memoryBackend"];
@@ -208,7 +314,18 @@ function buildManifest(opts: {
   sequenceId?: string | null;
   sequenceStep?: number | null;
   sequenceStepCount?: number | null;
+  /**
+   * The loaded fixture value (NewsEvent or EventSequence) — fed into the
+   * Wave M reproducibility receipt's `fixtureHash`. Optional for backward
+   * compatibility; when absent the receipt is omitted and consumers degrade
+   * to the legacy short-hash `promptHashes` view.
+   */
+  fixtureValue?: unknown;
 }): RunManifest {
+  const reproducibility =
+    opts.fixtureValue !== undefined
+      ? buildReproducibility({ fixtureValue: opts.fixtureValue })
+      : undefined;
   return {
     version: 1,
     timestamp: new Date().toISOString(),
@@ -227,6 +344,7 @@ function buildManifest(opts: {
     sequenceStep: opts.sequenceStep ?? null,
     sequenceStepCount: opts.sequenceStepCount ?? null,
     promptHashes: computePromptHashes(),
+    ...(reproducibility ? { reproducibility } : {}),
   };
 }
 
@@ -332,6 +450,7 @@ async function runOne(
     sequenceId: opts.sequenceId,
     sequenceStep: opts.sequenceStep,
     sequenceStepCount: opts.sequenceStepCount,
+    fixtureValue: event,
   });
 
   const runOpts = {

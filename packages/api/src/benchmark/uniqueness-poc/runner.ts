@@ -1533,7 +1533,11 @@ export async function runUniquenessPoc(
     : 0;
   const crossTenantCost = crossTenantMatrix
     ? crossTenantMatrix.outputs.reduce((sum, o) => sum + o.costUsd, 0) +
-      crossTenantMatrix.similarities.reduce((sum, s) => sum + (s.judgeCostUsd ?? 0), 0)
+      crossTenantMatrix.similarities.reduce((sum, s) => sum + (s.judgeCostUsd ?? 0), 0) +
+      // Wave M: include conformance-pass cost in the rollup. The matrix
+      // already exposes `conformanceCostUsd` (line ~779) but the rollup was
+      // silently ignoring it — see audit §10.3 / Wave M summary §Deviations.
+      (crossTenantMatrix.conformanceCostUsd ?? 0)
     : 0;
   const narrativeStateCost = narrativeStateTest
     ? narrativeStateTest.secondCoreAnalysis.costUsd +

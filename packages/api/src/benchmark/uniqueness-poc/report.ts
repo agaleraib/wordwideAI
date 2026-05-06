@@ -132,6 +132,61 @@ The similarity matrix at the end gives you the numerical bar. The thresholds are
 `;
 }
 
+/**
+ * Render the Wave M reproducibility receipt as a fenced YAML block (audit
+ * §5.1, §4.1.4 Tier 1, §4.3.4 Tier 1). Surfaces the keystone inputs that
+ * determine a run's output so historical and freshly-rerun baselines can be
+ * compared field-by-field. Returns "" when the receipt is absent (pre-Wave-M
+ * runs, dashboard runs that haven't been migrated yet).
+ *
+ * Rendered above the verdict and similarity matrix per WM5: receipt → matrix
+ * → two-column verdicts → reserved inter-rater section.
+ */
+function reproducibilityReceiptBlock(result: RunResult): string {
+  const r = result.manifest.reproducibility;
+  if (!r) return "";
+
+  const lines: string[] = [];
+  lines.push("## Reproducibility receipt");
+  lines.push("");
+  lines.push(
+    "*Captures every input that determines this run's output. Audit §5.1: pinned models, prompt versions (semver + SHA-256), fixture content hash, package version hash, temperature overrides. Used by the two-baseline rule to detect drift between historical and freshly-rerun baselines.*",
+  );
+  lines.push("");
+  lines.push("```yaml");
+  lines.push("models:");
+  lines.push(`  fa: ${r.models.fa}`);
+  lines.push(`  identity: ${r.models.identity}`);
+  lines.push(`  judge: ${r.models.judge}`);
+  lines.push(`  embedding: ${r.models.embedding}`);
+  lines.push(`  conformance: ${r.models.conformance}`);
+  lines.push("promptVersions:");
+  lines.push(`  judge: ${r.promptVersions.judge}`);
+  lines.push(`  judgeHash: ${r.promptVersions.judgeHash}`);
+  lines.push(`  fa: ${r.promptVersions.fa}`);
+  lines.push(`  conformance: ${r.promptVersions.conformance ?? "null"}`);
+  lines.push("  identities:");
+  for (const [id, hash] of Object.entries(r.promptVersions.identities)) {
+    lines.push(`    ${id}: ${hash}`);
+  }
+  lines.push(`fixtureHash: ${r.fixtureHash}`);
+  lines.push(`packageHash: ${r.packageHash ?? "null"}`);
+  const overrideKeys = Object.keys(r.temperatureOverrides);
+  if (overrideKeys.length === 0) {
+    lines.push("temperatureOverrides: {}");
+  } else {
+    lines.push("temperatureOverrides:");
+    for (const key of overrideKeys) {
+      lines.push(`  ${key}: ${r.temperatureOverrides[key]}`);
+    }
+  }
+  lines.push("```");
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+  return lines.join("\n");
+}
+
 export function renderReport(result: RunResult): string {
   const { event, coreAnalysis, identityOutputs, similarities } = result;
 
@@ -146,6 +201,14 @@ export function renderReport(result: RunResult): string {
   lines.push(`**Total duration:** ${(result.totalDurationMs / 1000).toFixed(1)}s`);
   lines.push(`**Total cost:** ${formatUsd(result.totalCostUsd)}`);
   lines.push("");
+
+  // ───────── Reproducibility receipt (Wave M, audit §5.1) ─────────
+  // Rendered above the verdict + matrix so the methodology surface is the
+  // first thing a reader sees. Emits nothing on pre-Wave-M runs.
+  const receiptBlock = reproducibilityReceiptBlock(result);
+  if (receiptBlock) {
+    lines.push(receiptBlock);
+  }
 
   // ───────── Setup ─────────
   const m = result.manifest;

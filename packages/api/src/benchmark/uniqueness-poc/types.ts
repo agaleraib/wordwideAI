@@ -55,6 +55,49 @@ export const RunManifestSchema = z.object({
   sequenceStepCount: z.number().nullable(),
   /** Short hash (first 8 chars of SHA-256) of each identity's system prompt at run time. */
   promptHashes: z.record(z.string(), z.string()).nullable(),
+  /**
+   * Reproducibility receipt — Wave M (audit §5.1, §4.1.4 Tier 1).
+   *
+   * Captures the full set of inputs that determine a run's output so future
+   * waves can detect drift between the historical baseline and a fresh
+   * re-execution under the current run's configuration.
+   *
+   * Optional for backward compatibility: existing `raw-data.json` files written
+   * before Wave M ship without this block; consumers should treat absence as
+   * "pre-Wave-M" (no receipt available) rather than as a hard error.
+   *
+   * - `models`: pinned model identifiers per call site (resolved at call time)
+   * - `promptVersions`: judge prompt has a hand-bumped semver; FA / identities /
+   *   conformance carry full SHA-256 hashes of their system prompts; the legacy
+   *   8-char `promptHashes` field above continues to render for backward compat
+   * - `fixtureHash`: SHA-256 of the JSON-stringified, key-sorted fixture object
+   *   (canonical-form digest — robust to whitespace / formatting differences)
+   * - `packageHash`: SHA-256 of the lockfile bytes (`bun.lockb` / `bun.lock` /
+   *   `package-lock.json` / `pnpm-lock.yaml`); `null` if no lockfile resolves
+   * - `temperatureOverrides`: any non-default temperature applied at call sites
+   *   keyed by call-site label (e.g. `{ judge: 0.0 }`); empty object when none
+   */
+  reproducibility: z
+    .object({
+      models: z.object({
+        fa: z.string(),
+        identity: z.string(),
+        judge: z.string(),
+        embedding: z.string(),
+        conformance: z.string(),
+      }),
+      promptVersions: z.object({
+        judge: z.string(),
+        judgeHash: z.string(),
+        fa: z.string(),
+        identities: z.record(z.string(), z.string()),
+        conformance: z.string().nullable(),
+      }),
+      fixtureHash: z.string(),
+      packageHash: z.string().nullable(),
+      temperatureOverrides: z.record(z.string(), z.number()),
+    })
+    .optional(),
 });
 
 export type RunManifest = z.infer<typeof RunManifestSchema>;
