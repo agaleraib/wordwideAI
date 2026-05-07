@@ -73,7 +73,7 @@ export const JUDGE_MODEL = "claude-haiku-4-5-20251001";
  * Surfaced through `RunManifest.reproducibility.promptVersions.judge` (audit
  * §4.3.4 Tier 1, §5.1).
  */
-export const JUDGE_PROMPT_VERSION = "v2-2026-05-07";
+export const JUDGE_PROMPT_VERSION = "v2.1-2026-05-07";
 
 // ───────────────────────────────────────────────────────────────────
 // Zod schema for the judge tool response
@@ -103,24 +103,27 @@ const TRINARY_VERDICTS = [
 ] as const;
 
 const DIVERGENCE_TYPES = [
-  // A asserts X, FA core does NOT contain X (any plausible paraphrase). A invented X.
+  // A asserts X; X is absent from FA Core and A's memory block. A invented X.
   "fabrication_a",
-  // B asserts X, FA core does NOT contain X. B invented X.
+  // B asserts X; X is absent from FA Core and B's memory block. B invented X.
   "fabrication_b",
-  // A and B both assert X but with materially different values. (FA core may or may not have X.)
+  // A and B both assert X but with materially different values.
   "disagreement",
-  // FA core contains X, B asserts it, A is silent. Legitimate persona filtering — NOT fabrication.
+  // Source context contains X, B asserts it, A is silent. Legitimate filtering.
   "omits_a",
-  // FA core contains X, A asserts it, B is silent. Legitimate persona filtering — NOT fabrication.
+  // Source context contains X, A asserts it, B is silent. Legitimate filtering.
   "omits_b",
 ] as const;
+const SOURCE_LABELS = ["fa_core", "memory_a", "memory_b", "absent"] as const;
 
 const FactualDivergenceSchema = z.object({
   kind: z.enum(FACTUAL_DIVERGENCE_KINDS),
   divergence_type: z.enum(DIVERGENCE_TYPES),
   docA: z.string(),
   docB: z.string(),
-  faCoreSays: z.string(),
+  sourceLabel: z.enum(SOURCE_LABELS),
+  sourceSays: z.string(),
+  faCoreSays: z.string().optional(),
 });
 
 const JudgeResponseSchema = z.object({
@@ -162,22 +165,22 @@ const HARD_RULE_DIVERGENCE_TYPES = new Set<(typeof DIVERGENCE_TYPES)[number]>([
   "disagreement",
 ]);
 
-const JUDGE_SYSTEM_PROMPT = `You are an editorial uniqueness judge for a financial content platform. You are evaluating two pieces of market analysis (Document A and Document B) written for different brokers from the SAME underlying FA/TA source analysis (the FA Core, provided to you as ground truth).
+const JUDGE_SYSTEM_PROMPT = `You are an editorial uniqueness judge for a financial content platform. You are evaluating two pieces of market analysis (Document A and Document B) written for different brokers from the SAME underlying FA/TA source analysis (the FA Core) and, when provided, each document's own editorial memory block.
 
 Mental model
 ────────────
-Imagine two analysts at two different firms, each subscribed to the same Bloomberg note (the FA Core). Both rephrase it for their own clients without modifying the substance of the analysis. Neither invents new levels, neither reassigns probabilities, neither reverses the directional call. Yet because they are different writers at different desks working on different days, their prose differs — different voice, different structure, different emphasis, different lead, different framing. Each analyst may also legitimately CHOOSE which facts to surface and which to omit, based on their audience — that is editorial filtering, not fabrication.
+Imagine two analysts at two different firms, each subscribed to the same Bloomberg note (the FA Core) and each consulting that firm's own prior coverage notes (editorial memory). Both rephrase the source material for their own clients without modifying the substance of the analysis. Neither invents new levels, neither reassigns probabilities, neither reverses the directional call. Yet because they are different writers at different desks working on different days, their prose differs — different voice, different structure, different emphasis, different lead, different framing. Each analyst may also legitimately CHOOSE which facts to surface and which to omit, based on their audience — that is editorial filtering, not fabrication.
 
 That is the target. You are scoring how close the pair is to that target, NOT how close the pair is by raw text overlap.
 
-The FA Core is your GROUND TRUTH. Cross-check every potentially-divergent fact against the FA Core before classifying it.
+Ground truth = the FA Core PLUS each document's editorial memory block, if provided. A fact asserted by A is faithful if it appears in either the FA Core or A's memory block. A fact asserted by B is faithful if it appears in either the FA Core or B's memory block. Only facts absent from BOTH the FA Core and the asserting document's own memory block count as fabrication.
 
 Two axes, scored independently
 ──────────────────────────────
 
-AXIS 1 — Factual fidelity (agreement with the FA Core, NOT just with each other)
+AXIS 1 — Factual fidelity (agreement with the source context, NOT just with each other)
 
-  Treat as FACTS that MUST come from the FA Core:
+  Treat as FACTS that MUST come from the FA Core or the asserting document's own editorial memory block:
     • Price levels: support, resistance, stop-loss, take-profit, invalidation, pivot
     • Scenario probabilities and confidence figures
     • Directional call (long/short, bullish/bearish on the primary view)
@@ -193,22 +196,22 @@ AXIS 1 — Factual fidelity (agreement with the FA Core, NOT just with each othe
     • Which level is foregrounded vs footnoted
     • Whether a given chain is rendered narratively or bulleted
 
-  HIGH fidelity (0.9–1.0) is the EXPECTED and DESIRED state. It means both documents are faithful to the FA Core — they may emphasise or omit different facts, but neither has invented or contradicted anything in the Core.
-  LOW fidelity means one document invented a fact not present in the FA Core, reassigned a probability the Core fixed, or contradicted the Core's directional call. This is a RED FLAG (fabrication risk), NOT a sign of healthy uniqueness.
+  HIGH fidelity (0.9–1.0) is the EXPECTED and DESIRED state. It means both documents are faithful to their source context — they may emphasise or omit different facts, but neither has invented or contradicted anything in the FA Core or its own memory block.
+  LOW fidelity means one document invented a fact not present in either allowed source, reassigned a probability the source context fixed, or contradicted the source directional call. This is a RED FLAG (fabrication risk), NOT a sign of healthy uniqueness.
 
-  CRITICAL — the FA Core is the load-bearing reference. NEVER classify a divergence by comparing A to B alone. Always check the FA Core first.
+  CRITICAL — the source context is the load-bearing reference. NEVER classify a divergence by comparing A to B alone. Always check the FA Core and the asserting document's memory block first.
 
   Three classes of divergence (each entry in factualDivergences must be tagged):
 
-  • "fabrication_a" — A asserts X; the FA Core does NOT contain X (or any plausible paraphrase of X). A invented X. HARD-RULE TRIGGER.
-  • "fabrication_b" — B asserts X; the FA Core does NOT contain X. B invented X. HARD-RULE TRIGGER.
+  • "fabrication_a" — A asserts X; X is absent from BOTH the FA Core AND A's memory block. A invented X. HARD-RULE TRIGGER.
+  • "fabrication_b" — B asserts X; X is absent from BOTH the FA Core AND B's memory block. B invented X. HARD-RULE TRIGGER.
   • "disagreement" — A and B both assert X but with materially different values (e.g. A: 60% / B: 40%). At most one can match the Core; both diverge from each other. HARD-RULE TRIGGER.
-  • "omits_a" — The FA Core contains X. B faithfully reports it. A is silent on X. This is LEGITIMATE PERSONA FILTERING (different audiences get different subsets) — NOT fabrication, NOT a hard-rule trigger.
-  • "omits_b" — The FA Core contains X. A faithfully reports it. B is silent on X. Same as omits_a, mirrored. NOT a hard-rule trigger.
+  • "omits_a" — The FA Core or B's memory block contains X. B faithfully reports it. A is silent on X. This is LEGITIMATE PERSONA FILTERING (different audiences get different subsets) — NOT fabrication, NOT a hard-rule trigger.
+  • "omits_b" — The FA Core or A's memory block contains X. A faithfully reports it. B is silent on X. Same as omits_a, mirrored. NOT a hard-rule trigger.
 
   HARD RULE (v2): a fact in kind ∈ {level, probability, stop, direction, historical_anchor} with divergence_type ∈ {fabrication_a, fabrication_b, disagreement} forces verdict "fabrication_risk" regardless of any other score. Pure omissions (one doc silent on a fact the other faithfully reports from the Core) MUST NOT trigger the hard rule — they are persona-driven editorial filtering by design.
 
-  faCoreSays (per-divergence field, MANDATORY): for every divergence, paste the verbatim or near-verbatim phrase from the FA Core that the divergent fact corresponds to. If the FA Core does NOT mention the fact at all (i.e. divergence_type ∈ {fabrication_a, fabrication_b}), set faCoreSays to "(absent from FA Core)".
+  sourceLabel + sourceSays (per-divergence fields, MANDATORY): for every divergence, set sourceLabel to "fa_core", "memory_a", "memory_b", or "absent", and paste the verbatim or near-verbatim phrase from that source into sourceSays. If the fact is absent from all allowed sources for the asserting document (i.e. divergence_type ∈ {fabrication_a, fabrication_b}), set sourceLabel to "absent" and sourceSays to "(absent from FA Core and asserting document memory)".
 
 AXIS 2 — Presentation similarity (how alike the pair reads as prose)
 
@@ -233,7 +236,7 @@ Calibration anchors for AXIS 2
   0.6–0.8  Same article lightly reskinned. Voice varies but structure, emphasis, and lead are near-identical. Derivative.
   0.9–1.0  Effectively the same article with cosmetic variation.
 
-Always explain reasoning by pointing to concrete passages. Quote briefly. If you mark factual fidelity below 0.9 or return "fabrication_risk", name every specific fact that diverges AND tag its divergence_type AND quote what the FA Core says about it (or "(absent from FA Core)").`;
+Always explain reasoning by pointing to concrete passages. Quote briefly. If you mark factual fidelity below 0.9 or return "fabrication_risk", name every specific fact that diverges AND tag its divergence_type AND sourceLabel AND quote what the source context says about it (or "(absent from FA Core and asserting document memory)").`;
 
 const JUDGE_TOOL = {
   name: "submit_uniqueness_verdict",
@@ -255,7 +258,7 @@ const JUDGE_TOOL = {
         minimum: 0,
         maximum: 1,
         description:
-          "Faithfulness to the FA Core: levels, probabilities, direction, anchors, set of transmission chains, conclusion. Expected near 1.0. Persona-specific omission of Core facts is allowed; values below 0.9 indicate invention or contradiction against the Core.",
+          "Faithfulness to source context: FA Core plus the asserting document's editorial memory block when provided. Persona-specific omission of source facts is allowed; values below 0.9 indicate invention or contradiction against source context.",
       },
       factualFidelityReasoning: {
         type: "string",
@@ -264,10 +267,10 @@ const JUDGE_TOOL = {
       factualDivergences: {
         type: "array",
         description:
-          "Every material fact that differs between A and B AS CHECKED AGAINST THE FA CORE. Empty if both documents are fully faithful to the Core (omissions of Core facts by either doc are legitimate persona filtering and DO NOT have to appear here unless the omission is materially asymmetric and you want to surface it). Hard-rule trigger requires kind ∈ {level, probability, direction, stop, historical_anchor} AND divergence_type ∈ {fabrication_a, fabrication_b, disagreement}.",
+          "Every material fact that differs between A and B AS CHECKED AGAINST FA CORE plus each document's own editorial memory block. Empty if both documents are fully faithful to source context. Hard-rule trigger requires kind ∈ {level, probability, direction, stop, historical_anchor} AND divergence_type ∈ {fabrication_a, fabrication_b, disagreement}.",
         items: {
           type: "object",
-          required: ["kind", "divergence_type", "docA", "docB", "faCoreSays"],
+          required: ["kind", "divergence_type", "docA", "docB", "sourceLabel", "sourceSays"],
           properties: {
             kind: {
               type: "string",
@@ -293,14 +296,20 @@ const JUDGE_TOOL = {
                 "omits_b",
               ],
               description:
-                "Source attribution. fabrication_a/b: doc invented a fact absent from FA Core (HARD-RULE). disagreement: A and B disagree on a value (HARD-RULE). omits_a/b: FA Core has the fact, only one doc reports it — legitimate persona filtering (NOT a hard-rule trigger).",
+                "Source attribution. fabrication_a/b: doc invented a fact absent from both FA Core and the asserting document's memory block (HARD-RULE). disagreement: A and B disagree on a value (HARD-RULE). omits_a/b: source context has the fact, only one doc reports it — legitimate persona filtering (NOT a hard-rule trigger).",
             },
             docA: { type: "string", description: "What document A says (or 'silent' if A omits)." },
             docB: { type: "string", description: "What document B says (or 'silent' if B omits)." },
-            faCoreSays: {
+            sourceLabel: {
+              type: "string",
+              enum: ["fa_core", "memory_a", "memory_b", "absent"],
+              description:
+                "Which source contains the matched fact. Use absent only when the fact is absent from both FA Core and the asserting document's memory block.",
+            },
+            sourceSays: {
               type: "string",
               description:
-                "What the FA Core says about this fact. Verbatim or near-verbatim quote. If the fact is absent from the FA Core (fabrication_a or fabrication_b), set to '(absent from FA Core)'.",
+                "What the source context says about this fact. Verbatim or near-verbatim quote. If absent, set to '(absent from FA Core and asserting document memory)'.",
             },
           },
         },
@@ -395,13 +404,15 @@ export async function judgePairUniqueness(args: {
   contentB: string;
   /**
    * The shared FA Core analysis both documents were generated from. This is
-   * the GROUND TRUTH the judge cross-checks each potentially-divergent fact
-   * against. Without it (judge prompt v1 contract), the judge could only
+   * the common ground truth the judge cross-checks each potentially-divergent
+   * fact against. Without it (judge prompt v1 contract), the judge could only
    * compare A vs B and treated omissions as fabrications — see
    * `project_judge_omission_as_fabrication_2026_05_07.md` for the diagnostic
    * that motivated the v2 contract.
    */
   faCoreAnalysis: string;
+  memoryBlockA?: string;
+  memoryBlockB?: string;
   /** Unmasked cosine similarity, informational only — the judge should not defer to it. */
   cosineSimilarity: number;
   /** ROUGE-L F1, informational only. */
@@ -429,10 +440,20 @@ export async function judgePairUniqueness(args: {
   const promptB = args.swapOrder ? args.contentA : args.contentB;
   const labelA = args.swapOrder ? args.identityB : args.identityA;
   const labelB = args.swapOrder ? args.identityA : args.identityB;
+  const memoryA = args.swapOrder ? args.memoryBlockB : args.memoryBlockA;
+  const memoryB = args.swapOrder ? args.memoryBlockA : args.memoryBlockB;
+  const memorySections = [
+    memoryA
+      ? `# Editorial Memory Block — ${labelA} (additional ground truth available to ${labelA} only)\n\n\`\`\`\n${memoryA}\n\`\`\``
+      : "",
+    memoryB
+      ? `# Editorial Memory Block — ${labelB} (additional ground truth available to ${labelB} only)\n\n\`\`\`\n${memoryB}\n\`\`\``
+      : "",
+  ].filter((section) => section.length > 0).join("\n\n");
 
   const userMessage = `Pair under review.
 
-Documents A and B were both written from the FA Core below (the shared ground truth). Apply the two-axis rubric. Cross-check every potentially-divergent fact against the FA Core BEFORE classifying it; never compare A to B alone on factual claims.
+Documents A and B were both written from the FA Core below (the shared ground truth). If editorial memory blocks are present, each document's producer also had access to its own block. Apply the two-axis rubric. Cross-check every potentially-divergent fact against FA Core and the asserting document's own memory block BEFORE classifying it; never compare A to B alone on factual claims.
 
 # FA Core (ground truth — both A and B were generated from this)
 
@@ -440,7 +461,7 @@ Documents A and B were both written from the FA Core below (the shared ground tr
 ${args.faCoreAnalysis}
 \`\`\`
 
-# Document A — ${labelA}
+${memorySections ? `${memorySections}\n\n` : ""}# Document A — ${labelA}
 
 \`\`\`
 ${promptA}
@@ -458,7 +479,7 @@ ${promptB}
 
 These numbers are computed over the raw text and will be inflated by shared facts (levels, probabilities, named events). The whole reason for the two-axis rubric is that these numbers over-penalize faithful pairs. Score the prose yourself using the rubric.
 
-Submit your verdict via the submit_uniqueness_verdict tool. For every entry in factualDivergences, classify divergence_type by checking the FA Core (omits_a / omits_b are legitimate persona filtering; fabrication_a / fabrication_b / disagreement fire the hard rule).`;
+Submit your verdict via the submit_uniqueness_verdict tool. For every entry in factualDivergences, classify divergence_type and sourceLabel by checking the FA Core and the asserting document's own memory block (omits_a / omits_b are legitimate persona filtering; fabrication_a / fabrication_b / disagreement fire the hard rule).`;
 
   // Retry the model call + Zod parse up to MAX_ATTEMPTS times, but ONLY
   // on recoverable failures:

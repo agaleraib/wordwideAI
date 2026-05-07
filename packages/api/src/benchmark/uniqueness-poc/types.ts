@@ -227,6 +227,7 @@ export interface IdentityOutput {
   costUsd: number;
   /** Set when this output was produced under a specific persona overlay (stage 5). */
   personaId?: string;
+  editorialMemoryBlock?: string;
   /**
    * Structural variant used to render this output. Populated on Stage 5
    * and Stage 6 calls (anywhere a persona is threaded) from
@@ -264,7 +265,7 @@ export interface FactualDivergenceRecord {
     | "conclusion"
     | "other";
   /**
-   * Source attribution per judge prompt v2 (2026-05-07). Hard rule fires
+   * Source attribution per judge prompt v2+ (2026-05-07). Hard rule fires
    * only on `fabrication_a | fabrication_b | disagreement`; `omits_a` and
    * `omits_b` are legitimate persona filtering. Optional for compatibility
    * with prior-version raw-data.json files; new runs always populate it.
@@ -277,11 +278,13 @@ export interface FactualDivergenceRecord {
     | "omits_b";
   docA: string;
   docB: string;
+  sourceLabel?: "fa_core" | "memory_a" | "memory_b" | "absent";
+  sourceSays?: string;
   /**
    * Verbatim or near-verbatim quote from the FA Core analysis showing what
    * the source says about the divergent fact. "(absent from FA Core)" when
-   * `divergence_type` is `fabrication_a` or `fabrication_b`. Optional for
-   * compatibility with v1 raw-data.json files.
+   * `divergence_type` is `fabrication_a` or `fabrication_b`. Kept optional
+   * for compatibility with v1/v2 raw-data.json files.
    */
   faCoreSays?: string;
 }

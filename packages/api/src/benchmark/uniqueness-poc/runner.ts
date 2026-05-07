@@ -184,6 +184,7 @@ export async function runIdentity(
   if (!registered) {
     throw new Error(`Unknown identity: ${identityId}`);
   }
+  const editorialMemoryBlock = options?.editorialMemoryBlock;
 
   const model = modelForTier(registered.definition.modelTier);
   const start = Date.now();
@@ -247,6 +248,7 @@ export async function runIdentity(
       durationMs: cli.durationMs,
       costUsd: computeCostUsd(model, cli.inputTokens, cli.outputTokens),
       personaId: persona?.id,
+      ...(editorialMemoryBlock ? { editorialMemoryBlock } : {}),
       // Record the structural variant used so raw-data.json + the text
       // report can segment cross-tenant pairs by variant. Undefined when
       // no persona is threaded (Stage 2) — documented as "variant 1 /
@@ -284,6 +286,7 @@ export async function runIdentity(
     durationMs: Date.now() - start,
     costUsd: computeCostUsd(model, response.usage.input_tokens, response.usage.output_tokens),
     personaId: persona?.id,
+    ...(editorialMemoryBlock ? { editorialMemoryBlock } : {}),
     // Record the structural variant used so raw-data.json + the text
     // report can segment cross-tenant pairs by variant. Undefined when
     // no persona is threaded (Stage 2) — documented as "variant 1 /
@@ -393,6 +396,8 @@ async function judgeBorderlinePairs(
         contentA: outA.body,
         contentB: outB.body,
         faCoreAnalysis: coreAnalysisBody,
+        memoryBlockA: outA.editorialMemoryBlock,
+        memoryBlockB: outB.editorialMemoryBlock,
         cosineSimilarity: sim.cosineSimilarity,
         rougeL: sim.rougeL,
       });
@@ -726,6 +731,8 @@ async function runCrossTenantMatrix(
         contentA: outA.body,
         contentB: outB.body,
         faCoreAnalysis: coreAnalysisBody,
+        memoryBlockA: outA.editorialMemoryBlock,
+        memoryBlockB: outB.editorialMemoryBlock,
         cosineSimilarity: sim.cosineSimilarity,
         rougeL: sim.rougeL,
       });
@@ -852,6 +859,8 @@ async function buildCrossTenantMatrixFromOutputs(
         contentA: outA.body,
         contentB: outB.body,
         faCoreAnalysis: coreAnalysisBody,
+        memoryBlockA: outA.editorialMemoryBlock,
+        memoryBlockB: outB.editorialMemoryBlock,
         cosineSimilarity: sim.cosineSimilarity,
         rougeL: sim.rougeL,
       });
@@ -1331,6 +1340,7 @@ async function runTier2InterRaterSampling(args: {
   runId: string;
   matrix: CrossTenantMatrixResult;
   contentByPersonaId: Map<string, string>;
+  memoryBlockByPersonaId: Map<string, string>;
   coreAnalysisBody: string;
 }): Promise<Tier2InterRaterResult | null> {
   const allPairs = args.matrix.similarities.filter((s) => s.judgeTrinaryVerdict);
@@ -1387,6 +1397,8 @@ async function runTier2InterRaterSampling(args: {
         contentA,
         contentB,
         faCoreAnalysis: args.coreAnalysisBody,
+        memoryBlockA: args.memoryBlockByPersonaId.get(sim.identityA),
+        memoryBlockB: args.memoryBlockByPersonaId.get(sim.identityB),
         cosineSimilarity: sim.cosineSimilarity,
         rougeL: sim.rougeL,
         swapOrder: true,
@@ -1607,6 +1619,7 @@ export async function runUniquenessPoc(
     // it for cost reasons, gate this block behind an opt-out.
     {
       const contentByPersonaId = new Map<string, string>();
+      const memoryBlockByPersonaId = new Map<string, string>();
       for (let i = 0; i < crossTenantMatrix.outputs.length; i++) {
         const output = crossTenantMatrix.outputs[i]!;
         const persona = crossTenantMatrix.personas[i]!;
@@ -1614,12 +1627,17 @@ export async function runUniquenessPoc(
         contentByPersonaId.set(id, output.body);
         // Cross-tenant similarity records use persona.name (not id) for identityA/B.
         contentByPersonaId.set(persona.name, output.body);
+        if (output.editorialMemoryBlock) {
+          memoryBlockByPersonaId.set(id, output.editorialMemoryBlock);
+          memoryBlockByPersonaId.set(persona.name, output.editorialMemoryBlock);
+        }
       }
       try {
         const tier2 = await runTier2InterRaterSampling({
           runId,
           matrix: crossTenantMatrix,
           contentByPersonaId,
+          memoryBlockByPersonaId,
           coreAnalysisBody: coreAnalysis.body,
         });
         if (tier2) {
