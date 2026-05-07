@@ -155,6 +155,96 @@ Output is **SHIP / ITERATE / ABANDON**, not a numerical pass/fail:
 
 Per `project_uniqueness_poc_full_run_cost.md`: ~$0.73/event with `--full --editorial-memory`. Pilot: ~$1. Full 4-event: ~$3-4. Bundled total: ~$4-5 if both run.
 
+### 5.6 Pre-registration
+
+Per audit §4.10.4 + §5.3 (`docs/specs/2026-05-06-uniqueness-poc-test-methodology.md`). Committed before any FA prompt edit lands. Post-run analysis may deviate but must say so and justify.
+
+```yaml
+oec: fabrication_risk
+oec_decision_rule:
+  # Counts are per-event totals over the 15 cross-persona pairs at K=6.
+  # Δ_full = E[fabrication_risk_FA-variant − fabrication_risk_baseline] across the 4 events
+  # estimated via paired stratified bootstrap (statistics.ts:pairedStratifiedBootstrap),
+  # 10,000 iters (DEFAULT_ITERS), seed pinned via reproducibility receipt.
+  # Both baselines (Wave 3 r2; Wave 4 pilot) gated independently — variant must clear both.
+  ship: |
+    Pilot: fabrication_risk count drops by ≥1 vs each baseline on
+            fed-rate-pause-2026-04-03; signal is descriptive-only at N_events=1.
+    Full:  Δ_full(fabrication_risk) ≤ −1 pair/event with 95% paired-stratified-bootstrap
+            CI strictly < 0 against BOTH Wave 3 r2 and Wave 4 pilot baselines.
+    AND secondary_metrics ceilings below all hold.
+  iterate: |
+    Pilot: fabrication_risk drops by ≥1 against at least one baseline,
+            OR full-run CI on Δ_full(fabrication_risk) crosses zero (direction-positive but inconclusive),
+            OR a secondary_metrics ceiling is breached.
+    → close as ITERATE; spawn ablation spec splitting §4.1/§4.2/§4.3/§4.4 into separate variants.
+  abandon: |
+    Pilot: fabrication_risk count rises by ≥1 against both baselines,
+            OR full-run Δ_full(fabrication_risk) ≥ 0 with CI strictly > 0 against either baseline.
+    → FA-prompt layer is not the lever for these metrics; return Wave 4 successor decision
+       to the open list (pipeline guardrail / identity-prompt remain).
+secondary_metrics:
+  # Ceilings expressed in raw count units. Bootstrap CI (statistics.ts:pairedStratifiedBootstrap)
+  # must clear the ceiling for SHIP — point-estimate inside ceiling with CI crossing it counts as
+  # a breach (conservative under uncertainty).
+  - distinct_products:
+      direction: higher_is_better
+      ceiling: must not regress by > 1 pair/event vs Wave 3 r2 baseline (point estimate ≥ −1 AND CI lower bound ≥ −1)
+      rationale: Wave 4 pilot regressed 5/6 → 10/15 (~−0.83 pairs/event normalized); ceiling must catch a Wave 4-magnitude regression
+  - reskinned_same_article:
+      direction: lower_is_better
+      ceiling: must not regress by > 1 pair/event vs Wave 3 r2 baseline (point estimate ≤ +1 AND CI upper bound ≤ +1)
+      rationale: Wave 3 r2 baseline is 0/6; any cluster-level rise is a structural-similarity regression worth blocking on
+analysis_plan:
+  primary_inference:
+    - statistics.ts:pairedStratifiedBootstrap on Δ_full per metric (variant vs each baseline), one call per metric × baseline
+    - iters: DEFAULT_ITERS (10,000); seed pinned in RunManifest.reproducibility per WM1
+    - estimand: "population mean of Δ(metric) across the 4-event uniqueness-PoC bench's event distribution"
+    - report BootstrapCiResult.{pointEstimate, ci, nClusters, descriptiveOnly, estimand} verbatim per WM3 wave-writeup template
+    - mandatory descriptive-only label on pilot row (N_events=1 < MIN_CLUSTERS_FOR_INFERENCE=3)
+  cluster_proportions:
+    - statistics.ts:proportionCi (Wilson) on per-event SHIP-grade event proportion when applicable
+    - estimand: "proportion of events in the 4-event bench on which the variant cleared per-event SHIP rule"
+  effect_sizes:
+    - statistics.ts:effectSize Cohen's h on per-event count proportions (count / 15 pairs) for each metric × baseline pair
+    - reported alongside CI; not used as a gate
+  reporting_discipline:
+    - per-pair detail tables ONLY if aggregate Δ_full moves OEC direction-positive (avoids HARKing per audit §4.10.3)
+    - variant × event interaction reported ONLY if main effect is unambiguous (CI clears zero against ≥1 baseline)
+    - pair-iid bootstrap is FORBIDDEN as a decision-grade gate (`feedback_pair_iid_bootstrap_forbidden.md`); cell-iid bootstrap likewise
+    - if N_events < 3 in any analysis, the writeup MUST surface descriptiveOnly=true alongside the CI per WM2 contract
+mde:
+  pilot:
+    n_events: 1
+    status: descriptive_only
+    reason: N_events=1 < MIN_CLUSTERS_FOR_INFERENCE=3; pilot serves as direction signal + cost gate, not inference
+  full:
+    n_events: 4
+    note: at the floor of inference; variance dominated by between-event heterogeneity
+    mde_estimate: |
+      MDE on per-event Δ(fabrication_risk) ≈ 1.5–2 pairs/event under stratified clustered bootstrap with N_events=4,
+      assuming Wave 3 r2 / Wave 4 baseline within-event variance. Effects below ~1.5 pairs/event will not clear the
+      decision rule's CI condition. Aligned with audit §4.10.4's "underpowered for OEC effects < 0.30" warning.
+    underpowered_for: cohen-h effects below ~0.30 on count proportions
+events:
+  - fed-rate-pause-2026-04-03         # pilot
+  - bitcoin-etf-approval-r2           # full
+  - oil-supply-shock                  # full
+  - us-cpi-surprise                   # full
+personas: [broker-a, broker-b, broker-c, broker-d, broker-e, broker-f]
+identities:
+  rotation: 1 identity per event from {trading-desk, in-house-journalist, senior-strategist}
+  seed: pinned (resolves §9 OQ#1 default) — exact integer seed captured in RunManifest.reproducibility per WM1
+  rationale: reproducibility over breadth at this wave's scale; randomized rotation deferred to a future bench-expansion wave
+```
+
+Forbidden-claim guardrails (audit §4.12), cited so the writeup does not drift:
+- No "statistically significantly better at p < 0.05" — bootstrap CI claims only.
+- No pair-iid CI claims; no cell-iid CI claims.
+- No "FA layer is/isn't the lever" — only "is/isn't apparently the lever under these run conditions."
+
+Two-baseline rule (audit §5.4): both baselines exist on disk per §5.2; if either fails the freshly-rerun receipt-match check at run time, debug drift before evaluating the variant.
+
 ---
 
 ## 6. Tasks
@@ -190,6 +280,6 @@ After Task 3 (pilot), one of three outcomes:
 
 ## 9. Open questions
 
-1. **Identity rotation for Task 2:** the `--identity` CLI flag (Wave 4 item 3, `cd48e4b`) is available. Pilot uses default rotation across one event; full run should rotate across all 4 events for ≥3-identity coverage. Open: whether to fix the rotation seed for reproducibility or randomize for breadth. Default: fix the seed; document in writeup.
+1. ~~**Identity rotation for Task 2:** the `--identity` CLI flag (Wave 4 item 3, `cd48e4b`) is available. Pilot uses default rotation across one event; full run should rotate across all 4 events for ≥3-identity coverage. Open: whether to fix the rotation seed for reproducibility or randomize for breadth. Default: fix the seed; document in writeup.~~ **Resolved 2026-05-08 by §5.6 pre-registration** — identity-rotation seed is pinned (captured in `RunManifest.reproducibility` per WM1); randomized rotation deferred to a future bench-expansion wave.
 2. **Wave naming:** "Wave 4b" implies continuation of structural-variants iteration, but FA prompt is a different layer. Open: rename to "Wave 6 — FA prompt iteration" if/when this becomes the chosen Wave 4 successor. Cosmetic; defer.
 3. **Production-FA followup:** if the variant ships in the PoC, decide separately whether to lift the same four blocks into `packages/api/src/agents/` (production FA used by the live translation engine, different audience surface). Out of scope for this spec; track as a parking-lot item if the spec ships.
