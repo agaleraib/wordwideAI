@@ -47,3 +47,8 @@ finflow/data/cache/*.csv
 
 # Claude harness session state
 .harness-state/
+
+# Claude Code agent worktrees — transient, recreated on /run-wave, never tracked.
+# Without this, daily auto-snapshots commit them as gitlinks (mode 160000)
+# and break the next /close-wave with stale-submodule status (recurring 2026-04 / -05).
+.claude/worktrees/
