@@ -52,6 +52,7 @@ import {
 } from "../benchmark/uniqueness-poc/tags.js";
 import { classifyTagRisk } from "../benchmark/uniqueness-poc/tags-risk-rules.js";
 import { IDENTITY_REGISTRY } from "../benchmark/uniqueness-poc/prompts/identities/index.js";
+import { buildReproducibility } from "../benchmark/uniqueness-poc/reproducibility.js";
 import {
   persistRun,
   persistSoloRun,
@@ -333,6 +334,10 @@ function startCompareRun(
         createHash("sha256").update(r.definition.systemPrompt).digest("hex").slice(0, 8),
       ]),
     ),
+    // Wave M reproducibility receipt — same shape as CLI runs so dashboard
+    // and CLI runs are baseline-comparable. The dashboard's natural
+    // "fixture" is the composed event object (see buildEvent above).
+    reproducibility: buildReproducibility({ fixtureValue: event }),
   };
 
   const entry: RunEntry = {
