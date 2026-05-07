@@ -539,7 +539,7 @@ export function renderReport(result: RunResult): string {
     // fills it in. Until then, render an explicit placeholder.
     lines.push(`### Inter-rater check (Tier 2, audit §5.5 — WM6 will populate)`);
     lines.push("");
-    const tier2 = (result as RunResult & { tier2?: { agreementRate: number; sampledPairCount: number; judgeUnreliableFlag: boolean } }).tier2;
+    const tier2 = result.tier2;
     if (tier2) {
       const banner = tier2.judgeUnreliableFlag
         ? "🚨 **Wave flagged as judge-unreliable** — agreement rate below 85%, see WM6 §5.5 for protocol."
@@ -550,6 +550,42 @@ export function renderReport(result: RunResult): string {
         `Sampled **${tier2.sampledPairCount}** pairs for position-swap re-judging (20% of cross-tenant pairs, ≥3). Agreement rate on the gate metric: **${(tier2.agreementRate * 100).toFixed(1)}%**.`,
       );
       lines.push("");
+
+      // Per-disagreement detail — surfaces WHY the swapped verdict diverged so
+      // future judge-architecture decisions (audit §7 OQ#1 inter-judge ensemble)
+      // can be attributed to a specific mechanism (anchor-on-A vs asymmetric
+      // hard-rule vs. model self-flip). Only renders when reasoning fields are
+      // present (post-2026-05-07 runs).
+      const disagreements = tier2.pairs.filter(
+        (p) => !p.agree && p.swappedRawVerdict !== undefined,
+      );
+      if (disagreements.length > 0) {
+        lines.push("#### Disagreement detail");
+        lines.push("");
+        for (const p of disagreements) {
+          const flipMechanism =
+            p.swappedHardRuleFired && p.swappedRawVerdict !== p.swappedVerdict
+              ? `swapped hard-rule override fired (model returned \`${p.swappedRawVerdict}\`, override → \`${p.swappedVerdict}\`)`
+              : p.swappedRawVerdict === p.swappedVerdict
+                ? `model self-flipped on swap (raw \`${p.rawVerdict}\` → swapped \`${p.swappedVerdict}\`, no override either side)`
+                : `unclear — see reasoning fields`;
+          lines.push(`**\`${p.pairId}\`** — raw \`${p.rawVerdict}\` → swapped \`${p.swappedVerdict}\` (${flipMechanism}).`);
+          if (p.swappedFactualDivergences && p.swappedFactualDivergences.length > 0) {
+            const kinds = p.swappedFactualDivergences.map((d) => d.kind).join(", ");
+            lines.push(`- Swapped-direction divergences flagged: \`${kinds}\``);
+          }
+          if (p.swappedFactualFidelity !== undefined && p.swappedPresentationSimilarity !== undefined) {
+            lines.push(`- Swapped scores: factualFidelity ${p.swappedFactualFidelity.toFixed(2)}, presentationSimilarity ${p.swappedPresentationSimilarity.toFixed(2)}`);
+          }
+          if (p.swappedFactualFidelityReasoning) {
+            const trimmed = p.swappedFactualFidelityReasoning.length > 280
+              ? p.swappedFactualFidelityReasoning.slice(0, 280) + "…"
+              : p.swappedFactualFidelityReasoning;
+            lines.push(`- Swapped factualFidelity reasoning: ${trimmed}`);
+          }
+          lines.push("");
+        }
+      }
     } else {
       lines.push("*Tier 2 inter-rater check: not run on this run. Once WM6 ships, the runner will sample 20% of cross-tenant pairs (≥3 pairs whichever larger), re-judge with A/B order swapped, and persist the agreement rate to `raw-data.json.tier2`. This section will then render the agreement % and flag wave-unreliable runs (disagreement > 15% on the gate metric).*");
       lines.push("");

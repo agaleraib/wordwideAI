@@ -1388,6 +1388,13 @@ async function runTier2InterRaterSampling(args: {
         swappedVerdict: swappedVerdict.verdict,
         agree: swappedVerdict.verdict === sim.judgeTrinaryVerdict,
         swapCostUsd: swappedVerdict.costUsd,
+        swappedFactualFidelity: swappedVerdict.factualFidelity,
+        swappedFactualFidelityReasoning: swappedVerdict.factualFidelityReasoning,
+        swappedPresentationSimilarity: swappedVerdict.presentationSimilarity,
+        swappedPresentationSimilarityReasoning: swappedVerdict.presentationSimilarityReasoning,
+        swappedFactualDivergences: swappedVerdict.factualDivergences,
+        swappedHardRuleFired: swappedVerdict.hardRuleFired,
+        swappedRawVerdict: swappedVerdict.rawVerdict,
       });
       totalCostUsd += swappedVerdict.costUsd;
     } catch (err) {

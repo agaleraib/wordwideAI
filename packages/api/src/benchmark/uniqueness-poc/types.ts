@@ -528,6 +528,24 @@ export interface Tier2PairRecord {
   agree: boolean;
   /** Cost of the swapped re-judge call (the original was paid by Stage 6). */
   swapCostUsd: number;
+  // ─── Swapped-direction reasoning (optional for back-compat with pre-2026-05-07 raw-data.json) ───
+  // Persisted so disagreements can be diagnosed mechanism-by-mechanism (anchoring on Doc A vs.
+  // asymmetric hard-rule firing vs. verbosity bias etc.). Without this, Tier 2 only tells you
+  // THAT the judge flipped, not WHY. Mirrors the raw-direction fields on `SimilarityResult.judge*`.
+  /** Swapped-direction factualFidelity score returned by the judge. */
+  swappedFactualFidelity?: number;
+  /** Swapped-direction factualFidelityReasoning text returned by the judge. */
+  swappedFactualFidelityReasoning?: string;
+  /** Swapped-direction presentationSimilarity score returned by the judge. */
+  swappedPresentationSimilarity?: number;
+  /** Swapped-direction presentationSimilarityReasoning text returned by the judge. */
+  swappedPresentationSimilarityReasoning?: string;
+  /** Swapped-direction factualDivergences[] returned by the judge. */
+  swappedFactualDivergences?: FactualDivergenceRecord[];
+  /** True iff the swapped-direction hard-rule override fired. */
+  swappedHardRuleFired?: boolean;
+  /** Swapped-direction model verdict BEFORE the hard-rule override. */
+  swappedRawVerdict?: TrinaryUniquenessVerdict;
 }
 
 /**
