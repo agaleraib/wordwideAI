@@ -365,6 +365,7 @@ function buildPairwiseMatrix(embedded: OutputWithEmbedding[]): SimilarityResult[
 async function judgeBorderlinePairs(
   similarities: SimilarityResult[],
   outputs: IdentityOutput[],
+  coreAnalysisBody: string,
 ): Promise<JudgeFailureRecord[]> {
   const failures: JudgeFailureRecord[] = [];
   // Intra-tenant cross-identity matrix: keep the borderline gate since it's
@@ -391,6 +392,7 @@ async function judgeBorderlinePairs(
         identityB: outB.identityName,
         contentA: outA.body,
         contentB: outB.body,
+        faCoreAnalysis: coreAnalysisBody,
         cosineSimilarity: sim.cosineSimilarity,
         rougeL: sim.rougeL,
       });
@@ -723,6 +725,7 @@ async function runCrossTenantMatrix(
         identityB: `${registered.definition.name} for ${sim.identityB}`,
         contentA: outA.body,
         contentB: outB.body,
+        faCoreAnalysis: coreAnalysisBody,
         cosineSimilarity: sim.cosineSimilarity,
         rougeL: sim.rougeL,
       });
@@ -803,6 +806,7 @@ async function buildCrossTenantMatrixFromOutputs(
   identityName: string,
   personas: ContentPersona[],
   outputs: IdentityOutput[],
+  coreAnalysisBody: string,
 ): Promise<{
   similarities: SimilarityResult[];
   meanCosine: number;
@@ -847,6 +851,7 @@ async function buildCrossTenantMatrixFromOutputs(
         identityB: `${identityName} for ${sim.identityB}`,
         contentA: outA.body,
         contentB: outB.body,
+        faCoreAnalysis: coreAnalysisBody,
         cosineSimilarity: sim.cosineSimilarity,
         rougeL: sim.rougeL,
       });
@@ -1061,11 +1066,13 @@ async function runNarrativeStateTest(args: {
     registered.definition.name,
     args.personas,
     controlOutputs,
+    secondCoreAnalysis.body,
   );
   const treatmentMatrix = await buildCrossTenantMatrixFromOutputs(
     registered.definition.name,
     args.personas,
     treatmentOutputs,
+    secondCoreAnalysis.body,
   );
 
   console.log(`[runner]     ✓ CONTROL  : cosine mean=${controlMatrix.meanCosine.toFixed(4)}, rougeL mean=${controlMatrix.meanRougeL.toFixed(4)}`);
@@ -1324,6 +1331,7 @@ async function runTier2InterRaterSampling(args: {
   runId: string;
   matrix: CrossTenantMatrixResult;
   contentByPersonaId: Map<string, string>;
+  coreAnalysisBody: string;
 }): Promise<Tier2InterRaterResult | null> {
   const allPairs = args.matrix.similarities.filter((s) => s.judgeTrinaryVerdict);
   const totalCrossTenantPairs = allPairs.length;
@@ -1378,6 +1386,7 @@ async function runTier2InterRaterSampling(args: {
         identityB: sim.identityB,
         contentA,
         contentB,
+        faCoreAnalysis: args.coreAnalysisBody,
         cosineSimilarity: sim.cosineSimilarity,
         rougeL: sim.rougeL,
         swapOrder: true,
@@ -1497,7 +1506,7 @@ export async function runUniquenessPoc(
   ).length;
   if (borderlineCount > 0) {
     console.log(`[runner] Stage 3.5 — running LLM judge on ${borderlineCount} borderline/fail pair(s) (Haiku)...`);
-    intraTenantJudgeFailures = await judgeBorderlinePairs(similarities, identityOutputs);
+    intraTenantJudgeFailures = await judgeBorderlinePairs(similarities, identityOutputs, coreAnalysis.body);
     for (const s of similarities.filter((s) => s.judgeTrinaryVerdict)) {
       const fidelity = (s.judgeFactualFidelity ?? 0).toFixed(2);
       const presentation = (s.judgePresentationSimilarity ?? 0).toFixed(2);
@@ -1611,6 +1620,7 @@ export async function runUniquenessPoc(
           runId,
           matrix: crossTenantMatrix,
           contentByPersonaId,
+          coreAnalysisBody: coreAnalysis.body,
         });
         if (tier2) {
           (crossTenantMatrix as CrossTenantMatrixResult & {

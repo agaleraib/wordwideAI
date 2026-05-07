@@ -263,8 +263,27 @@ export interface FactualDivergenceRecord {
     | "transmission_chain_set"
     | "conclusion"
     | "other";
+  /**
+   * Source attribution per judge prompt v2 (2026-05-07). Hard rule fires
+   * only on `fabrication_a | fabrication_b | disagreement`; `omits_a` and
+   * `omits_b` are legitimate persona filtering. Optional for compatibility
+   * with prior-version raw-data.json files; new runs always populate it.
+   */
+  divergence_type?:
+    | "fabrication_a"
+    | "fabrication_b"
+    | "disagreement"
+    | "omits_a"
+    | "omits_b";
   docA: string;
   docB: string;
+  /**
+   * Verbatim or near-verbatim quote from the FA Core analysis showing what
+   * the source says about the divergent fact. "(absent from FA Core)" when
+   * `divergence_type` is `fabrication_a` or `fabrication_b`. Optional for
+   * compatibility with v1 raw-data.json files.
+   */
+  faCoreSays?: string;
 }
 
 export type TrinaryUniquenessVerdict =
