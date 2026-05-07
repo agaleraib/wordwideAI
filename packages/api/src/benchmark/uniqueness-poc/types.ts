@@ -55,6 +55,49 @@ export const RunManifestSchema = z.object({
   sequenceStepCount: z.number().nullable(),
   /** Short hash (first 8 chars of SHA-256) of each identity's system prompt at run time. */
   promptHashes: z.record(z.string(), z.string()).nullable(),
+  /**
+   * Reproducibility receipt — Wave M (audit §5.1, §4.1.4 Tier 1).
+   *
+   * Captures the full set of inputs that determine a run's output so future
+   * waves can detect drift between the historical baseline and a fresh
+   * re-execution under the current run's configuration.
+   *
+   * Optional for backward compatibility: existing `raw-data.json` files written
+   * before Wave M ship without this block; consumers should treat absence as
+   * "pre-Wave-M" (no receipt available) rather than as a hard error.
+   *
+   * - `models`: pinned model identifiers per call site (resolved at call time)
+   * - `promptVersions`: judge prompt has a hand-bumped semver; FA / identities /
+   *   conformance carry full SHA-256 hashes of their system prompts; the legacy
+   *   8-char `promptHashes` field above continues to render for backward compat
+   * - `fixtureHash`: SHA-256 of the JSON-stringified, key-sorted fixture object
+   *   (canonical-form digest — robust to whitespace / formatting differences)
+   * - `packageHash`: SHA-256 of the lockfile bytes (`bun.lockb` / `bun.lock` /
+   *   `package-lock.json` / `pnpm-lock.yaml`); `null` if no lockfile resolves
+   * - `temperatureOverrides`: any non-default temperature applied at call sites
+   *   keyed by call-site label (e.g. `{ judge: 0.0 }`); empty object when none
+   */
+  reproducibility: z
+    .object({
+      models: z.object({
+        fa: z.string(),
+        identity: z.string(),
+        judge: z.string(),
+        embedding: z.string(),
+        conformance: z.string(),
+      }),
+      promptVersions: z.object({
+        judge: z.string(),
+        judgeHash: z.string(),
+        fa: z.string(),
+        identities: z.record(z.string(), z.string()),
+        conformance: z.string().nullable(),
+      }),
+      fixtureHash: z.string(),
+      packageHash: z.string().nullable(),
+      temperatureOverrides: z.record(z.string(), z.number()),
+    })
+    .optional(),
 });
 
 export type RunManifest = z.infer<typeof RunManifestSchema>;
@@ -249,6 +292,20 @@ export interface SimilarityResult {
   judgePresentationSimilarity?: number;
   judgePresentationSimilarityReasoning?: string;
   judgeTrinaryVerdict?: TrinaryUniquenessVerdict;
+  /**
+   * The judge model's own returned verdict BEFORE the `HARD_RULE_KINDS`
+   * override (see llm-judge.ts). Persisted on the SimilarityResult so the
+   * Wave M two-column verdict surface (judge raw vs post-override) on
+   * report.md can render without re-calling the judge. Optional for
+   * backward compatibility with raw-data.json files written before WM5.
+   */
+  judgeRawVerdict?: TrinaryUniquenessVerdict;
+  /**
+   * True when the hard-rule override fired and flipped the verdict to
+   * `fabrication_risk`. Surfaced on the two-column report row so readers
+   * see at a glance how often the override mattered. Optional; WM5 onward.
+   */
+  judgeHardRuleFired?: boolean;
   judgeCostUsd?: number;
 
   /**
@@ -455,6 +512,46 @@ export interface ConformanceDetail {
   preConformanceBody?: string;
 }
 
+/**
+ * One sampled pair's Tier 2 inter-rater record (WM6, audit §4.3.4 Tier 2 /
+ * §5.5). Both verdicts are pre-override / post-override pairs; agreement is
+ * computed on the post-override gate verdict because that's what the
+ * pipeline actually consumes.
+ */
+export interface Tier2PairRecord {
+  pairId: string;
+  /** Original-order verdict (post-override, the pipeline-consumed one). */
+  rawVerdict: TrinaryUniquenessVerdict;
+  /** Swapped-order verdict (post-override). */
+  swappedVerdict: TrinaryUniquenessVerdict;
+  /** True iff the two verdicts match — feeds the agreement rate. */
+  agree: boolean;
+  /** Cost of the swapped re-judge call (the original was paid by Stage 6). */
+  swapCostUsd: number;
+}
+
+/**
+ * Tier 2 (WM6) — judge-reliability sampling. Per audit §4.3.4 Tier 2 / §5.5,
+ * 20% of cross-tenant pairs (≥3 whichever larger) are re-judged with A/B
+ * order swapped. If disagreement on the gate metric exceeds 15%, the wave
+ * is flagged as judge-unreliable. The flag is informational — it does NOT
+ * short-circuit the run or change the cross-tenant verdict.
+ */
+export interface Tier2InterRaterResult {
+  /** Per-pair records. */
+  pairs: Tier2PairRecord[];
+  /** Number of pairs sampled (= pairs.length, surfaced for ergonomics). */
+  sampledPairCount: number;
+  /** Total cross-tenant pair count from which the sample was drawn. */
+  totalCrossTenantPairs: number;
+  /** Fraction of sampled pairs whose raw and swapped verdicts agree. */
+  agreementRate: number;
+  /** True when (1 − agreementRate) > 0.15. */
+  judgeUnreliableFlag: boolean;
+  /** Total cost of the Tier 2 swapped re-judge calls. */
+  totalCostUsd: number;
+}
+
 export interface RunResult {
   runId: string;
   startedAt: string;
@@ -485,6 +582,13 @@ export interface RunResult {
    * with caution.
    */
   judgeFailures: JudgeFailureRecord[];
+  /**
+   * Tier 2 inter-rater check (WM6, audit §4.3.4 Tier 2 / §5.5). Optional —
+   * present only when the cross-tenant matrix ran AND the runner sampled
+   * 20% of pairs for position-swap re-judging. Renders into the inter-rater
+   * section of report.md and the writeup template's `{{TIER2_INTER_RATER_BLOCK}}`.
+   */
+  tier2?: Tier2InterRaterResult;
 }
 
 /**

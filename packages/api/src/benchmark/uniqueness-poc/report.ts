@@ -132,6 +132,61 @@ The similarity matrix at the end gives you the numerical bar. The thresholds are
 `;
 }
 
+/**
+ * Render the Wave M reproducibility receipt as a fenced YAML block (audit
+ * §5.1, §4.1.4 Tier 1, §4.3.4 Tier 1). Surfaces the keystone inputs that
+ * determine a run's output so historical and freshly-rerun baselines can be
+ * compared field-by-field. Returns "" when the receipt is absent (pre-Wave-M
+ * runs, dashboard runs that haven't been migrated yet).
+ *
+ * Rendered above the verdict and similarity matrix per WM5: receipt → matrix
+ * → two-column verdicts → reserved inter-rater section.
+ */
+function reproducibilityReceiptBlock(result: RunResult): string {
+  const r = result.manifest.reproducibility;
+  if (!r) return "";
+
+  const lines: string[] = [];
+  lines.push("## Reproducibility receipt");
+  lines.push("");
+  lines.push(
+    "*Captures every input that determines this run's output. Audit §5.1: pinned models, prompt versions (semver + SHA-256), fixture content hash, package version hash, temperature overrides. Used by the two-baseline rule to detect drift between historical and freshly-rerun baselines.*",
+  );
+  lines.push("");
+  lines.push("```yaml");
+  lines.push("models:");
+  lines.push(`  fa: ${r.models.fa}`);
+  lines.push(`  identity: ${r.models.identity}`);
+  lines.push(`  judge: ${r.models.judge}`);
+  lines.push(`  embedding: ${r.models.embedding}`);
+  lines.push(`  conformance: ${r.models.conformance}`);
+  lines.push("promptVersions:");
+  lines.push(`  judge: ${r.promptVersions.judge}`);
+  lines.push(`  judgeHash: ${r.promptVersions.judgeHash}`);
+  lines.push(`  fa: ${r.promptVersions.fa}`);
+  lines.push(`  conformance: ${r.promptVersions.conformance ?? "null"}`);
+  lines.push("  identities:");
+  for (const [id, hash] of Object.entries(r.promptVersions.identities)) {
+    lines.push(`    ${id}: ${hash}`);
+  }
+  lines.push(`fixtureHash: ${r.fixtureHash}`);
+  lines.push(`packageHash: ${r.packageHash ?? "null"}`);
+  const overrideKeys = Object.keys(r.temperatureOverrides);
+  if (overrideKeys.length === 0) {
+    lines.push("temperatureOverrides: {}");
+  } else {
+    lines.push("temperatureOverrides:");
+    for (const key of overrideKeys) {
+      lines.push(`  ${key}: ${r.temperatureOverrides[key]}`);
+    }
+  }
+  lines.push("```");
+  lines.push("");
+  lines.push("---");
+  lines.push("");
+  return lines.join("\n");
+}
+
 export function renderReport(result: RunResult): string {
   const { event, coreAnalysis, identityOutputs, similarities } = result;
 
@@ -146,6 +201,14 @@ export function renderReport(result: RunResult): string {
   lines.push(`**Total duration:** ${(result.totalDurationMs / 1000).toFixed(1)}s`);
   lines.push(`**Total cost:** ${formatUsd(result.totalCostUsd)}`);
   lines.push("");
+
+  // ───────── Reproducibility receipt (Wave M, audit §5.1) ─────────
+  // Rendered above the verdict + matrix so the methodology surface is the
+  // first thing a reader sees. Emits nothing on pre-Wave-M runs.
+  const receiptBlock = reproducibilityReceiptBlock(result);
+  if (receiptBlock) {
+    lines.push(receiptBlock);
+  }
 
   // ───────── Setup ─────────
   const m = result.manifest;
@@ -414,6 +477,83 @@ export function renderReport(result: RunResult): string {
     lines.push("");
     lines.push(ct.verdictReasoning);
     lines.push("");
+
+    // ───── WM5: Two-column verdict (judge raw vs post-override) ─────
+    // Per audit §4.3.4 Tier 1: every wave reports verdicts in two columns
+    // so readers see how often the HARD_RULE override is firing. The
+    // raw-data.json already carries `judgeRawVerdict` + `judgeHardRuleFired`
+    // (WM5) — older runs without those fields render "—" gracefully.
+    const hasRawVerdicts = ct.similarities.some((s) => s.judgeRawVerdict !== undefined);
+    if (hasRawVerdicts) {
+      lines.push(`### Judge raw vs post-override verdicts (WM5, audit §4.3.4 Tier 1)`);
+      lines.push("");
+      lines.push(
+        "*Two columns surface how often the hard-rule override (in `llm-judge.ts`) is flipping the model's own verdict to `fabrication_risk`. A high override rate suggests Haiku is missing fact-divergences the rubric forces; a low rate means the model and code agree.*",
+      );
+      lines.push("");
+
+      const rawCounts: Record<string, number> = {
+        distinct_products: 0,
+        reskinned_same_article: 0,
+        fabrication_risk: 0,
+      };
+      const overrideCounts: Record<string, number> = {
+        distinct_products: 0,
+        reskinned_same_article: 0,
+        fabrication_risk: 0,
+      };
+      let overrideFirings = 0;
+      for (const sim of ct.similarities) {
+        if (sim.judgeRawVerdict) {
+          rawCounts[sim.judgeRawVerdict] = (rawCounts[sim.judgeRawVerdict] ?? 0) + 1;
+        }
+        if (sim.judgeTrinaryVerdict) {
+          overrideCounts[sim.judgeTrinaryVerdict] =
+            (overrideCounts[sim.judgeTrinaryVerdict] ?? 0) + 1;
+        }
+        if (sim.judgeHardRuleFired) overrideFirings += 1;
+      }
+
+      lines.push("| Verdict | Judge raw | Post-override |");
+      lines.push("|---|---:|---:|");
+      lines.push(
+        `| distinct_products | ${rawCounts["distinct_products"] ?? 0} | ${overrideCounts["distinct_products"] ?? 0} |`,
+      );
+      lines.push(
+        `| reskinned_same_article | ${rawCounts["reskinned_same_article"] ?? 0} | ${overrideCounts["reskinned_same_article"] ?? 0} |`,
+      );
+      lines.push(
+        `| fabrication_risk | ${rawCounts["fabrication_risk"] ?? 0} | ${overrideCounts["fabrication_risk"] ?? 0} |`,
+      );
+      lines.push("");
+      lines.push(
+        `**Hard-rule override fired on ${overrideFirings} / ${ct.similarities.length} pairs** (${ct.similarities.length > 0 ? ((100 * overrideFirings) / ct.similarities.length).toFixed(0) : "—"}%).`,
+      );
+      lines.push("");
+    }
+
+    // ───── WM5: Reserved inter-rater section (filled by WM6) ─────
+    // The Tier 2 inter-rater check (audit §5.5) populates `result.tier2`
+    // when the runner samples 20% of pairs and re-judges with A/B order
+    // swapped. WM5 reserves the section so the surface is stable; WM6
+    // fills it in. Until then, render an explicit placeholder.
+    lines.push(`### Inter-rater check (Tier 2, audit §5.5 — WM6 will populate)`);
+    lines.push("");
+    const tier2 = (result as RunResult & { tier2?: { agreementRate: number; sampledPairCount: number; judgeUnreliableFlag: boolean } }).tier2;
+    if (tier2) {
+      const banner = tier2.judgeUnreliableFlag
+        ? "🚨 **Wave flagged as judge-unreliable** — agreement rate below 85%, see WM6 §5.5 for protocol."
+        : "✅ Judge agreement above 85% — inter-rater reliability acceptable.";
+      lines.push(banner);
+      lines.push("");
+      lines.push(
+        `Sampled **${tier2.sampledPairCount}** pairs for position-swap re-judging (20% of cross-tenant pairs, ≥3). Agreement rate on the gate metric: **${(tier2.agreementRate * 100).toFixed(1)}%**.`,
+      );
+      lines.push("");
+    } else {
+      lines.push("*Tier 2 inter-rater check: not run on this run. Once WM6 ships, the runner will sample 20% of cross-tenant pairs (≥3 pairs whichever larger), re-judge with A/B order swapped, and persist the agreement rate to `raw-data.json.tier2`. This section will then render the agreement % and flag wave-unreliable runs (disagreement > 15% on the gate metric).*");
+      lines.push("");
+    }
   }
 
   // ───────── Stage 7: temporal narrative continuity ─────────

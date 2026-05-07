@@ -57,10 +57,23 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { computeCostUsd } from "./pricing.js";
 
-const JUDGE_MODEL = "claude-haiku-4-5-20251001";
+export const JUDGE_MODEL = "claude-haiku-4-5-20251001";
+
+/**
+ * Hand-bumped semver for the judge rubric. Increment on any rubric edit
+ * (system prompt or tool schema description) so historical and freshly-rerun
+ * baselines can be told apart even when the bytes drift inside the same
+ * conceptual version. Wave M (2026-05-06) is the first version captured —
+ * no prior versioning history existed in the repo before this point.
+ *
+ * Surfaced through `RunManifest.reproducibility.promptVersions.judge` (audit
+ * §4.3.4 Tier 1, §5.1).
+ */
+export const JUDGE_PROMPT_VERSION = "v1-2026-05-06";
 
 // ───────────────────────────────────────────────────────────────────
 // Zod schema for the judge tool response
@@ -259,6 +272,21 @@ const JUDGE_TOOL = {
   },
 };
 
+/**
+ * Full SHA-256 hash of the judge system prompt + tool schema description.
+ * Captured alongside `JUDGE_PROMPT_VERSION` in the reproducibility receipt so
+ * we can detect rubric drift even when the semver wasn't bumped (audit §5.1).
+ *
+ * Hex-encoded, full 64-char digest — distinct from the legacy 8-char
+ * `promptHashes` shown on the `Setup` block. The full hash is the canonical
+ * audit input; the 8-char form is a render convenience.
+ */
+export const JUDGE_SYSTEM_PROMPT_HASH = createHash("sha256")
+  .update(JUDGE_SYSTEM_PROMPT)
+  .update("\n---\n")
+  .update(JUDGE_TOOL.description)
+  .digest("hex");
+
 export type FactualDivergence = z.infer<typeof FactualDivergenceSchema>;
 
 export type TrinaryVerdict = (typeof TRINARY_VERDICTS)[number];
@@ -269,7 +297,26 @@ export interface JudgeVerdict {
   factualDivergences: FactualDivergence[];
   presentationSimilarity: number;
   presentationSimilarityReasoning: string;
+  /**
+   * Final verdict surfaced to the rest of the pipeline. Identical to
+   * `rawVerdict` UNLESS the HARD_RULE_KINDS check forced a downgrade to
+   * `fabrication_risk` — see the HARD_RULE comment above the
+   * `HARD_RULE_KINDS` set for the rationale.
+   */
   verdict: TrinaryVerdict;
+  /**
+   * The judge model's own returned verdict, BEFORE the
+   * `HARD_RULE_KINDS` override. Surfaced in two-column form on `report.md`
+   * (audit §4.3.4 Tier 1 / WM5) so readers can see how often the override
+   * is firing. Equal to `verdict` when the override didn't fire.
+   */
+  rawVerdict: TrinaryVerdict;
+  /**
+   * True when the hard-rule override flipped the verdict to
+   * `fabrication_risk`. Useful for the WM5 inter-rater section + future
+   * judge-reliability dashboards.
+   */
+  hardRuleFired: boolean;
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
@@ -292,23 +339,44 @@ export async function judgePairUniqueness(args: {
   cosineSimilarity: number;
   /** ROUGE-L F1, informational only. */
   rougeL: number;
+  /**
+   * Swap A and B in the user message before sending. Used by the WM6 Tier 2
+   * inter-rater check to test whether the judge's verdict is order-dependent
+   * (audit §4.3.4 Tier 2 / §5.5). The returned verdict is computed against
+   * the ORIGINAL caller's A/B labelling — i.e. when `swapOrder: true`, the
+   * caller still sees `verdict` as if A and B were unchanged. The agreement
+   * % is computed by comparing two independent calls (one normal, one
+   * swapped) on the same pair.
+   *
+   * Note: trinary verdicts are symmetric in A↔B (distinct_products vs
+   * reskinned_same_article vs fabrication_risk are statements about the
+   * pair, not about a direction). So no relabelling of the verdict is
+   * needed — only the prompt order is swapped to probe model robustness.
+   */
+  swapOrder?: boolean;
 }): Promise<JudgeVerdict> {
   const client = getClient();
+
+  // Either the caller's order or A/B swapped per WM6.
+  const promptA = args.swapOrder ? args.contentB : args.contentA;
+  const promptB = args.swapOrder ? args.contentA : args.contentB;
+  const labelA = args.swapOrder ? args.identityB : args.identityA;
+  const labelB = args.swapOrder ? args.identityA : args.identityB;
 
   const userMessage = `Pair under review.
 
 Both documents were written from the SAME underlying FA/TA source analysis, for two different brokers. Apply the two-axis rubric.
 
-# Document A — ${args.identityA}
+# Document A — ${labelA}
 
 \`\`\`
-${args.contentA}
+${promptA}
 \`\`\`
 
-# Document B — ${args.identityB}
+# Document B — ${labelB}
 
 \`\`\`
-${args.contentB}
+${promptB}
 \`\`\`
 
 # Measured similarity (informational only, do not defer to it)
@@ -392,6 +460,8 @@ Submit your verdict via the submit_uniqueness_verdict tool.`;
         presentationSimilarity: parsed.presentationSimilarity,
         presentationSimilarityReasoning: parsed.presentationSimilarityReasoning,
         verdict,
+        rawVerdict: parsed.verdict,
+        hardRuleFired,
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
         costUsd: computeCostUsd(

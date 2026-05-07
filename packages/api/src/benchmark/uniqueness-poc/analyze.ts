@@ -10,7 +10,8 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type {
   RunResult,
@@ -20,6 +21,12 @@ import type {
   CrossTenantMatrixResult,
 } from "./types.js";
 import { UNIQUENESS_THRESHOLDS } from "./types.js";
+import {
+  type BootstrapCiResult,
+  type EventBlock,
+  stratifiedClusteredBootstrapCi,
+  pairedStratifiedBootstrap,
+} from "./statistics.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -496,6 +503,286 @@ function renderSingleRunAnalysis(result: RunResult): string {
   return sections.join("\n");
 }
 
+// ─── WM3 Writeup Renderer (Wave M, audit §5.4 + §6 + §4.10.4) ──
+
+/**
+ * Locate the wave-writeup template file. Walks up from this module looking
+ * for `docs/uniqueness-poc-analysis/_template.md`. Returns `null` when the
+ * template can't be found (the writeup mode then bails with a clear error).
+ */
+function locateWriteupTemplate(): string | null {
+  const here = dirname(fileURLToPath(import.meta.url));
+  let dir = here;
+  for (let i = 0; i < 8; i++) {
+    const candidate = join(dir, "docs", "uniqueness-poc-analysis", "_template.md");
+    if (existsSync(candidate)) return candidate;
+    const parent = resolve(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+/**
+ * Build per-event cell blocks from a run's cross-tenant similarity matrix.
+ * Each "event" is the run itself — a single-event run produces one block, so
+ * the bootstrap will (correctly) refuse to run inferentially and the
+ * `descriptiveOnly` flag will fire. The same builder is used by the
+ * two-baseline block when historical and freshly-rerun runs are paired.
+ *
+ * Cell shape is the SimilarityResult — the statistic functions in the
+ * writeup pull `cosineSimilarity` / `judgeFactualFidelity` /
+ * `judgeTrinaryVerdict` directly off it.
+ */
+function buildEventBlocks(result: RunResult): EventBlock<SimilarityResult>[] {
+  const cells = result.crossTenantMatrix?.similarities ?? [];
+  // Use eventId from the run's event field. A single run is one event.
+  return [{ eventId: result.event.id, cells }];
+}
+
+/** Mean cosine across cells in an event. */
+function statCosineMean(cells: SimilarityResult[]): number {
+  if (cells.length === 0) return 0;
+  return cells.reduce((acc, c) => acc + c.cosineSimilarity, 0) / cells.length;
+}
+
+/** Count of `fabrication_risk` verdicts in an event. */
+function statFabricationCount(cells: SimilarityResult[]): number {
+  return cells.filter((c) => c.judgeTrinaryVerdict === "fabrication_risk").length;
+}
+
+/** Count of `distinct_products` verdicts (the SHIP-grade outcome) in an event. */
+function statDistinctCount(cells: SimilarityResult[]): number {
+  return cells.filter((c) => c.judgeTrinaryVerdict === "distinct_products").length;
+}
+
+/** Count of `reskinned_same_article` verdicts in an event. */
+function statReskinnedCount(cells: SimilarityResult[]): number {
+  return cells.filter((c) => c.judgeTrinaryVerdict === "reskinned_same_article").length;
+}
+
+function fmtCi(result: BootstrapCiResult, decimals = 4): string {
+  const lo = result.ci[0].toFixed(decimals);
+  const hi = result.ci[1].toFixed(decimals);
+  return `[${lo}, ${hi}]`;
+}
+
+function fmtNEvents(result: BootstrapCiResult): string {
+  return `${result.nClusters}${result.descriptiveOnly ? " (descriptive only)" : ""}`;
+}
+
+function renderReproducibilityReceiptForTemplate(r: RunResult): string {
+  const repro = r.manifest.reproducibility;
+  if (!repro) {
+    return "*(none — this run was produced before the WM1 reproducibility receipt was added; re-run under the current code to populate.)*";
+  }
+  const lines: string[] = [];
+  lines.push("```yaml");
+  lines.push("models:");
+  lines.push(`  fa: ${repro.models.fa}`);
+  lines.push(`  identity: ${repro.models.identity}`);
+  lines.push(`  judge: ${repro.models.judge}`);
+  lines.push(`  embedding: ${repro.models.embedding}`);
+  lines.push(`  conformance: ${repro.models.conformance}`);
+  lines.push("promptVersions:");
+  lines.push(`  judge: ${repro.promptVersions.judge}`);
+  lines.push(`  judgeHash: ${repro.promptVersions.judgeHash}`);
+  lines.push(`  fa: ${repro.promptVersions.fa}`);
+  lines.push(`  conformance: ${repro.promptVersions.conformance ?? "null"}`);
+  lines.push(`fixtureHash: ${repro.fixtureHash}`);
+  lines.push(`packageHash: ${repro.packageHash ?? "null"}`);
+  const overrideKeys = Object.keys(repro.temperatureOverrides);
+  if (overrideKeys.length === 0) {
+    lines.push("temperatureOverrides: {}");
+  } else {
+    lines.push("temperatureOverrides:");
+    for (const key of overrideKeys) {
+      lines.push(`  ${key}: ${repro.temperatureOverrides[key]}`);
+    }
+  }
+  lines.push("```");
+  return lines.join("\n");
+}
+
+interface WriteupOpts {
+  /** Primary run directory whose `raw-data.json` drives the writeup. */
+  runDir: string;
+  /** Optional historical baseline run directory (most recent prior wave). */
+  historicalDir?: string;
+  /**
+   * Optional freshly-rerun baseline directory — the prior variant re-executed
+   * under the current reproducibility receipt. When both `historical` and
+   * `fresh-rerun` are supplied, the two-baseline block is fully populated;
+   * otherwise the block surfaces the "two-baseline rule waived" caveat.
+   */
+  freshRerunDir?: string;
+}
+
+/**
+ * Auto-fill the wave-writeup template (audit §6 checklist) using:
+ *
+ *   - Run's `raw-data.json`         → OEC + secondary metrics + receipt
+ *   - WM2 statistics primitives     → stratified-clustered-bootstrap CIs
+ *   - Optional historical / fresh-rerun runs → two-baseline block
+ *
+ * The writeup is a stub on a single-event run (N_events = 1 → descriptive
+ * only) — this is the audit's intended behaviour, not a bug. Multi-event
+ * waves will populate properly once the wave executes ≥3 events on a fixed
+ * bench.
+ */
+function renderWriteup(result: RunResult, opts: WriteupOpts): string {
+  const templatePath = locateWriteupTemplate();
+  if (!templatePath) {
+    throw new Error(
+      "renderWriteup: docs/uniqueness-poc-analysis/_template.md not found by walking up from analyze.ts",
+    );
+  }
+  let template = readFileSync(templatePath, "utf-8");
+
+  // ───── OEC: fabrication_risk count per audit §4.10.4 example ─────
+  const eventBlocks = buildEventBlocks(result);
+  const oecResult = stratifiedClusteredBootstrapCi({
+    eventBlocks,
+    statistic: statFabricationCount,
+    estimand: "Mean fabrication_risk count per event across the bench",
+    iters: 10_000,
+    seed: 42,
+  });
+
+  // ───── Secondary metrics ─────
+  const distinctResult = stratifiedClusteredBootstrapCi({
+    eventBlocks,
+    statistic: statDistinctCount,
+    estimand: "Mean distinct_products count per event across the bench",
+    iters: 10_000,
+    seed: 42,
+  });
+  const reskinnedResult = stratifiedClusteredBootstrapCi({
+    eventBlocks,
+    statistic: statReskinnedCount,
+    estimand: "Mean reskinned_same_article count per event across the bench",
+    iters: 10_000,
+    seed: 42,
+  });
+  const cosineResult = stratifiedClusteredBootstrapCi({
+    eventBlocks,
+    statistic: statCosineMean,
+    estimand: "Mean cosine similarity per event across the bench",
+    iters: 10_000,
+    seed: 42,
+  });
+
+  const secondaryRows: string[] = [];
+  secondaryRows.push(
+    `| distinct_products | ${distinctResult.pointEstimate.toFixed(2)} | ${fmtCi(distinctResult, 2)} | ${fmtNEvents(distinctResult)} | ${distinctResult.estimand} | Must not regress > 1 with CI clearance |`,
+  );
+  secondaryRows.push(
+    `| reskinned_same_article | ${reskinnedResult.pointEstimate.toFixed(2)} | ${fmtCi(reskinnedResult, 2)} | ${fmtNEvents(reskinnedResult)} | ${reskinnedResult.estimand} | Must not regress > 1 with CI clearance |`,
+  );
+  secondaryRows.push(
+    `| cross_tenant_cosine | ${cosineResult.pointEstimate.toFixed(4)} | ${fmtCi(cosineResult, 4)} | ${fmtNEvents(cosineResult)} | ${cosineResult.estimand} | Lower is more uniqueness — diagnostic |`,
+  );
+
+  // ───── Pre-registration ─────
+  // Pre-registration is sourced from the wave spec, not raw-data.json. The
+  // template substitutes a stub when the caller didn't supply --pre-reg-yaml.
+  // Surfacing the stub explicitly is the audit's "no missing pre-reg slips"
+  // rule — readers should never wonder whether the spec carried the block.
+  const preRegStub = `# (No pre-registration block was supplied via --pre-reg-yaml.\n#  Per audit §6, the wave's verdict is NOT decision-grade until\n#  the spec's §5.3 / §4.10.4 block is pinned and re-rendered.)`;
+
+  // ───── Two-baseline block ─────
+  let twoBaselineBlock: string;
+  if (!opts.historicalDir && !opts.freshRerunDir) {
+    twoBaselineBlock = "*(single-baseline run; two-baseline rule waived — surface as a limitation in the spec writeup.)*";
+  } else if (opts.historicalDir && !opts.freshRerunDir) {
+    const histResult = loadRunResult(opts.historicalDir);
+    twoBaselineBlock = [
+      "**Historical baseline only (freshly-rerun baseline waived):**",
+      "",
+      `- **Historical run id:** \`${histResult.runId}\` (event: ${histResult.event.id})`,
+      `- **Historical OEC point estimate:** ${statFabricationCount(histResult.crossTenantMatrix?.similarities ?? [])} fabrication_risk pairs`,
+      "",
+      "*(Per audit §4.4.4: without the freshly-rerun baseline, the wave cannot separate \"variant moved things\" from \"model/prompt drift moved things.\" Add a freshly-rerun run before treating the verdict as actionable.)*",
+    ].join("\n");
+  } else if (opts.historicalDir && opts.freshRerunDir) {
+    const histResult = loadRunResult(opts.historicalDir);
+    const freshResult = loadRunResult(opts.freshRerunDir);
+    const histBlocks = buildEventBlocks(histResult);
+    const freshBlocks = buildEventBlocks(freshResult);
+    const driftCi = pairedStratifiedBootstrap({
+      controlBlocks: histBlocks,
+      treatmentBlocks: freshBlocks,
+      statistic: statFabricationCount,
+      estimand:
+        "Drift in OEC (fabrication_risk count) between historical baseline and freshly-rerun baseline",
+      iters: 10_000,
+      seed: 42,
+    });
+    twoBaselineBlock = [
+      `**Historical run:** \`${histResult.runId}\` (event: ${histResult.event.id})`,
+      `**Freshly-rerun:** \`${freshResult.runId}\` (event: ${freshResult.event.id})`,
+      "",
+      `**Drift on OEC (fresh − historical):** ${driftCi.pointEstimate.toFixed(2)}, 95% CI ${fmtCi(driftCi, 2)} (N_events = ${driftCi.nClusters}${driftCi.descriptiveOnly ? ", descriptive only" : ""})`,
+      "",
+      "*If the drift CI does NOT cross zero, the variant's apparent effect is contaminated by model/prompt drift — debug before evaluating the variant per audit §4.4.4.*",
+    ].join("\n");
+  } else {
+    // Only freshRerunDir was supplied (no historical) — degraded mode
+    twoBaselineBlock = "*(only `--fresh-rerun` was supplied without `--historical`; cannot compute drift. Supply both or neither.)*";
+  }
+
+  // ───── Tier 2 inter-rater (filled when WM6 lands; placeholder for now) ─────
+  const tier2Block = "*(WM6 inter-rater check not yet present in this run's `raw-data.json.tier2`; placeholder rendered until WM6 ships.)*";
+
+  // ───── Effect sizes (placeholder — needs control vs treatment runs) ─────
+  const effectSizesBlock =
+    "*(no control vs treatment arms supplied to `analyze.ts --writeup`; surface effect sizes after running the variant against a freshly-rerun baseline and aligning event sets.)*";
+
+  // ───── Verdict ─────
+  const oecPoint = oecResult.pointEstimate;
+  let verdict: string;
+  let verdictJustification: string;
+  if (oecResult.descriptiveOnly) {
+    verdict = "DESCRIPTIVE-ONLY (no decision)";
+    verdictJustification = `N_events = ${oecResult.nClusters} < 3. Per audit §5.2, no decision-grade verdict is permitted on this run alone. Re-run on the full pre-registered bench (≥3 events) before evaluating SHIP / ITERATE / ABANDON.`;
+  } else {
+    verdict = "(map to pre-registered rule)";
+    verdictJustification = `OEC point estimate ${oecPoint.toFixed(2)}, 95% CI ${fmtCi(oecResult, 2)}. Map to the spec's pre-registered ship/iterate/abandon rule before declaring a verdict.`;
+  }
+
+  const descriptiveOnlyBanner = oecResult.descriptiveOnly
+    ? `> **Descriptive only** — N_events = ${oecResult.nClusters} < 3. CI shown is empirical min/max of the per-event statistic, NOT an inferential interval. Per audit §5.2 this run is NOT decision-grade on its own.`
+    : "";
+
+  // ───── Substitute ─────
+  const replacements: Record<string, string> = {
+    WAVE_TITLE: `Run ${result.runId}`,
+    SPEC_PATH: "(supply via the wave spec — not stored in raw-data.json)",
+    RUN_ID: result.runId,
+    WAVE_LABEL: result.manifest.sequenceId ?? "(non-sequence run)",
+    PRE_REGISTRATION_BLOCK: preRegStub,
+    REPRODUCIBILITY_RECEIPT: renderReproducibilityReceiptForTemplate(result),
+    OEC_NAME: "fabrication_risk count",
+    OEC_POINT: oecPoint.toFixed(2),
+    OEC_CI: fmtCi(oecResult, 2),
+    OEC_N_EVENTS: fmtNEvents(oecResult),
+    OEC_ESTIMAND: oecResult.estimand,
+    OEC_VERDICT: verdict,
+    OEC_DESCRIPTIVE_ONLY_BANNER: descriptiveOnlyBanner,
+    SECONDARY_METRICS_TABLE: secondaryRows.join("\n"),
+    TWO_BASELINE_BLOCK: twoBaselineBlock,
+    TIER2_INTER_RATER_BLOCK: tier2Block,
+    EFFECT_SIZES_BLOCK: effectSizesBlock,
+    VERDICT: verdict,
+    VERDICT_JUSTIFICATION: verdictJustification,
+  };
+
+  for (const [key, value] of Object.entries(replacements)) {
+    template = template.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+  }
+  return template;
+}
+
 // ─── CLI ──────────────────────────────────────────────────────
 
 function loadRunResult(dir: string): RunResult {
@@ -506,17 +793,74 @@ function loadRunResult(dir: string): RunResult {
   return JSON.parse(readFileSync(rawPath, "utf-8")) as RunResult;
 }
 
+/**
+ * Pull a single `--flag value` argument out of an argv slice. Returns
+ * `undefined` when the flag is absent. Throws when the flag appears at the
+ * end of argv with no value following.
+ */
+function popFlagValue(args: string[], flag: string): string | undefined {
+  const idx = args.indexOf(flag);
+  if (idx < 0) return undefined;
+  const value = args[idx + 1];
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${flag} requires a value`);
+  }
+  return value;
+}
+
 function main(): void {
   const args = process.argv.slice(2);
 
   if (args.length === 0 || args[0] === "--help") {
     console.log(`Usage:`);
-    console.log(`  poc:analyze <runDir>                 Single run deep-dive`);
-    console.log(`  poc:analyze <runDirA> --vs <runDirB>  A/B delta report`);
+    console.log(`  poc:analyze <runDir>                                  Single run deep-dive`);
+    console.log(`  poc:analyze <runDirA> --vs <runDirB>                   A/B delta report`);
+    console.log(`  poc:analyze <runDir> --writeup [--out <path>]          Wave M writeup template auto-fill`);
+    console.log(`                       [--historical <runDir>]           Historical baseline for two-baseline rule`);
+    console.log(`                       [--fresh-rerun <runDir>]          Freshly-rerun baseline (audit §4.4.4)`);
     process.exit(0);
   }
 
   const vsIndex = args.indexOf("--vs");
+  const writeupIndex = args.indexOf("--writeup");
+
+  if (writeupIndex >= 0) {
+    // ─── Wave M writeup mode ───
+    const dirArg = args[0];
+    if (!dirArg || dirArg.startsWith("--")) {
+      console.error("ERROR: --writeup requires a primary run directory as the first positional arg");
+      process.exit(1);
+    }
+    const runDir = resolve(dirArg);
+    console.log(`[analyze] Loading ${runDir}/raw-data.json (writeup mode)...`);
+    const result = loadRunResult(runDir);
+
+    let historicalDir: string | undefined;
+    let freshRerunDir: string | undefined;
+    let outPath: string | undefined;
+    try {
+      const histRaw = popFlagValue(args, "--historical");
+      const freshRaw = popFlagValue(args, "--fresh-rerun");
+      const outRaw = popFlagValue(args, "--out");
+      historicalDir = histRaw ? resolve(histRaw) : undefined;
+      freshRerunDir = freshRaw ? resolve(freshRaw) : undefined;
+      outPath = outRaw ? resolve(outRaw) : undefined;
+    } catch (err) {
+      console.error(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+
+    const writeup = renderWriteup(result, {
+      runDir,
+      historicalDir,
+      freshRerunDir,
+    });
+
+    const finalOut = outPath ?? join(runDir, "writeup.md");
+    writeFileSync(finalOut, writeup);
+    console.log(`[analyze] Writeup written: ${finalOut}`);
+    return;
+  }
 
   if (vsIndex >= 0) {
     // A/B delta mode

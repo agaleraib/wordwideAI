@@ -47,7 +47,13 @@ export interface ConformanceResult {
 // Dedicated conformance prompt (fix #1 — no more source=translation)
 // ───────────────────────────────────────────────────────────────────
 
-const CONFORMANCE_SYSTEM_PROMPT = `You are a brand voice enforcement specialist for financial content.
+/**
+ * Conformance specialist system prompt. Exported so the Wave M reproducibility
+ * receipt (audit §5.1) can capture its SHA-256 hash in
+ * `RunManifest.reproducibility.promptVersions.conformance` — bytes-equivalent
+ * checks on this prompt are the only way to detect silent edits between waves.
+ */
+export const CONFORMANCE_SYSTEM_PROMPT = `You are a brand voice enforcement specialist for financial content.
 
 You receive a draft article and a target brand profile. Your job is to rewrite the article so it sounds like it was written BY that brand, FOR that brand's audience. You are adjusting voice and weaving in brand context, while preserving all facts.
 
