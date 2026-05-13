@@ -86,3 +86,22 @@ Tracked in Second Brain (project: WordwideAI). 4 active workstreams:
 
 ## Legacy Python Prototype
 The `finflow/` directory contains the original Python prototype. The translation-engine portions (~3,200 lines: translation_engine, scoring, quality_arbiter, 4 specialists, profiles, base) have been deleted after migration. The remaining files (~2,400 lines: content_pipeline, FA/TA/compliance agents, report/chart generators, Telegram HITL, instrument catalog, data fetchers) are preserved as reference for the workstream-C TS rebuild and are **not the active codebase**.
+
+## Memory
+
+FinFlow / wordwideAI inherits the user-global shared memory root at `~/.claude/memory/`. This is **operator/assistant memory** — separate from any runtime data the platform itself stores. The shared root is filesystem-direct (no MCP, no embeddings) and contains six entities:
+
+- `~/.claude/memory/USER.md` — operator profile, ≤1KB, human-written only.
+- `~/.claude/memory/FEEDBACK.md` — validated-pattern index, ≤5KB hard cap, `/memory-prune` writes + humans may append.
+- `~/.claude/memory/REFERENCES.md` — external resource pointers (URLs, doc locations, install commands), ≤2KB, human-written.
+- `~/.claude/memory/PROJECTS.md` — registry of repos + cowork projects (one row per), ≤4KB, human-written. wordwideAI is registered there.
+- `~/.claude/memory/archive/` — resolved or stale entries, unlimited size but **never auto-loaded**.
+- `~/.claude/memory/feedback/` — per-pattern detail files referenced from FEEDBACK.md; the dir is never auto-loaded as a whole, only the FEEDBACK.md index is.
+
+Caps and line budgets are conventions, not blocking hooks: `~/.claude/memory/FEEDBACK.md` MUST stay ≤5KB hard cap, and every line in `~/.claude/memory/*.md` (excluding `archive/`) MUST stay ≤150 chars. `/memory-prune` (a claude-harness skill, globally available via `~/.claude/skills/`) writes FEEDBACK.md; humans may append. `USER.md`, `REFERENCES.md`, and `PROJECTS.md` are human-written only.
+
+Promotion from per-tool auto-memory (Claude Code's per-cwd dir at `~/.claude/projects/<encoded-cwd>/memory/`) into the shared root is **move + frontmatter stamp, not copy**. When an insight reproduced in a per-cwd dir generalizes across projects, promotion to `~/.claude/memory/feedback/<slug>.md` carries a frontmatter `originCwd:` preserving the provenance link. No auto-promotion hook exists — operator triage required.
+
+`~/.claude/memory/archive/` is **never auto-loaded** by any tool. Append-only audit trail for pruned entries. Adapters MUST NOT pull `archive/` contents into a session context window.
+
+Domain glossaries that a wordwideAI subsystem develops (e.g. translation-engine internals, content pipeline, publisher adapters) belong in a `CONTEXT.md` at the subsystem root — short one-sentence definitions, an `_Avoid_:` alias list, ≤5KB before splitting. CLAUDE.md is not the format spec.
